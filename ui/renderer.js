@@ -196,7 +196,6 @@ export function renderBench(containerId, state, p) {
     const canActivate = state.phase === 'main' && isActiveP && !unit.exhausted
       && canAfford(state, cost)
       && !(unit.id === 'rouge' && (state.rougeUsedThisTurn ?? [false,false])[p])
-      && !isOmegaLocked;
     const isTarget    = isAttack && !isActiveP;
     const icon        = passiveIcon(unit);
 
