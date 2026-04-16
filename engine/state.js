@@ -64,6 +64,7 @@ export function createInitialState(deckIds0, deckIds1) {
     energySpentThisTurn:    [0, 0], // Vector active: total energy spent this turn
     leaderDamageTakenThisTurn: [false, false], // legacy; replaced by per-event draw
     rougeUsedThisTurn:      [false, false], // Rouge active: once per turn despite no exhaust
+    leaderUsedThisTurn:     [false, false], // Leader active: once per turn
 
     // ── Omega: persistent exhaust ─────────────────────────────────────────
     // Maps unit uid → the turn number on which the lock expires (unlocks at

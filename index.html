@@ -8,6 +8,7 @@
   <style>
     .top-nav {
       position: fixed; top: 6px; right: 8px; z-index: 50;
+      display: flex; gap: 6px;
     }
     .top-nav a {
       font-family: var(--font-mono);
@@ -23,7 +24,10 @@
   </style>
 </head>
 <body>
-<nav class="top-nav"><a href="deck-builder.html" onclick="return confirm('This will end the current game and clear both decks. Continue?')">🃏 Deck Builder</a></nav>
+<nav class="top-nav">
+  <a href="how-to-play.html">How to Play</a>
+  <a href="deck-builder.html" onclick="return confirm('This will end the current game and clear both decks. Continue?')">Deck Builder</a>
+</nav>
 
 <!-- ============================================================
      BOARD LAYOUT

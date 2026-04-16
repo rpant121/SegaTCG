@@ -24,6 +24,7 @@ export function startTurn(state, log, emit) {
   state.energySpentThisTurn[p]        = 0;
   state.leaderDamageTakenThisTurn[p]  = false;
   if (state.rougeUsedThisTurn) state.rougeUsedThisTurn[p] = false;
+  if (state.leaderUsedThisTurn) state.leaderUsedThisTurn[p] = false;
 
   // Omega: unlock any units whose persistent exhaust expires this turn
   _resolveOmegaUnlocks(state, p, log);
@@ -190,6 +191,7 @@ export function enterEndPhase(state, log, emit) {
   state.energySpentThisTurn[p]       = 0;
   state.leaderDamageTakenThisTurn[p] = false;
   state.rougeUsedThisTurn[p]         = false;
+  state.leaderUsedThisTurn[p]        = false;
 
   emit('phase_changed', state.phase);
   emit('request_pass', opponent(p) + 1);

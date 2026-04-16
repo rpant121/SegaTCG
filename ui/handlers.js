@@ -180,7 +180,8 @@ function attachBoardHandlers() {
   const ownLeaderDiv = renderLeader(`p${p + 1}-leader-zone`, state, p);
   if (state.phase === 'main') {
     const canUse = canAfford(state, state.players[p].leader.activeCost)
-                   && state.players[p].hand.length > 0;
+                   && state.players[p].hand.length > 0
+                   && !(state.leaderUsedThisTurn ?? [false,false])[p];
     ownLeaderDiv.style.cursor = canUse ? 'pointer' : 'default';
     if (canUse) ownLeaderDiv.onclick = () => openSonicModal();
     ownLeaderDiv.addEventListener('contextmenu', (e) => {

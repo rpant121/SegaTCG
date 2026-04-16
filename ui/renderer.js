@@ -149,7 +149,8 @@ export function renderLeader(containerId, state, p) {
   const isTarget = state.phase === 'attack' && p !== ap;
   const canUse   = state.phase === 'main' && p === ap
                    && canAfford(state, leader.activeCost)
-                   && state.players[p].hand.length > 0;
+                   && state.players[p].hand.length > 0
+                   && !(state.leaderUsedThisTurn ?? [false,false])[p];
 
   const div = mk('div', [
     'leader-card',
@@ -456,7 +457,8 @@ function renderActionButtons(state) {
   if (state.phase === 'main') {
     btnLeader.style.display = '';
     btnLeader.disabled = !(canAfford(state, state.players[p].leader.activeCost)
-                           && state.players[p].hand.length > 0);
+                           && state.players[p].hand.length > 0
+                           && !(state.leaderUsedThisTurn ?? [false,false])[p]);
     btnEnd.textContent = 'Start Attack →';
     btnEnd.disabled    = false;
   } else if (state.phase === 'attack') {

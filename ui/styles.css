@@ -415,7 +415,7 @@ body {
 }
 
 .energy-display { display: flex; align-items: center; gap: 5px; }
-.energy-pips    { display: flex; gap: 3px; flex-wrap: wrap; max-width: 120px; }
+.energy-pips    { display: flex; gap: 3px; flex-wrap: nowrap; }
 .pip            { width: 13px; height: 13px; border-radius: 50%; border: 1px solid var(--gold-dim); background: #1a1a00; transition: background 0.15s; }
 .pip.filled     { background: var(--gold); box-shadow: 0 0 6px #FFD70066; }
 .energy-text    { font-size: 13px; color: var(--gold); font-family: var(--font-display); white-space: nowrap; }

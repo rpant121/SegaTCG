@@ -542,7 +542,9 @@ export function sonicActive(state, handIdx, log) {
   const leader = state.players[p].leader;
   if (state.players[p].hand.length === 0) { log(`❌ Sonic: hand is empty`, 'damage'); return false; }
   if (!canAfford(state, leader.activeCost)) { log(`❌ Not enough energy for Sonic's active`, 'damage'); return false; }
+  if (state.leaderUsedThisTurn[p]) { log(`❌ Sonic: active already used this turn`, 'damage'); return false; }
   spendEnergy(state, leader.activeCost);
+  state.leaderUsedThisTurn[p] = true;
   const discarded = state.players[p].hand.splice(handIdx, 1)[0];
   state.players[p].discard.push(discarded);
   log(`⚡ Sonic discards ${discarded.name} → draws 2`, 'play');
