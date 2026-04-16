@@ -26,12 +26,9 @@ export function startTurn(state, log, emit) {
   if (state.rougeUsedThisTurn) state.rougeUsedThisTurn[p] = false;
   if (state.leaderUsedThisTurn) state.leaderUsedThisTurn[p] = false;
 
-  // Omega: unlock any units whose persistent exhaust expires this turn
-  _resolveOmegaUnlocks(state, p, log);
-
   // Recover all exhausted units for the active player (except Omega-locked ones)
   for (const u of state.players[p].bench) {
-    if (u.exhausted && !state.persistentExhaust[p][u.uid]) {
+    if (u.exhausted) {
       u.exhausted = false;
       log(`✅ ${u.name} recovered`, 'phase');
     }
