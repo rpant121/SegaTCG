@@ -118,17 +118,26 @@ body {
   overflow: hidden;
 }
 
-.card:hover         { transform: translateY(-4px); }
-.card.playable      { border-color: var(--green); box-shadow: var(--glow-green); }
-.card.selected      { border-color: var(--gold); box-shadow: var(--glow-gold); transform: translateY(-8px); }
+/* Card backgrounds by type */
+.card.card-type-unit      { background: linear-gradient(160deg, #0d2040, #0a1525); border-color: #2a5080; }
+.card.card-type-equipment { background: linear-gradient(160deg, #1a1a1a, #101010); border-color: #3a3a3a; }
+.card.card-type-stage     { background: linear-gradient(160deg, #0d2a10, #081808); border-color: #1a5020; }
+.card.card-type-genesis   { background: linear-gradient(160deg, #2a0d20, #180810); border-color: #5a1a35; }
+.card.card-type-leader    { background: linear-gradient(160deg, #2a1a00, #181000); border-color: #5a3a00; }
 
+/* Face-down always overrides type colouring */
 .card.face-down {
   background: repeating-linear-gradient(
     45deg, #0a1525, #0a1525 4px, #0d1d30 4px, #0d1d30 8px
-  );
+  ) !important;
+  border-color: var(--card-border) !important;
   cursor: default;
 }
 .card.face-down:hover { transform: none; }
+
+.card:hover    { transform: translateY(-4px); }
+.card.playable { border-color: var(--green); box-shadow: var(--glow-green); }
+.card.selected { border-color: var(--gold);  box-shadow: var(--glow-gold); transform: translateY(-8px); }
 
 .card-type-badge {
   font-family: var(--font-display);
@@ -222,6 +231,9 @@ body {
   flex-shrink: 0;
   font-size: 8px;
 }
+
+/* Bench unit backgrounds — Units are always Unit type, but kept consistent */
+.bench-unit.card-type-unit { background: linear-gradient(160deg, #0d2040, #0a1525); border-color: #2a5080; }
 .bench-unit.exhausted          { opacity: 0.5; filter: grayscale(0.6); }
 .bench-unit.exhausted::after   { content: 'EXHAUSTED'; position: absolute; bottom: 1px; left: 0; right: 0; text-align: center; font-size: 6px; color: var(--red); background: #00000088; }
 .bench-unit.can-activate       { border-color: var(--sonic-bright); box-shadow: var(--glow-blue); }

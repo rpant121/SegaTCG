@@ -4,7 +4,7 @@
  * No DOM. No side-effects beyond returning new/mutated state objects.
  */
 
-import { LEADER_DATA, makeDeck } from './cards.js';
+import { LEADER_DATA, UNIT_DATA, EQUIP_DATA } from './cards.js';
 
 let _counter = 0;
 export function uid() { return `c${++_counter}`; }
@@ -19,9 +19,24 @@ export function shuffle(arr) {
 
 export const opponent = (p) => (p === 0 ? 1 : 0);
 
-export function createInitialState() {
-  const deck0 = shuffle(makeDeck(uid));
-  const deck1 = shuffle(makeDeck(uid));
+/**
+ * Build a full card object array from a list of card IDs.
+ */
+function idsToCards(idList) {
+  return idList.map(id => {
+    const data = UNIT_DATA[id] ?? Object.values(EQUIP_DATA).find(c => c.id === id);
+    if (!data) throw new Error(`Unknown card id: ${id}`);
+    return { ...data, uid: uid() };
+  });
+}
+
+/**
+ * @param {string[]} deckIds0  - ordered card id list for Player 1 (30 cards)
+ * @param {string[]} deckIds1  - ordered card id list for Player 2 (30 cards)
+ */
+export function createInitialState(deckIds0, deckIds1) {
+  const deck0 = shuffle(idsToCards(deckIds0));
+  const deck1 = shuffle(idsToCards(deckIds1));
   const hand0 = deck0.splice(0, 6);
   const hand1 = deck1.splice(0, 6);
   const firstPlayer = Math.random() < 0.5 ? 0 : 1;

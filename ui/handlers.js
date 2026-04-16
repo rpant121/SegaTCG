@@ -205,7 +205,7 @@ function attachBenchDropZone(benchId, p) {
 
 function buildGhost(card) {
   const el = document.createElement('div');
-  el.className = 'card drag-ghost';
+  el.className = 'card card-type-unit drag-ghost';
   el.style.cssText = `position:fixed;pointer-events:none;z-index:1000;opacity:0.85;
     transform:rotate(4deg) scale(1.05);
     box-shadow:0 8px 32px #000a,0 0 16px var(--sonic-blue);

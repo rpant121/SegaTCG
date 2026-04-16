@@ -221,6 +221,7 @@ export const EQUIP_DATA = {
 /**
  * Build a legal 30-card deck for the default game.
  * Players will customise this via the deck builder.
+ * @deprecated — use deck builder instead; kept for reference.
  */
 export function makeDeck(uidFn) {
   const cards = [];

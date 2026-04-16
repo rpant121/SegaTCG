@@ -166,6 +166,7 @@ export function renderBench(containerId, state, p) {
 
     const div = mk('div', [
       'bench-unit',
+      'card-type-unit',
       unit.exhausted   ? 'exhausted'    : '',
       canActivate      ? 'can-activate' : '',
       isTarget         ? 'attack-target': '',
@@ -232,7 +233,12 @@ export function renderHand(containerId, state, p) {
 // Card DOM element builder
 // ---------------------------------------------------------------------------
 export function buildCardEl(card, playable = false) {
-  const div = mk('div', 'card' + (playable ? ' playable' : ''));
+  const typeKey = {
+    Unit: 'unit', Stage: 'stage',
+    Equipment: 'equipment', Genesis: 'genesis', Leader: 'leader',
+  }[card.type] ?? 'equipment';
+
+  const div = mk('div', ['card', `card-type-${typeKey}`, playable ? 'playable' : ''].filter(Boolean).join(' '));
 
   const typeClass = {
     Unit: 'type-unit', Stage: 'type-stage',
