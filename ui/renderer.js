@@ -1,7 +1,6 @@
 /**
  * RENDERER
- * All DOM reads and writes live here.
- * Called after every state change. Never mutates gameState directly.
+ * All DOM reads and writes. Never mutates gameState.
  */
 
 import { calcEffectiveDamage } from '../engine/combat.js';
@@ -9,7 +8,7 @@ import { canAfford, getActiveCost } from '../engine/actions.js';
 import { opponent } from '../engine/state.js';
 
 // ---------------------------------------------------------------------------
-// Emoji / label helpers
+// Constants
 // ---------------------------------------------------------------------------
 const UNIT_EMOJI = {
   tails: '🦊', knuckles: '👊', amy: '🌸', cream: '🐰', big: '🐟',
@@ -17,10 +16,23 @@ const UNIT_EMOJI = {
   charmy: '🐝', espio: '🦎', vector: '🐊', omega: '🤖',
 };
 
+const EQUIP_EMOJI = {
+  ring: '💍', chaos_emerald: '💎', master_emerald: '💚',
+  green_hill_zone: '🌿', elemental_shield: '🛡',
+  heat_barrier: '🔥', dragons_eye: '👁', power_glove: '🥊',
+  midnight_carnival: '🎪', polaris_pact: '🌌',
+  speed_shoes: '👟', extreme_gear: '⚙', radical_highway: '🛣', super_form: '✨',
+};
+
+function cardEmoji(card) {
+  if (card.type === 'Unit' || card.type === 'Leader') return UNIT_EMOJI[card.id] ?? '⭐';
+  return EQUIP_EMOJI[card.id] ?? '🃏';
+}
+
 function passiveIcon(unit) {
   const t = unit.passive?.type;
   if (t === 'attack_boost')    return `+${unit.passive.amount}⚔`;
-  if (t === 'damage_reduction')return `-${unit.passive.amount}🛡`;
+  if (t === 'damage_reduction') return `-${unit.passive.amount}🛡`;
   if (t === 'draw_end')        return '📄end';
   if (t === 'big_scry')        return '👁top';
   return '';
@@ -28,16 +40,13 @@ function passiveIcon(unit) {
 
 const PHASE_LABELS = {
   big_scry: 'BIG SCRY', draw: 'DRAW', energy: 'ENERGY',
-  main: 'MAIN PHASE', attack: 'ATTACK PHASE', end: 'END PHASE',
+  main: 'MAIN PHASE', attack: 'ATTACK', end: 'END PHASE',
 };
 
 // ---------------------------------------------------------------------------
-// Main render entry point — call after every state mutation
+// Main render
 // ---------------------------------------------------------------------------
 export function render(state) {
-  const p   = state.activePlayer;
-  const opp = opponent(p);
-
   renderHUD(state);
   renderLeader('p1-leader-zone', state, 0);
   renderLeader('p2-leader-zone', state, 1);
@@ -52,70 +61,91 @@ export function render(state) {
 }
 
 // ---------------------------------------------------------------------------
-// HUD (phase, turn, energy, stage, deck counts)
+// HUD
 // ---------------------------------------------------------------------------
 function renderHUD(state) {
   const p = state.activePlayer;
 
   setText('phase-display', PHASE_LABELS[state.phase] ?? state.phase);
-  setText('turn-num', state.turn);
+  setText('turn-num', `Turn ${state.turn}`);
 
-  // Energy pips
+  // Energy pips — max 10 shown; fill ratio represents current/max
   const pipsEl = q('energy-pips');
   pipsEl.innerHTML = '';
-  for (let i = 0; i < state.energyMax[p]; i++) {
-    const pip = mk('div', 'pip' + (i < state.energy[p] ? ' filled' : ''));
+  const PIP_COUNT = 10;
+  const filled = state.energyMax[p] > 0
+    ? Math.round((state.energy[p] / state.energyMax[p]) * PIP_COUNT)
+    : 0;
+  for (let i = 0; i < PIP_COUNT; i++) {
+    const pip = mk('div', 'pip' + (i < filled ? ' filled' : ''));
     pipsEl.appendChild(pip);
   }
   setText('energy-text', `${state.energy[p]}/${state.energyMax[p]}`);
 
-  // Stage zone
+  // Stage
   const stageEl = q('stage-zone');
   if (state.activeStage) {
     stageEl.className = 'stage-zone active';
     stageEl.textContent = state.activeStage.name;
+    stageEl.style.cursor = 'pointer';
+    stageEl.title = 'Click for details';
+    stageEl.onclick = () => openCardInspect(state.activeStage, null);
   } else {
     stageEl.className = 'stage-zone';
     stageEl.textContent = 'No Stage';
+    stageEl.style.cursor = 'default';
+    stageEl.onclick = null;
   }
 
-  // Deck / discard for active player
   setText('deck-count',    state.players[p].deck.length);
   setText('discard-count', state.players[p].discard.length);
+  const discardEl = q('discard-count');
+  if (discardEl) {
+    discardEl.style.cursor = 'pointer';
+    discardEl.title = 'Click to view discard pile';
+    discardEl.onclick = () => openDiscardViewer(state, p);
+  }
 }
 
-// ---------------------------------------------------------------------------
-// Player labels (highlight active)
-// ---------------------------------------------------------------------------
 function renderPlayerLabels(state) {
   const p = state.activePlayer;
   q('p1-label').className = 'player-label' + (p === 0 ? ' active' : '');
   q('p2-label').className = 'player-label' + (p === 1 ? ' active' : '');
 }
 
-// ---------------------------------------------------------------------------
-// Info row (deck, discard, status icons per player)
-// ---------------------------------------------------------------------------
 function renderInfoRow(containerId, state, p) {
   const el = q(containerId);
+  const flags = [
+    state.shieldActive[p]                                        ? '<span title="Shielded">🛡</span>' : '',
+    state.masterEmeraldActive && p === state.activePlayer        ? '<span style="color:#e088dd;font-size:8px;" title="Master Emerald">ME★</span>' : '',
+    state.chaosEmeraldBuff[p] > 0 ? `<span style="color:var(--gold);font-size:8px;" title="Chaos Emerald">+${state.chaosEmeraldBuff[p]}⚔</span>` : '',
+    state.powerGloveBuff[p]   > 0 ? `<span style="color:var(--red);font-size:8px;" title="Power Glove">+${state.powerGloveBuff[p]}⚔</span>` : '',
+    (state.rougeUsedThisTurn ?? [false,false])[p] ? '<span style="color:#6677aa;font-size:8px;" title="Rouge used">🦇✓</span>' : '',
+  ].filter(Boolean).join(' ');
+
   el.innerHTML = `
-    <span class="deck-count"    style="font-size:9px;padding:2px 6px;">${state.players[p].deck.length}📚</span>
-    <span class="discard-count" style="font-size:9px;padding:2px 6px;">${state.players[p].discard.length}🗑</span>
-    ${state.shieldActive[p] ? '<span style="color:#44aaff;font-size:11px;" title="Shielded">🛡</span>' : ''}
-    ${state.masterEmeraldActive && p === state.activePlayer ? '<span style="color:#da7aff;font-size:9px;" title="Master Emerald active">ME★</span>' : ''}
-    ${state.chaosEmeraldBuff[p] > 0 ? `<span style="color:var(--gold);font-size:9px;" title="Chaos Emerald buff">+${state.chaosEmeraldBuff[p]}⚔</span>` : ''}
+    <span class="deck-count" style="font-size:9px;padding:2px 5px;">${state.players[p].deck.length}📚</span>
+    <span class="discard-count info-discard" style="font-size:9px;padding:2px 5px;cursor:pointer;" title="Click to view discard pile">${state.players[p].discard.length}🗑</span>
+    ${flags}
   `;
+
+  // Wire click to open discard viewer — capture p in closure
+  const discardBtn = el.querySelector('.info-discard');
+  if (discardBtn) {
+    discardBtn.onclick = () => openDiscardViewer(state, p);
+  }
 }
 
 // ---------------------------------------------------------------------------
-// Leader card
+// Leader card — now horizontal layout
 // ---------------------------------------------------------------------------
 export function renderLeader(containerId, state, p) {
-  const el       = q(containerId);
-  const leader   = state.players[p].leader;
-  const ap       = state.activePlayer;
-  const hpPct    = Math.max(0, (leader.currentHp / leader.hp) * 100);
-  const effDmg   = calcEffectiveDamage(state, p);
+  const el     = q(containerId);
+  const leader = state.players[p].leader;
+  const ap     = state.activePlayer;
+  const hpPct  = Math.max(0, (leader.currentHp / leader.hp) * 100);
+  const effDmg = calcEffectiveDamage(state, p);
+
   const isTarget = state.phase === 'attack' && p !== ap;
   const canUse   = state.phase === 'main' && p === ap
                    && canAfford(state, leader.activeCost)
@@ -123,26 +153,29 @@ export function renderLeader(containerId, state, p) {
 
   const div = mk('div', [
     'leader-card',
-    isTarget  ? 'attack-target' : '',
-    state.shieldActive[p] ? 'shielded' : '',
-    canUse    ? 'active-avail' : '',
+    isTarget              ? 'attack-target' : '',
+    state.shieldActive[p] ? 'shielded'      : '',
+    canUse                ? 'active-avail'  : '',
   ].filter(Boolean).join(' '));
 
   div.innerHTML = `
-    <div class="leader-name">SONIC</div>
-    <div style="font-size:18px;margin:2px 0;">🦔</div>
-    <div class="leader-hp-bar"><div class="leader-hp-fill" style="width:${hpPct}%"></div></div>
-    <div class="leader-hp-text">${leader.currentHp}/${leader.hp}</div>
-    <div class="leader-dmg-text">⚔${effDmg}</div>
+    <div class="leader-emoji">🦔</div>
+    <div class="leader-info">
+      <div class="leader-name">SONIC</div>
+      <div class="leader-hp-bar"><div class="leader-hp-fill" style="width:${hpPct}%"></div></div>
+      <div class="leader-stats">
+        <span class="leader-hp-text">${leader.currentHp}/${leader.hp}</span>
+        <span class="leader-dmg-text">⚔${effDmg}</span>
+      </div>
+    </div>
   `;
 
   addTooltip(div, leader.name,
-    `HP: ${leader.currentHp}/${leader.hp}\nDamage: ${effDmg}\nActive (${leader.activeCost}⚡): ${leader.activeDesc}`);
+    `HP: ${leader.currentHp}/${leader.hp} · Damage: ${effDmg}\nActive (${leader.activeCost}⚡): ${leader.activeDesc}`);
+  addContextMenu(div, leader);
 
   el.innerHTML = '';
   el.appendChild(div);
-
-  // Return div so the event-handler module can attach click listeners
   return div;
 }
 
@@ -150,33 +183,37 @@ export function renderLeader(containerId, state, p) {
 // Bench
 // ---------------------------------------------------------------------------
 export function renderBench(containerId, state, p) {
-  const el = q(containerId);
-  el.innerHTML = '';
-  const ap          = state.activePlayer;
-  const isActiveP   = p === ap;
-  const isAttack    = state.phase === 'attack';
-
-  const unitDivs = [];
+  const el       = q(containerId);
+  el.innerHTML   = '';
+  const ap       = state.activePlayer;
+  const isActiveP = p === ap;
+  const isAttack  = state.phase === 'attack';
+  const unitDivs  = [];
 
   state.players[p].bench.forEach((unit, idx) => {
-    const hpPct      = Math.max(0, (unit.currentHp / unit.hp) * 100);
-    const cost       = getActiveCost(state, unit);
-    const canActivate = state.phase === 'main' && isActiveP && !unit.exhausted && canAfford(state, cost);
-    const isTarget   = isAttack && !isActiveP;
+    const hpPct       = Math.max(0, (unit.currentHp / unit.hp) * 100);
+    const cost        = getActiveCost(state, unit);
+    const isOmegaLocked = !!(state.persistentExhaust?.[p]?.[unit.uid]);
+    const canActivate = state.phase === 'main' && isActiveP && !unit.exhausted
+      && canAfford(state, cost)
+      && !(unit.id === 'rouge' && (state.rougeUsedThisTurn ?? [false,false])[p])
+      && !isOmegaLocked;
+    const isTarget    = isAttack && !isActiveP;
+    const icon        = passiveIcon(unit);
 
     const div = mk('div', [
-      'bench-unit',
-      'card-type-unit',
-      unit.exhausted   ? 'exhausted'    : '',
-      canActivate      ? 'can-activate' : '',
-      isTarget         ? 'attack-target': '',
+      'bench-unit', 'card-type-unit',
+      (unit.exhausted && !isOmegaLocked) ? 'exhausted'    : '',
+      isOmegaLocked                      ? 'omega-locked' : '',
+      canActivate                        ? 'can-activate' : '',
+      isTarget                           ? 'attack-target': '',
     ].filter(Boolean).join(' '));
 
     div.innerHTML = `
-      <div style="font-size:8px;font-weight:700;color:var(--sonic-bright);">${unit.name}</div>
-      <div style="font-size:9px;">${UNIT_EMOJI[unit.id] ?? '⭐'}</div>
-      <div style="font-size:7px;color:var(--grey);">${unit.currentHp}/${unit.hp}HP</div>
-      ${!unit.exhausted ? `<div style="font-size:6px;color:#7aaabb;">${passiveIcon(unit)}</div>` : ''}
+      <div class="bench-name">${unit.name}</div>
+      <div class="bench-emoji">${UNIT_EMOJI[unit.id] ?? '⭐'}</div>
+      <div class="bench-hp">${unit.currentHp}/${unit.hp}HP</div>
+      ${icon && !unit.exhausted && !isOmegaLocked ? `<div class="bench-passive">${icon}</div>` : ''}
       <div class="unit-hp-bar"><div class="unit-hp-fill" style="width:${hpPct}%"></div></div>
     `;
 
@@ -187,14 +224,13 @@ export function renderBench(containerId, state, p) {
     unitDivs.push({ div, idx });
   });
 
-  // Empty bench slots
   for (let i = state.players[p].bench.length; i < 3; i++) {
     const slot = mk('div', 'bench-slot');
     slot.textContent = 'empty';
     el.appendChild(slot);
   }
 
-  return unitDivs; // for event-handler to attach clicks
+  return unitDivs;
 }
 
 // ---------------------------------------------------------------------------
@@ -205,22 +241,17 @@ export function renderHand(containerId, state, p) {
   el.innerHTML  = '';
   const ap      = state.activePlayer;
   const isOwner = p === ap;
-  const isMain  = state.phase === 'main';
-
   const cardEls = [];
 
   if (!isOwner) {
-    // Face-down for opponent
-    state.players[p].hand.forEach(() => {
-      el.appendChild(mk('div', 'card face-down'));
-    });
+    state.players[p].hand.forEach(() => el.appendChild(mk('div', 'card face-down')));
     return cardEls;
   }
 
   state.players[p].hand.forEach((card, idx) => {
-    const cost      = card.cost ?? 0;
-    const playable  = isMain && canAfford(state, cost);
-    const div       = buildCardEl(card, playable);
+    const cost     = card.cost ?? 0;
+    const playable = state.phase === 'main' && canAfford(state, cost);
+    const div      = buildCardEl(card, playable);
     addTooltip(div, card.name, cardTooltip(card));
     el.appendChild(div);
     cardEls.push({ div, idx, card });
@@ -230,7 +261,7 @@ export function renderHand(containerId, state, p) {
 }
 
 // ---------------------------------------------------------------------------
-// Card DOM element builder
+// Card element builder
 // ---------------------------------------------------------------------------
 export function buildCardEl(card, playable = false) {
   const typeKey = {
@@ -238,26 +269,184 @@ export function buildCardEl(card, playable = false) {
     Equipment: 'equipment', Genesis: 'genesis', Leader: 'leader',
   }[card.type] ?? 'equipment';
 
-  const div = mk('div', ['card', `card-type-${typeKey}`, playable ? 'playable' : ''].filter(Boolean).join(' '));
-
   const typeClass = {
     Unit: 'type-unit', Stage: 'type-stage',
     Equipment: 'type-equipment', Genesis: 'type-genesis', Leader: 'type-leader',
   }[card.type] ?? 'type-equipment';
 
+  const div = mk('div', ['card', `card-type-${typeKey}`, playable ? 'playable' : ''].filter(Boolean).join(' '));
   const cost = card.cost ?? 0;
+
   div.innerHTML = `
+    <div class="card-type-strip"></div>
     <div class="card-type-badge ${typeClass}">${card.type.toUpperCase()}</div>
     ${cost > 0 ? `<div class="card-cost">${cost}</div>` : ''}
+    <div class="card-emoji">${cardEmoji(card)}</div>
     <div class="card-name">${card.name}</div>
-    ${card.hp !== undefined ? `<div style="font-size:8px;color:var(--green);">HP:${card.hp}</div>` : ''}
+    ${card.hp !== undefined ? `<div class="card-hp-small">HP ${card.hp}</div>` : ''}
     <div class="card-effect-text">${card.effectDesc ?? card.passiveDesc ?? ''}</div>
   `;
   return div;
 }
 
 // ---------------------------------------------------------------------------
-// Action button state
+// Card Inspect Modal (right-click)
+// ---------------------------------------------------------------------------
+function buildInspectModal(card, onActivate = null) {
+  const typeKey = {
+    Unit: 'unit', Stage: 'stage',
+    Equipment: 'equipment', Genesis: 'genesis', Leader: 'leader',
+  }[card.type] ?? 'equipment';
+
+  const typePillClass = `type-${typeKey}`;
+
+  const modal = document.createElement('div');
+  modal.className = 'card-inspect-modal';
+
+  // ── Header ────────────────────────────────────────────────
+  const cost = card.cost ?? 0;
+  const hdr  = document.createElement('div');
+  hdr.className = `cim-header type-${typeKey}`;
+  hdr.innerHTML = `
+    <div class="cim-art">${cardEmoji(card)}</div>
+    <div class="cim-name">${card.name}</div>
+    <div class="cim-type-row">
+      <div class="cim-type-pill ${typePillClass}">${card.type.toUpperCase()}</div>
+      ${cost > 0 ? `<div class="cim-cost-pill">${cost}⚡</div>` : ''}
+    </div>
+  `;
+  modal.appendChild(hdr);
+
+  // ── Stats bar ─────────────────────────────────────────────
+  const hasStats = card.hp !== undefined || card.damage !== undefined || card.activeCost !== undefined;
+  if (hasStats) {
+    const stats = document.createElement('div');
+    stats.className = 'cim-stats';
+    const parts = [];
+
+    if (card.hp !== undefined) parts.push(
+      `<div class="cim-stat"><div class="cim-stat-label">HP</div><div class="cim-stat-value hp">${card.hp}</div></div>`
+    );
+    if (card.damage !== undefined) parts.push(
+      `<div class="cim-divider"></div>
+       <div class="cim-stat"><div class="cim-stat-label">Damage</div><div class="cim-stat-value dmg">${card.damage}</div></div>`
+    );
+    if (card.activeCost !== undefined && card.type !== 'Leader') parts.push(
+      `<div class="cim-divider"></div>
+       <div class="cim-stat"><div class="cim-stat-label">Active Cost</div><div class="cim-stat-value cost">${card.activeCost}⚡</div></div>`
+    );
+    if (card.currentHp !== undefined) parts.push(
+      `<div class="cim-divider"></div>
+       <div class="cim-stat"><div class="cim-stat-label">Current HP</div><div class="cim-stat-value hp">${card.currentHp}</div></div>`
+    );
+
+    stats.innerHTML = parts.join('');
+    modal.appendChild(stats);
+  }
+
+  // ── Body ──────────────────────────────────────────────────
+  const body = document.createElement('div');
+  body.className = 'cim-body';
+
+  // Passive
+  if (card.passiveDesc && card.passiveDesc !== 'No passive.') {
+    body.innerHTML += `
+      <div>
+        <div class="cim-section-label">Passive Ability</div>
+        <div class="cim-passive-box">
+          <div class="cim-passive-text">${card.passiveDesc}</div>
+        </div>
+      </div>`;
+  }
+
+  // Active / Effect
+  if (card.activeDesc) {
+    const activeSection = document.createElement('div');
+    activeSection.innerHTML = `
+      <div class="cim-section-label">Active Ability</div>
+      <div class="cim-active-box">
+        <div class="cim-active-cost">${card.activeCost ?? 0}⚡ COST</div>
+        <div class="cim-active-text">${card.activeDesc}</div>
+      </div>`;
+
+    if (onActivate) {
+      const isActive = !!card.activeDesc;
+      const useBtn = document.createElement('button');
+      useBtn.style.cssText = `
+        margin-top: 8px; width: 100%; padding: 9px;
+        background: var(--gold); color: #000;
+        border: none; border-radius: 6px;
+        font-family: var(--font-display); font-size: 10px; font-weight: 900;
+        letter-spacing: 1px; cursor: pointer;
+        transition: opacity 0.15s;
+      `;
+      useBtn.textContent = isActive ? '⚡ USE ACTIVE' : '▶ PLAY CARD';
+      useBtn.onmouseenter = () => useBtn.style.opacity = '0.8';
+      useBtn.onmouseleave = () => useBtn.style.opacity = '1';
+      useBtn.onclick = () => {
+        closeOverlay('card-inspect-overlay');
+        onActivate();
+      };
+      activeSection.appendChild(useBtn);
+    }
+
+    body.appendChild(activeSection);
+  } else if (card.effectDesc) {
+    const effectSection = document.createElement('div');
+    effectSection.innerHTML = `
+      <div class="cim-section-label">Effect</div>
+      <div class="cim-effect-box">
+        <div class="cim-effect-text">${card.effectDesc}</div>
+      </div>`;
+    if (onActivate) {
+      const playBtn = document.createElement('button');
+      playBtn.style.cssText = `
+        margin-top: 8px; width: 100%; padding: 9px;
+        background: var(--green); color: #000;
+        border: none; border-radius: 6px;
+        font-family: var(--font-display); font-size: 10px; font-weight: 900;
+        letter-spacing: 1px; cursor: pointer; transition: opacity 0.15s;
+      `;
+      playBtn.textContent = '▶ PLAY CARD';
+      playBtn.onmouseenter = () => playBtn.style.opacity = '0.8';
+      playBtn.onmouseleave = () => playBtn.style.opacity = '1';
+      playBtn.onclick = () => { closeOverlay('card-inspect-overlay'); onActivate(); };
+      effectSection.appendChild(playBtn);
+    }
+    body.appendChild(effectSection);
+  }
+
+  modal.appendChild(body);
+
+  // ── Close ─────────────────────────────────────────────────
+  const close = document.createElement('div');
+  close.className = 'cim-close';
+  close.textContent = 'CLOSE';
+  close.onclick = () => closeOverlay('card-inspect-overlay');
+  modal.appendChild(close);
+
+  return modal;
+}
+
+export function openCardInspect(card, onActivate = null) {
+  const overlay = q('card-inspect-overlay');
+  overlay.innerHTML = '';
+  overlay.appendChild(buildInspectModal(card, onActivate));
+  overlay.classList.add('active');
+  overlay.onclick = (e) => {
+    if (e.target === overlay) closeOverlay('card-inspect-overlay');
+  };
+}
+
+export function addContextMenu(el, card, onActivate = null) {
+  el.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    openCardInspect(card, onActivate);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Action buttons
 // ---------------------------------------------------------------------------
 function renderActionButtons(state) {
   const p         = state.activePlayer;
@@ -281,16 +470,16 @@ function renderActionButtons(state) {
 }
 
 // ---------------------------------------------------------------------------
-// Overlay helpers
+// Overlays
 // ---------------------------------------------------------------------------
-export function showOverlay(id) { q(id).classList.add('active'); }
-export function closeOverlay(id){ q(id).classList.remove('active'); }
+export function showOverlay(id)  { q(id).classList.add('active');    }
+export function closeOverlay(id) { q(id).classList.remove('active'); }
 
 export function showScryModal(card) {
   q('scry-card-display').innerHTML = `
     <strong style="color:var(--sonic-bright);font-family:'Orbitron',sans-serif;">${card.name}</strong><br>
     <span style="color:var(--grey);font-size:9px;">${card.type}</span><br>
-    <span style="font-size:9px;">${card.effectDesc ?? card.passiveDesc ?? card.activeDesc ?? ''}</span>
+    <span style="font-size:10px;">${card.effectDesc ?? card.passiveDesc ?? card.activeDesc ?? ''}</span>
   `;
   showOverlay('scry-overlay');
 }
@@ -306,6 +495,38 @@ export function showWinModal(loserP, turn) {
   setText('win-title', `PLAYER ${winner} WINS!`);
   setText('win-msg',   `Player ${loserP + 1}'s Leader was defeated on Turn ${turn}.`);
   showOverlay('win-overlay');
+}
+
+// ---------------------------------------------------------------------------
+// Discard pile viewer
+// ---------------------------------------------------------------------------
+export function openDiscardViewer(state, p) {
+  const discard = state.players[p].discard;
+  document.getElementById('discard-title').textContent =
+    `PLAYER ${p + 1} DISCARD PILE`;
+  document.getElementById('discard-subtitle').textContent =
+    discard.length === 0
+      ? 'The discard pile is empty.'
+      : `${discard.length} card${discard.length !== 1 ? 's' : ''} — right-click any card for details`;
+
+  const container = document.getElementById('discard-cards');
+  container.innerHTML = '';
+
+  if (discard.length === 0) {
+    container.innerHTML = '<div style="color:var(--grey);font-size:11px;padding:20px;">Empty</div>';
+  } else {
+    // Show most-recently-discarded first
+    [...discard].reverse().forEach(card => {
+      const div = buildCardEl(card, false);
+      div.style.cursor = 'pointer';
+      addContextMenu(div, card, null);
+      // Left-click also opens inspect
+      div.onclick = () => openCardInspect(card, null);
+      container.appendChild(div);
+    });
+  }
+
+  showOverlay('discard-overlay');
 }
 
 // ---------------------------------------------------------------------------
@@ -332,7 +553,7 @@ export function addTooltip(el, name, body) {
       q('tt-body').innerHTML   = body.replace(/\n/g, '<br>');
       tooltipEl.classList.add('visible');
       posTooltip(e);
-    }, 300);
+    }, 400);
   });
   el.addEventListener('mousemove', posTooltip);
   el.addEventListener('mouseleave', () => {
@@ -342,17 +563,17 @@ export function addTooltip(el, name, body) {
 }
 
 function posTooltip(e) {
-  let x = e.clientX + 12, y = e.clientY + 12;
+  let x = e.clientX + 14, y = e.clientY + 14;
   const tw = tooltipEl.offsetWidth  || 200;
   const th = tooltipEl.offsetHeight || 100;
-  if (x + tw > window.innerWidth)  x = e.clientX - tw - 8;
-  if (y + th > window.innerHeight) y = e.clientY - th - 8;
+  if (x + tw > window.innerWidth)  x = e.clientX - tw - 10;
+  if (y + th > window.innerHeight) y = e.clientY - th - 10;
   tooltipEl.style.left = x + 'px';
   tooltipEl.style.top  = y + 'px';
 }
 
 // ---------------------------------------------------------------------------
-// Private DOM shortcuts
+// DOM helpers
 // ---------------------------------------------------------------------------
 function q(id)         { return document.getElementById(id); }
 function mk(tag, cls)  { const el = document.createElement(tag); el.className = cls; return el; }

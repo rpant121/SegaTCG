@@ -37,8 +37,8 @@ function idsToCards(idList) {
 export function createInitialState(deckIds0, deckIds1) {
   const deck0 = shuffle(idsToCards(deckIds0));
   const deck1 = shuffle(idsToCards(deckIds1));
-  const hand0 = deck0.splice(0, 6);
-  const hand1 = deck1.splice(0, 6);
+  const hand0 = deck0.splice(0, 5);
+  const hand1 = deck1.splice(0, 5);
   const firstPlayer = Math.random() < 0.5 ? 0 : 1;
 
   return {
@@ -63,6 +63,7 @@ export function createInitialState(deckIds0, deckIds1) {
     equipmentPlayedThisTurn:[0, 0], // Charmy passive/active: equipment plays per player
     energySpentThisTurn:    [0, 0], // Vector active: total energy spent this turn
     leaderDamageTakenThisTurn: [false, false], // legacy; replaced by per-event draw
+    rougeUsedThisTurn:      [false, false], // Rouge active: once per turn despite no exhaust
 
     // ── Omega: persistent exhaust ─────────────────────────────────────────
     // Maps unit uid → the turn number on which the lock expires (unlocks at
@@ -76,6 +77,7 @@ export function createInitialState(deckIds0, deckIds1) {
     pendingRayActive:    null,  // { playerIdx, cards }  (Ray's top-3 discard choice)
     pendingExtremeGear:  null,  // { playerIdx }         (choose cards to discard)
     pendingMightyAttack: false, // true while second attack target selection is open
+    pendingBlock:        null,  // { attackerP, defenderP } — awaiting blocker choice
 
     firstTurn: true,
 

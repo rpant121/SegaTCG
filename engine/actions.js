@@ -406,13 +406,15 @@ export function mightyActive(state, p, benchIdx, log) {
   return true;
 }
 
-// Rouge active: top-deck → discard; Rouge does NOT exhaust
+// Rouge active: top-deck → discard; Rouge does NOT exhaust but can only fire once per turn
 export function rougeActive(state, p, benchIdx, log) {
   const cost = getActiveCost(state, state.players[p].bench[benchIdx]);
   if (!canAfford(state, cost)) { log(`❌ Not enough energy`, 'damage'); return false; }
   if (state.players[p].deck.length === 0) { log(`🦇 Rouge: Deck is empty`, 'phase'); return false; }
+  if (state.rougeUsedThisTurn[p]) { log(`🦇 Rouge: already used this turn`, 'phase'); return false; }
   spendEnergy(state, cost);
-  // Rouge does NOT exhaust — intentional design
+  // Rouge does NOT exhaust — but flag as used so she can't fire again this turn
+  state.rougeUsedThisTurn[p] = true;
   state.activesUsedThisTurn++;
   const card = state.players[p].deck.shift();
   state.players[p].discard.push(card);

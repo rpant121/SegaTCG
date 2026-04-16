@@ -14,7 +14,7 @@
 
 import { opponent } from '../engine/state.js';
 import { checkWin } from '../engine/combat.js';
-import { attackLeader, applyDamageToUnit } from '../engine/combat.js';
+import { attackLeader, applyDamageToUnit, resolveBlock, calcEffectiveDamage } from '../engine/combat.js';
 import {
   playCardFromHand, resolveExtremeGear, canAfford, getActiveCost,
   tailsActive, knucklesActive, amyActive, creamActive, bigActive,
@@ -29,7 +29,7 @@ import {
 import {
   render, addLog, showOverlay, closeOverlay,
   showScryModal, showPassModal, showWinModal,
-  renderLeader, renderBench, renderHand,
+  renderLeader, renderBench, renderHand, openCardInspect,
 } from './renderer.js';
 
 // ---------------------------------------------------------------------------
@@ -80,25 +80,35 @@ function attachBoardHandlers() {
   // ── Own hand ──────────────────────────────────────────────────────────
   const handEls = renderHand(`p${p + 1}-hand`, state, p);
   handEls.forEach(({ div, idx, card }) => {
+    // Right-click inspect always available on own hand cards
+    const isEquip = card.type === 'Equipment' || card.type === 'Genesis' || card.type === 'Stage';
+    const charmyDiscount = (isEquip && state.equipmentPlayedThisTurn[p] > 0 &&
+      state.players[p].bench.some(u => u.id === 'charmy' && !u.exhausted)) ? 1 : 0;
+    const effectiveCost = Math.max(0, (card.cost ?? 0) - charmyDiscount);
+    const playable = state.phase === 'main' && canAfford(state, effectiveCost);
+
+    // Context menu — play button only if eligible this phase
+    const onPlay = (playable && card.type !== 'Unit') ? () => {
+      playCardFromHand(state, idx, log);
+      refreshBoard(); winGuard(); checkPendingEffects();
+    } : null;
+    div.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      openCardInspect(card, onPlay);
+    });
+
     if (state.phase !== 'main') return;
 
     if (card.type === 'Unit') {
       attachDragSource(div, idx, card);
-    } else {
-      // Apply Charmy discount for display affordability check
-      const isEquip = card.type === 'Equipment' || card.type === 'Genesis' || card.type === 'Stage';
-      const charmyDiscount = (isEquip && state.equipmentPlayedThisTurn[p] > 0 &&
-        state.players[p].bench.some(u => u.id === 'charmy' && !u.exhausted)) ? 1 : 0;
-      const effectiveCost = Math.max(0, (card.cost ?? 0) - charmyDiscount);
-      if (canAfford(state, effectiveCost)) {
-        div.classList.add('playable');
-        div.onclick = () => {
-          playCardFromHand(state, idx, log);
-          refreshBoard();
-          winGuard();
-          checkPendingEffects();
-        };
-      }
+    } else if (playable) {
+      div.classList.add('playable');
+      div.onclick = () => {
+        playCardFromHand(state, idx, log);
+        refreshBoard();
+        winGuard();
+        checkPendingEffects();
+      };
     }
   });
 
@@ -108,17 +118,26 @@ function attachBoardHandlers() {
     const unit = state.players[p].bench[idx];
     if (!unit || unit.exhausted) return;
     const cost = getActiveCost(state, unit);
-    if (state.phase === 'main' && canAfford(state, cost)) {
+    const canUse = state.phase === 'main' && canAfford(state, cost)
+      && !(unit.id === 'rouge' && state.rougeUsedThisTurn[p]);
+    if (canUse) {
       div.onclick = () => handleUnitActive(p, idx);
     }
+    // Re-attach context menu with activate callback when eligible
+    div.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      const activateFn = canUse ? () => handleUnitActive(p, idx) : null;
+      openCardInspect(unit, activateFn);
+    });
   });
 
   // Own bench: drop zone
   attachBenchDropZone(`p${p + 1}-bench`, p);
 
-  // ── Opponent bench: attack targets ────────────────────────────────────
+  // ── Opponent bench: attack targets + inspect ─────────────────────────
   const oppBenchEls = renderBench(`p${opp + 1}-bench`, state, opp);
   oppBenchEls.forEach(({ div, idx }) => {
+    const unit = state.players[opp].bench[idx];
     if (state.phase === 'attack') {
       div.onclick = () => {
         applyDamageToUnit(state, p, opp, idx, log);
@@ -126,17 +145,36 @@ function attachBoardHandlers() {
         if (!_gameOver) enterEndPhase(state, log, emit);
       };
     }
+    // Inspect only — no activate for opponent units
+    if (unit) {
+      div.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        openCardInspect(unit, null);
+      });
+    }
   });
 
-  // ── Opponent Leader: attack target ────────────────────────────────────
+  // ── Opponent Leader: attack target + inspect ──────────────────────────
   const oppLeaderDiv = renderLeader(`p${opp + 1}-leader-zone`, state, opp);
   if (state.phase === 'attack') {
     oppLeaderDiv.onclick = () => {
-      attackLeader(state, p, opp, log);
-      winGuard();
-      if (!_gameOver) enterEndPhase(state, log, emit);
+      // Check if defender has any non-exhausted bench units available to block
+      const canBlock = state.players[opp].bench.some(u => !u.exhausted);
+      // Shield absorbs everything — skip block modal entirely
+      if (state.shieldActive[opp] || !canBlock) {
+        attackLeader(state, p, opp, log);
+        winGuard();
+        if (!_gameOver) enterEndPhase(state, log, emit);
+      } else {
+        openBlockModal(p, opp);
+      }
     };
   }
+  // Always allow inspecting opponent leader
+  oppLeaderDiv.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    openCardInspect(state.players[opp].leader, null);
+  });
 
   // ── Own Leader: Sonic active ──────────────────────────────────────────
   const ownLeaderDiv = renderLeader(`p${p + 1}-leader-zone`, state, p);
@@ -145,6 +183,10 @@ function attachBoardHandlers() {
                    && state.players[p].hand.length > 0;
     ownLeaderDiv.style.cursor = canUse ? 'pointer' : 'default';
     if (canUse) ownLeaderDiv.onclick = () => openSonicModal();
+    ownLeaderDiv.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      openCardInspect(state.players[p].leader, canUse ? () => openSonicModal() : null);
+    });
   }
 
   // Mighty second attack: if pending, open modal
@@ -275,8 +317,41 @@ function handleUnitActive(p, benchIdx) {
 // MODALS
 // ---------------------------------------------------------------------------
 
+function openBlockModal(attackerP, defenderP) {
+  const dmg = calcEffectiveDamage(state, attackerP);
+  const eligible = state.players[defenderP].bench
+    .map((unit, idx) => ({ unit, idx }))
+    .filter(({ unit }) => !unit.exhausted);
+
+  document.getElementById('block-desc').innerHTML =
+    `Player ${attackerP + 1}'s Leader attacks for <strong style="color:var(--red)">${dmg} damage</strong>.<br>
+     Choose a support unit to block, or take the hit directly.`;
+
+  const c = document.getElementById('block-options');
+  c.innerHTML = '';
+  eligible.forEach(({ unit, idx }) => {
+    const willKO = unit.currentHp - dmg <= 0;
+    const btn = mkBtn(
+      `${unit.name}  (${unit.currentHp}/${unit.hp} HP)${willKO ? '  💀 will KO' : ''}`,
+      () => {
+        resolveBlock(state, attackerP, defenderP, idx, log);
+        closeOverlay('block-overlay');
+        refreshBoard(); winGuard();
+        if (!_gameOver) enterEndPhase(state, log, emit);
+      }
+    );
+    if (willKO) btn.style.borderColor = 'var(--red)';
+    c.appendChild(btn);
+  });
+
+  // Store context on Take the Hit button for the static handler
+  document.getElementById('btn-take-hit')._attackerP  = attackerP;
+  document.getElementById('btn-take-hit')._defenderP  = defenderP;
+
+  showOverlay('block-overlay');
+}
+
 function openTailsModal(p, benchIdx) {
-  const discard = state.players[p].discard;
   if (discard.length === 0) { addLog('♻ Tails: Discard is empty', 'phase'); return; }
   const c = document.getElementById('tails-discard-options');
   c.innerHTML = '';
@@ -436,14 +511,13 @@ function openRayActiveModal() {
       state.players[playerIdx].deck.splice(si, 1);
       state.players[playerIdx].discard.push(card);
       addLog(`🐿 Ray: ${card.name} sent to discard`, 'play');
-      // Trigger Rouge passive on deck→discard event
-      const { triggerRougePassive } = window._engineExports ?? {};
-      // We'll trigger it inline since we have state
+      // Trigger Rouge passive: deck→discard event
       const rouge = state.players[playerIdx].bench.find(u => u.id === 'rouge' && !u.exhausted);
       if (rouge && state.players[playerIdx].deck.length > 0) {
         const drawn = state.players[playerIdx].deck.shift();
         state.players[playerIdx].hand.push(drawn);
-        addLog(`🦇 Rouge: draws ${drawn.name} (Ray's discard event)`, 'draw');
+        state.missedDraws[playerIdx] = 0;
+        addLog(`🦇 Rouge: draws ${drawn.name} (Ray discard event)`, 'draw');
       }
       state.pendingRayActive = null;
       closeOverlay('ray-active-overlay');
@@ -495,6 +569,8 @@ function openExtremeGearModal() {
 function handlePassContinue() {
   closeOverlay('pass-overlay');
   if (_gameOver) return;
+  // Keep onclick pointed at this function for all future passes
+  document.getElementById('btn-continue').onclick = handlePassContinue;
   advanceTurn(state, log, emit);
 }
 
@@ -511,7 +587,8 @@ function bindStaticButtons() {
     if (state.phase === 'main') openSonicModal();
   });
 
-  document.getElementById('btn-continue').addEventListener('click', handlePassContinue);
+  // btn-continue is handled exclusively via .onclick in initHandlers
+  // to avoid double-firing between addEventListener and the first-turn override.
 
   document.getElementById('btn-scry-discard').addEventListener('click', () => {
     closeOverlay('scry-overlay');
@@ -529,6 +606,15 @@ function bindStaticButtons() {
   document.getElementById('btn-cancel-sonic').addEventListener('click',  () => closeOverlay('sonic-overlay'));
   document.getElementById('btn-cancel-mighty').addEventListener('click', () => closeOverlay('mighty-attack-overlay'));
   document.getElementById('btn-cancel-omega').addEventListener('click',  () => closeOverlay('omega-overlay'));
+
+  document.getElementById('btn-take-hit').addEventListener('click', () => {
+    const btn = document.getElementById('btn-take-hit');
+    const ap = btn._attackerP, dp = btn._defenderP;
+    closeOverlay('block-overlay');
+    attackLeader(state, ap, dp, log);
+    winGuard();
+    if (!_gameOver) enterEndPhase(state, log, emit);
+  });
 
   document.getElementById('btn-extreme-gear-cancel').addEventListener('click', () => {
     state.pendingExtremeGear = null;

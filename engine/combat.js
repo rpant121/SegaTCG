@@ -132,6 +132,34 @@ function _triggerMightyPassive(state, p, dmg, log) {
 }
 
 // ---------------------------------------------------------------------------
+// Blocking — called when defender chooses a bench unit to absorb a Leader attack.
+// Shield priority is handled upstream (no shield = block modal shown).
+// Cream reduction does NOT apply — Cream protects the Leader, not a blocker.
+// Mighty passive fires on attacker side based on damage dealt.
+// ---------------------------------------------------------------------------
+export function resolveBlock(state, attackerP, defenderP, blockerIdx, log) {
+  const unit = state.players[defenderP].bench[blockerIdx];
+  if (!unit) return;
+
+  const dmg = calcEffectiveDamage(state, attackerP);
+  unit.currentHp -= dmg;
+  log(`🛡 ${unit.name} blocks for Player ${defenderP + 1}! Takes ${dmg} damage (${Math.max(0,unit.currentHp)}/${unit.hp} HP)`, 'damage');
+  _triggerMightyPassive(state, attackerP, dmg, log);
+
+  if (unit.currentHp <= 0) {
+    state.players[defenderP].bench.splice(blockerIdx, 1);
+    state.players[defenderP].discard.push(unit);
+    const koPenalty = state.activeStage?.id === 'midnight_carnival' ? 0 : 2;
+    if (koPenalty > 0) {
+      log(`💀 ${unit.name} KO'd while blocking! +${koPenalty} penalty to Player ${defenderP + 1}`, 'damage');
+      applyDamageToLeader(state, defenderP, koPenalty, log, true); // unblockable KO penalty
+    } else {
+      log(`💀 ${unit.name} KO'd! (Midnight Carnival: no penalty)`, 'damage');
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Win condition — returns losing player index or null.
 // ---------------------------------------------------------------------------
 export function checkWin(state) {

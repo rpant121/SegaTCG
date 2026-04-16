@@ -23,9 +23,18 @@ export function startTurn(state, log, emit) {
   state.equipmentPlayedThisTurn[p]    = 0;
   state.energySpentThisTurn[p]        = 0;
   state.leaderDamageTakenThisTurn[p]  = false;
+  if (state.rougeUsedThisTurn) state.rougeUsedThisTurn[p] = false;
 
   // Omega: unlock any units whose persistent exhaust expires this turn
   _resolveOmegaUnlocks(state, p, log);
+
+  // Recover all exhausted units for the active player (except Omega-locked ones)
+  for (const u of state.players[p].bench) {
+    if (u.exhausted && !state.persistentExhaust[p][u.uid]) {
+      u.exhausted = false;
+      log(`✅ ${u.name} recovered`, 'phase');
+    }
+  }
 
   // Phase 0: Big Scry
   const hasBig = state.players[p].bench.some(u => u.id === 'big' && !u.exhausted);
@@ -170,12 +179,7 @@ export function enterEndPhase(state, log, emit) {
     }
   }
 
-  // Recover exhausted units (except Omega-locked ones)
-  for (const u of state.players[p].bench) {
-    if (!state.persistentExhaust[p][u.uid]) {
-      u.exhausted = false;
-    }
-  }
+  // NOTE: exhausted units recover at the START of the player's NEXT turn, not here.
 
   // Clear per-turn buffs
   state.chaosEmeraldBuff[p]          = 0;
@@ -185,6 +189,7 @@ export function enterEndPhase(state, log, emit) {
   state.equipmentPlayedThisTurn[p]   = 0;
   state.energySpentThisTurn[p]       = 0;
   state.leaderDamageTakenThisTurn[p] = false;
+  state.rougeUsedThisTurn[p]         = false;
 
   emit('phase_changed', state.phase);
   emit('request_pass', opponent(p) + 1);
