@@ -19,7 +19,7 @@ import {
   playCardFromHand, resolveExtremeGear, canAfford, getActiveCost,
   tailsActive, knucklesActive, amyActive, creamActive, bigActive,
   silverActive, shadowActive, mightyActive, rougeActive, blazeActive,
-  rayActive, charmyActive, espioActive, vectorActive, omegaActive,
+  rayActive, charmyActive, espioActive, vectorActive,
   sonicActive,
 } from '../engine/actions.js';
 import {
