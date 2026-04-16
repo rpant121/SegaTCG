@@ -1,0 +1,418 @@
+/* ============================================================
+   SEGA TCG — Stylesheet
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+/* ── Custom Properties ───────────────────────────────────── */
+:root {
+  --navy:        #060d1a;
+  --navy-mid:    #0d1f35;
+  --navy-light:  #122843;
+  --sonic-blue:  #0066CC;
+  --sonic-bright:#1a8eff;
+  --gold:        #FFD700;
+  --gold-dim:    #b89a00;
+  --green:       #00CC44;
+  --green-dim:   #008833;
+  --red:         #FF2244;
+  --red-dim:     #aa1122;
+  --white:       #e8f0ff;
+  --grey:        #6677aa;
+  --card-bg:     #0a1a2e;
+  --card-border: #1a3a5e;
+  --bench-slot:  #0d2040;
+
+  --glow-blue: 0 0 12px #0066CC88, 0 0 24px #0066CC44;
+  --glow-gold: 0 0 10px #FFD70088;
+  --glow-green:0 0 10px #00CC4488;
+  --glow-red:  0 0 10px #FF224488;
+
+  --font-display: 'Orbitron', sans-serif;
+  --font-mono:    'Share Tech Mono', monospace;
+}
+
+/* ── Reset ───────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--navy);
+  color: var(--white);
+  font-family: var(--font-mono);
+  min-height: 100vh;
+  overflow: hidden;
+  user-select: none;
+  background-image:
+    radial-gradient(ellipse at 20% 80%, #001a3a55 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, #003a6655 0%, transparent 50%);
+}
+
+/* ── Board Layout ────────────────────────────────────────── */
+#game-board {
+  display: grid;
+  grid-template-rows: auto auto auto 12px auto auto auto;
+  grid-template-columns: 1fr 280px;
+  height: 100vh;
+  gap: 4px;
+  padding: 6px;
+}
+
+.board-area    { grid-column: 1; }
+.side-panel    { grid-column: 2; grid-row: 1 / 8; display: flex; flex-direction: column; gap: 6px; }
+
+.hand-area {
+  padding: 6px;
+  background: #0a152588;
+  border: 1px solid #1a2a40;
+  border-radius: 8px;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.bench-area {
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  background: #080f1c88;
+  border: 1px solid #141f30;
+  border-radius: 8px;
+  min-height: 80px;
+  align-items: center;
+}
+
+.leader-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px;
+}
+
+.midline {
+  background: linear-gradient(90deg, transparent, var(--sonic-blue), transparent);
+  height: 2px;
+  grid-column: 1;
+  opacity: 0.6;
+  box-shadow: 0 0 8px var(--sonic-blue);
+}
+
+/* ── Cards (hand) ────────────────────────────────────────── */
+.card {
+  width: 72px;
+  height: 100px;
+  background: var(--card-bg);
+  border: 1.5px solid var(--card-border);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 3px;
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+  font-size: 9px;
+  text-align: center;
+  overflow: hidden;
+}
+
+.card:hover         { transform: translateY(-4px); }
+.card.playable      { border-color: var(--green); box-shadow: var(--glow-green); }
+.card.selected      { border-color: var(--gold); box-shadow: var(--glow-gold); transform: translateY(-8px); }
+
+.card.face-down {
+  background: repeating-linear-gradient(
+    45deg, #0a1525, #0a1525 4px, #0d1d30 4px, #0d1d30 8px
+  );
+  cursor: default;
+}
+.card.face-down:hover { transform: none; }
+
+.card-type-badge {
+  font-family: var(--font-display);
+  font-size: 7px;
+  letter-spacing: 0.5px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-bottom: 2px;
+  width: 100%;
+  text-align: center;
+}
+.type-equipment { background: #1a3a5e; color: #7ab8ff; }
+.type-stage     { background: #1a3a20; color: #7affa0; }
+.type-genesis   { background: #3a1a40; color: #da7aff; }
+.type-unit      { background: #1a2a3e; color: #aacfff; }
+.type-leader    { background: #2a1a0e; color: #ffcf7a; }
+
+.card-name { font-size: 8px; font-weight: 700; color: var(--white); margin-bottom: 2px; line-height: 1.2; }
+.card-cost {
+  position: absolute;
+  top: 3px; right: 3px;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--gold);
+  color: #000;
+  font-size: 8px; font-weight: 900;
+  font-family: var(--font-display);
+  display: flex; align-items: center; justify-content: center;
+}
+
+.card-effect-text {
+  font-size: 7px;
+  color: #8899bb;
+  line-height: 1.3;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  text-align: left;
+}
+
+/* ── Leader Card ─────────────────────────────────────────── */
+.leader-card {
+  width: 90px; height: 120px;
+  background: linear-gradient(160deg, #0d1f35, #060d1a);
+  border: 2px solid var(--sonic-blue);
+  border-radius: 8px;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 6px 4px;
+  cursor: pointer;
+  position: relative;
+  transition: box-shadow 0.2s;
+  flex-shrink: 0;
+}
+.leader-card:hover            { box-shadow: var(--glow-blue); }
+.leader-card.active-avail     { border-color: var(--gold); box-shadow: var(--glow-gold); }
+.leader-card.shielded::after  {
+  content: '🛡';
+  position: absolute; top: 2px; left: 2px;
+  font-size: 14px;
+  filter: drop-shadow(0 0 6px #44aaff);
+}
+
+.leader-name  { font-family: var(--font-display); font-size: 7px; font-weight: 700; color: var(--sonic-bright); text-align: center; margin-bottom: 4px; letter-spacing: 0.5px; }
+.leader-hp-bar{ width: 100%; height: 6px; background: #1a1a2e; border-radius: 3px; overflow: hidden; margin-bottom: 3px; border: 1px solid #333; }
+.leader-hp-fill { height: 100%; background: linear-gradient(90deg, var(--green), #00ff66); border-radius: 3px; transition: width 0.4s ease; }
+.leader-hp-text { font-family: var(--font-display); font-size: 10px; font-weight: 700; color: var(--green); }
+.leader-dmg-text{ font-size: 8px; color: var(--red); }
+
+/* ── Bench Units ─────────────────────────────────────────── */
+.bench-slot {
+  width: 80px; height: 68px;
+  border: 1.5px dashed #1a3050;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  color: #2a4060; font-size: 8px;
+  background: var(--bench-slot);
+  flex-shrink: 0;
+}
+
+.bench-unit {
+  width: 80px; height: 68px;
+  background: var(--card-bg);
+  border: 1.5px solid var(--card-border);
+  border-radius: 6px;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 3px;
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.15s, box-shadow 0.15s, opacity 0.2s;
+  flex-shrink: 0;
+  font-size: 8px;
+}
+.bench-unit.exhausted          { opacity: 0.5; filter: grayscale(0.6); }
+.bench-unit.exhausted::after   { content: 'EXHAUSTED'; position: absolute; bottom: 1px; left: 0; right: 0; text-align: center; font-size: 6px; color: var(--red); background: #00000088; }
+.bench-unit.can-activate       { border-color: var(--sonic-bright); box-shadow: var(--glow-blue); }
+
+/* Attack targets */
+.bench-unit.attack-target,
+.leader-card.attack-target {
+  border-color: var(--red);
+  box-shadow: var(--glow-red);
+  animation: pulse-red 0.8s infinite alternate;
+}
+@keyframes pulse-red {
+  from { box-shadow: 0 0 6px var(--red); }
+  to   { box-shadow: 0 0 18px var(--red), 0 0 30px #ff224444; }
+}
+
+.unit-hp-bar  { width: 100%; height: 4px; background: #1a1a2e; border-radius: 2px; overflow: hidden; margin-top: auto; }
+.unit-hp-fill { height: 100%; background: linear-gradient(90deg, var(--green), #00ff66); border-radius: 2px; transition: width 0.3s; }
+
+/* ── Side Panel ──────────────────────────────────────────── */
+.side-panel    { padding: 4px; }
+.panel-section { background: #0a152588; border: 1px solid #1a2a40; border-radius: 8px; padding: 8px; }
+.panel-title   { font-family: var(--font-display); font-size: 9px; color: var(--sonic-bright); letter-spacing: 1px; margin-bottom: 6px; text-transform: uppercase; }
+
+.phase-display {
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: var(--gold);
+  text-align: center;
+  padding: 4px;
+  border: 1px solid var(--gold-dim);
+  border-radius: 4px;
+  margin-bottom: 6px;
+  letter-spacing: 1px;
+}
+
+.energy-display { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.energy-pips    { display: flex; gap: 3px; flex-wrap: wrap; }
+.pip            { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--gold-dim); background: #1a1a00; transition: background 0.2s; }
+.pip.filled     { background: var(--gold); box-shadow: var(--glow-gold); }
+
+.deck-info      { display: flex; gap: 8px; align-items: center; font-size: 10px; }
+.deck-count     { padding: 4px 8px; border-radius: 4px; font-family: var(--font-display); font-size: 11px; background: #0d2040; border: 1px solid var(--sonic-blue); color: var(--sonic-bright); }
+.discard-count  { padding: 4px 8px; border-radius: 4px; font-family: var(--font-display); font-size: 11px; background: #200d0d; border: 1px solid var(--red-dim);  color: var(--red); }
+
+.stage-zone        { min-height: 50px; border: 1px dashed #2a4060; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #3a5070; padding: 4px; }
+.stage-zone.active { border-color: var(--green-dim); color: var(--green); text-align: center; }
+
+/* ── Action Buttons ──────────────────────────────────────── */
+.action-btn {
+  padding: 6px 10px;
+  border: 1px solid var(--sonic-blue);
+  background: #0a1f3a;
+  color: var(--sonic-bright);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
+  width: 100%;
+  margin-bottom: 4px;
+  text-align: center;
+}
+.action-btn:hover     { background: #0d2a4a; box-shadow: var(--glow-blue); }
+.action-btn:disabled  { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+.action-btn.danger    { border-color: var(--red-dim); color: var(--red); background: #200a0a; }
+.action-btn.danger:hover { background: #300a0a; box-shadow: var(--glow-red); }
+.action-btn.gold      { border-color: var(--gold-dim); color: var(--gold); background: #1a1400; }
+.action-btn.gold:hover{ background: #252000; box-shadow: var(--glow-gold); }
+
+/* ── Game Log ────────────────────────────────────────────── */
+#game-log {
+  flex: 1;
+  overflow-y: auto;
+  font-size: 9px;
+  line-height: 1.6;
+  color: #6688aa;
+  min-height: 80px;
+  max-height: 200px;
+  padding: 4px;
+}
+#game-log .log-entry           { padding: 1px 0; border-bottom: 1px solid #0d1a2a; }
+#game-log .log-entry.damage    { color: var(--red); }
+#game-log .log-entry.heal      { color: var(--green); }
+#game-log .log-entry.draw      { color: var(--sonic-bright); }
+#game-log .log-entry.play      { color: var(--gold); }
+#game-log .log-entry.phase     { color: var(--grey); font-style: italic; }
+
+/* ── Player Labels ───────────────────────────────────────── */
+.player-label {
+  font-family: var(--font-display);
+  font-size: 8px;
+  color: var(--grey);
+  letter-spacing: 1px;
+  padding: 1px 6px;
+  border: 1px solid #1a2a40;
+  border-radius: 3px;
+}
+.player-label.active { color: var(--sonic-bright); border-color: var(--sonic-blue); box-shadow: var(--glow-blue); }
+
+.info-row { display: flex; align-items: center; gap: 8px; padding: 2px 8px; font-size: 9px; }
+
+/* ── Overlays & Modals ───────────────────────────────────── */
+.overlay {
+  position: fixed; inset: 0;
+  background: #00000099;
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.3s;
+}
+.overlay.active { opacity: 1; pointer-events: all; }
+
+.modal {
+  background: linear-gradient(135deg, #0d1f35, #060d1a);
+  border: 2px solid var(--sonic-blue);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 480px; width: 90%;
+  box-shadow: var(--glow-blue), 0 0 60px #00000088;
+  text-align: center;
+}
+.modal h2   { font-family: var(--font-display); font-size: 20px; color: var(--sonic-bright); margin-bottom: 12px; letter-spacing: 2px; }
+.modal p    { font-size: 12px; color: var(--grey); margin-bottom: 16px; line-height: 1.6; }
+
+.modal-cards {
+  display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+  margin: 12px 0; max-height: 200px; overflow-y: auto;
+}
+.modal-card-btn {
+  padding: 4px 8px;
+  background: #0a1f3a; border: 1px solid var(--sonic-blue);
+  border-radius: 4px; color: var(--white);
+  cursor: pointer; font-family: var(--font-mono); font-size: 9px;
+  transition: background 0.15s; text-align: left;
+}
+.modal-card-btn:hover    { background: #0d2a4a; }
+.modal-card-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.modal-btn-row { display: flex; gap: 8px; justify-content: center; margin-top: 8px; }
+
+/* Pass screen */
+#pass-overlay          { background: #000000ee; }
+#pass-overlay .modal   { border-color: var(--gold); box-shadow: var(--glow-gold); }
+#pass-overlay h2       { color: var(--gold); }
+
+/* Win screen */
+#win-overlay .modal    { border-color: var(--gold); box-shadow: var(--glow-gold), 0 0 100px #FFD70044; }
+#win-overlay h2        { font-size: 28px; color: var(--gold); text-shadow: 0 0 20px var(--gold); }
+
+/* Scry card */
+.scry-card-display     { border: 2px solid var(--gold); border-radius: 8px; padding: 12px; background: #0a1525; margin: 12px 0; box-shadow: var(--glow-gold); }
+
+/* ── Tooltip ─────────────────────────────────────────────── */
+.tooltip {
+  position: fixed;
+  background: #040c18ee; border: 1px solid var(--card-border);
+  border-radius: 6px; padding: 8px 10px;
+  font-size: 9px; max-width: 200px; line-height: 1.5;
+  pointer-events: none; z-index: 200; display: none; color: var(--white);
+}
+.tooltip.visible       { display: block; }
+.tooltip-name          { font-family: var(--font-display); font-size: 10px; color: var(--sonic-bright); margin-bottom: 4px; }
+
+/* ── Drag & Drop ─────────────────────────────────────────── */
+
+/* Unit cards in hand that can be dragged */
+.card.draggable {
+  cursor: grab;
+}
+.card.draggable:active {
+  cursor: grabbing;
+}
+
+/* Bench area lit up as a valid drop zone while dragging */
+.bench-area.drop-target-active {
+  border-color: var(--sonic-bright);
+  box-shadow: inset 0 0 0 2px var(--sonic-blue), var(--glow-blue);
+  background: #0d253d99;
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+
+/* Bench area when a card is hovering directly over it */
+.bench-area.drop-hover {
+  border-color: var(--green);
+  box-shadow: inset 0 0 0 2px var(--green), var(--glow-green);
+  background: #0d2a1a99;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar       { width: 4px; }
+::-webkit-scrollbar-track { background: #040c18; }
+::-webkit-scrollbar-thumb { background: #1a3a5e; border-radius: 2px; }

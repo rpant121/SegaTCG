@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sega Card Game TCG</title>
+  <link rel="stylesheet" href="ui/styles.css">
+  <style>
+    .top-nav {
+      position: fixed; top: 6px; right: 8px; z-index: 50;
+    }
+    .top-nav a {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--grey);
+      text-decoration: none;
+      border: 1px solid #1a2a40;
+      padding: 3px 8px;
+      border-radius: 4px;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .top-nav a:hover { color: var(--white); border-color: var(--sonic-blue); }
+  </style>
+</head>
+<body>
+<nav class="top-nav"><a href="deck-builder.html">🃏 Deck Builder</a></nav>
+
+<!-- ============================================================
+     BOARD LAYOUT
+     Top = Player 2  |  Bottom = Player 1  |  Right = Side Panel
+     ============================================================ -->
+<div id="game-board">
+
+  <!-- P2 Hand (face-down during P1's turn) -->
+  <div class="board-area hand-area" id="p2-hand" style="grid-row:1;"></div>
+
+  <!-- P2 Bench -->
+  <div class="board-area bench-area" id="p2-bench" style="grid-row:2;"></div>
+
+  <!-- P2 Leader row -->
+  <div class="board-area leader-row" id="p2-leader-row" style="grid-row:3;">
+    <span class="player-label" id="p2-label">PLAYER 2</span>
+    <div id="p2-leader-zone"></div>
+    <div class="info-row" id="p2-info"></div>
+  </div>
+
+  <!-- Midline -->
+  <div class="midline" style="grid-row:4;"></div>
+
+  <!-- P1 Leader row -->
+  <div class="board-area leader-row" id="p1-leader-row" style="grid-row:5;">
+    <span class="player-label" id="p1-label">PLAYER 1</span>
+    <div id="p1-leader-zone"></div>
+    <div class="info-row" id="p1-info"></div>
+  </div>
+
+  <!-- P1 Bench -->
+  <div class="board-area bench-area" id="p1-bench" style="grid-row:6;"></div>
+
+  <!-- P1 Hand -->
+  <div class="board-area hand-area" id="p1-hand" style="grid-row:7;"></div>
+
+  <!-- ── SIDE PANEL ─────────────────────────────────────── -->
+  <div class="side-panel">
+
+    <!-- Game Status -->
+    <div class="panel-section">
+      <div class="panel-title">Game Status</div>
+      <div class="phase-display" id="phase-display">SETUP</div>
+      <div style="font-size:9px;color:var(--grey);margin-bottom:4px;">
+        Turn <span id="turn-num">1</span>
+      </div>
+      <div class="panel-title" style="margin-top:4px;">Energy</div>
+      <div class="energy-display">
+        <div class="energy-pips" id="energy-pips"></div>
+        <span id="energy-text" style="font-size:10px;color:var(--gold);"></span>
+      </div>
+    </div>
+
+    <!-- Stage Zone -->
+    <div class="panel-section">
+      <div class="panel-title">Active Stage</div>
+      <div class="stage-zone" id="stage-zone">No Stage</div>
+    </div>
+
+    <!-- Active Player Deck -->
+    <div class="panel-section">
+      <div class="panel-title">Active Player Deck</div>
+      <div class="deck-info">
+        <div class="deck-count" id="deck-count">30</div>
+        <span style="font-size:9px;color:var(--grey);">deck</span>
+        <div class="discard-count" id="discard-count">0</div>
+        <span style="font-size:9px;color:var(--grey);">discard</span>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="panel-section" id="action-panel">
+      <div class="panel-title">Actions</div>
+      <button class="action-btn gold" id="btn-leader-active" style="display:none;">
+        ⚡ Sonic Active (1⚡)
+      </button>
+      <button class="action-btn" id="btn-end-phase">End Phase →</button>
+    </div>
+
+    <!-- Game Log -->
+    <div class="panel-section" style="flex:1;display:flex;flex-direction:column;min-height:0;">
+      <div class="panel-title">Game Log</div>
+      <div id="game-log"></div>
+    </div>
+
+  </div><!-- /side-panel -->
+</div><!-- /game-board -->
+
+
+<!-- ============================================================
+     OVERLAYS
+     ============================================================ -->
+
+<!-- Pass Screen -->
+<div class="overlay" id="pass-overlay">
+  <div class="modal">
+    <h2 id="pass-title">PASS DEVICE</h2>
+    <p id="pass-msg">Hand the device to the next player.</p>
+    <button class="action-btn gold" id="btn-continue" style="font-size:14px;padding:10px;">
+      ▶ CONTINUE
+    </button>
+  </div>
+</div>
+
+<!-- Win Screen -->
+<div class="overlay" id="win-overlay">
+  <div class="modal">
+    <h2 id="win-title">PLAYER 1 WINS!</h2>
+    <p  id="win-msg">The battle is over.</p>
+    <button class="action-btn gold" onclick="location.reload()"
+            style="font-size:14px;padding:10px;margin-top:8px;">
+      ↩ PLAY AGAIN
+    </button>
+  </div>
+</div>
+
+<!-- Big Scry -->
+<div class="overlay" id="scry-overlay">
+  <div class="modal">
+    <h2>BIG'S SCRY</h2>
+    <p>Big looks at the top card of your deck:</p>
+    <div class="scry-card-display" id="scry-card-display"></div>
+    <div class="modal-btn-row">
+      <button class="action-btn danger" id="btn-scry-discard">Discard It</button>
+      <button class="action-btn"        id="btn-scry-keep">Keep on Top</button>
+    </div>
+  </div>
+</div>
+
+<!-- Generic Targeting Modal (Knuckles, Cream) -->
+<div class="overlay" id="target-overlay">
+  <div class="modal">
+    <h2 id="target-title">SELECT TARGET</h2>
+    <p  id="target-desc"></p>
+    <div class="modal-cards" id="target-options"></div>
+    <button class="action-btn danger" id="btn-cancel-target" style="margin-top:8px;">Cancel</button>
+  </div>
+</div>
+
+<!-- Tails Modal -->
+<div class="overlay" id="tails-overlay">
+  <div class="modal">
+    <h2>TAILS ACTIVE</h2>
+    <p>Choose a card from your discard to play:</p>
+    <div class="modal-cards" id="tails-discard-options"></div>
+    <button class="action-btn danger" id="btn-cancel-tails" style="margin-top:8px;">Cancel</button>
+  </div>
+</div>
+
+<!-- Sonic Modal -->
+<div class="overlay" id="sonic-overlay">
+  <div class="modal">
+    <h2>SONIC ACTIVE</h2>
+    <p>Choose a card from your hand to discard (then draw 2):</p>
+    <div class="modal-cards" id="sonic-discard-options"></div>
+    <button class="action-btn danger" id="btn-cancel-sonic" style="margin-top:8px;">Cancel</button>
+  </div>
+</div>
+
+<!-- Dragon's Eye Modal -->
+<div class="overlay" id="dragons-eye-overlay">
+  <div class="modal">
+    <h2>DRAGON'S EYE</h2>
+    <p>Choose 1 card to add to your hand. The rest return to the top of your deck in the order shown.</p>
+    <div class="modal-cards" id="dragons-eye-options"></div>
+  </div>
+</div>
+
+<!-- Polaris Pact Modal (opponent discards) -->
+<div class="overlay" id="polaris-pact-overlay">
+  <div class="modal">
+    <h2>POLARIS PACT</h2>
+    <p id="polaris-pact-desc">Choose 1 card from your hand to discard:</p>
+    <div class="modal-cards" id="polaris-pact-options"></div>
+  </div>
+</div>
+
+<!-- Ray Active Modal: choose 1 of top 3 to discard -->
+<div class="overlay" id="ray-active-overlay">
+  <div class="modal">
+    <h2>RAY'S FORESIGHT</h2>
+    <p>Choose 1 card to send to your discard pile. The rest return to the top of your deck in the order shown.</p>
+    <div class="modal-cards" id="ray-active-options"></div>
+  </div>
+</div>
+
+<!-- Extreme Gear Modal: choose cards to discard for energy -->
+<div class="overlay" id="extreme-gear-overlay">
+  <div class="modal">
+    <h2>EXTREME GEAR</h2>
+    <p>Select any number of cards from your hand to discard. Gain 1 Energy per card discarded.</p>
+    <div class="modal-cards" id="extreme-gear-options"></div>
+    <div style="margin-top:10px;font-size:10px;color:var(--gold);" id="extreme-gear-count">0 selected → +0 Energy</div>
+    <div class="modal-btn-row" style="margin-top:8px;">
+      <button class="action-btn danger" id="btn-extreme-gear-cancel">Cancel</button>
+      <button class="action-btn gold"   id="btn-extreme-gear-confirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Mighty Second Attack Modal -->
+<div class="overlay" id="mighty-attack-overlay">
+  <div class="modal">
+    <h2>MIGHTY: SECOND ATTACK</h2>
+    <p>Choose a target for your Leader's second attack:</p>
+    <div class="modal-cards" id="mighty-attack-options"></div>
+    <button class="action-btn danger" id="btn-cancel-mighty" style="margin-top:8px;">Cancel</button>
+  </div>
+</div>
+
+<!-- Omega Target Modal -->
+<div class="overlay" id="omega-overlay">
+  <div class="modal">
+    <h2>OMEGA: LOCK TARGET</h2>
+    <p>Choose an opponent bench unit to exhaust until your next turn:</p>
+    <div class="modal-cards" id="omega-options"></div>
+    <button class="action-btn danger" id="btn-cancel-omega" style="margin-top:8px;">Cancel</button>
+  </div>
+</div>
+
+<!-- Tooltip -->
+<div class="tooltip" id="tooltip">
+  <div class="tooltip-name" id="tt-name"></div>
+  <div id="tt-body"></div>
+</div>
+
+
+<script type="module" src="main.js"></script>
+</body>
+</html>
