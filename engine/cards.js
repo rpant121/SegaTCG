@@ -60,10 +60,10 @@ export const UNIT_DATA = {
 
   silver: {
     id: 'silver', name: 'Silver', type: 'Unit', cost: 0, hp: 3,
-    passive: { type: 'silver_shield', amount: 0 },
-    passiveDesc: 'Friendly unit actives do not exhaust their unit — Silver exhausts instead when his active is used',
-    activeCost: 2,
-    activeDesc: "Deal 1 damage to the opponent's Leader for each unit active used this turn (including this one). Silver exhausts.",
+    passive: { type: 'silver_cost_reduce', amount: 1 },
+    passiveDesc: 'All friendly unit actives cost 1 less energy (minimum 1)',
+    activeCost: 3,
+    activeDesc: 'Return one of your bench units to your hand. Scry 2: put 1 in your hand and 1 on the bottom of your deck.',
   },
   shadow: {
     id: 'shadow', name: 'Shadow', type: 'Unit', cost: 0, hp: 4,

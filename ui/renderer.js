@@ -69,16 +69,15 @@ function renderHUD(state) {
   setText('phase-display', PHASE_LABELS[state.phase] ?? state.phase);
   setText('turn-num', `Turn ${state.turn}`);
 
-  // Energy pips — max 10 shown; fill ratio represents current/max
+  // Energy pips — one pip per max energy; cap at 15, text-only beyond
   const pipsEl = q('energy-pips');
   pipsEl.innerHTML = '';
-  const PIP_COUNT = 10;
-  const filled = state.energyMax[p] > 0
-    ? Math.round((state.energy[p] / state.energyMax[p]) * PIP_COUNT)
-    : 0;
-  for (let i = 0; i < PIP_COUNT; i++) {
-    const pip = mk('div', 'pip' + (i < filled ? ' filled' : ''));
-    pipsEl.appendChild(pip);
+  const maxPips = state.energyMax[p];
+  if (maxPips <= 15) {
+    for (let i = 0; i < maxPips; i++) {
+      const pip = mk('div', 'pip' + (i < state.energy[p] ? ' filled' : ''));
+      pipsEl.appendChild(pip);
+    }
   }
   setText('energy-text', `${state.energy[p]}/${state.energyMax[p]}`);
 
@@ -194,7 +193,6 @@ export function renderBench(containerId, state, p) {
   state.players[p].bench.forEach((unit, idx) => {
     const hpPct       = Math.max(0, (unit.currentHp / unit.hp) * 100);
     const cost        = getActiveCost(state, unit);
-    const isOmegaLocked = !!(state.persistentExhaust?.[p]?.[unit.uid]);
     const canActivate = state.phase === 'main' && isActiveP && !unit.exhausted
       && canAfford(state, cost)
       && !(unit.id === 'rouge' && (state.rougeUsedThisTurn ?? [false,false])[p])
@@ -204,8 +202,7 @@ export function renderBench(containerId, state, p) {
 
     const div = mk('div', [
       'bench-unit', 'card-type-unit',
-      (unit.exhausted && !isOmegaLocked) ? 'exhausted'    : '',
-      isOmegaLocked                      ? 'omega-locked' : '',
+      unit.exhausted                      ? 'exhausted'    : '',
       canActivate                        ? 'can-activate' : '',
       isTarget                           ? 'attack-target': '',
     ].filter(Boolean).join(' '));
@@ -214,7 +211,7 @@ export function renderBench(containerId, state, p) {
       <div class="bench-name">${unit.name}</div>
       <div class="bench-emoji">${UNIT_EMOJI[unit.id] ?? '⭐'}</div>
       <div class="bench-hp">${unit.currentHp}/${unit.hp}HP</div>
-      ${icon && !unit.exhausted && !isOmegaLocked ? `<div class="bench-passive">${icon}</div>` : ''}
+      ${icon && !unit.exhausted ? `<div class="bench-passive">${icon}</div>` : ''}
       <div class="unit-hp-bar"><div class="unit-hp-fill" style="width:${hpPct}%"></div></div>
     `;
 

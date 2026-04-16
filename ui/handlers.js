@@ -281,6 +281,7 @@ function checkPendingEffects() {
   if (state.pendingPolarisPact)  { openPolarisPactModal();  return; }
   if (state.pendingRayActive)    { openRayActiveModal();    return; }
   if (state.pendingExtremeGear)  { openExtremeGearModal();  return; }
+  if (state.pendingSilverScry)   { openSilverScryModal();   return; }
   if (state.pendingMightyAttack) { openMightyAttackModal(state.activePlayer); state.pendingMightyAttack = false; return; }
 }
 
@@ -296,7 +297,7 @@ function handleUnitActive(p, benchIdx) {
     case 'amy':      if (amyActive(state, p, benchIdx, log))   { refreshBoard(); winGuard(); } break;
     case 'cream':    openCreamModal(p, benchIdx);    break;
     case 'big':      if (bigActive(state, p, benchIdx, log))   { refreshBoard(); winGuard(); } break;
-    case 'silver':   if (silverActive(state, p, benchIdx, log)){ refreshBoard(); winGuard(); } break;
+    case 'silver':   openSilverBounceModal(p, benchIdx); break;
     case 'shadow':   if (shadowActive(state, p, benchIdx, log)){ refreshBoard(); winGuard(); } break;
     case 'mighty':
       if (mightyActive(state, p, benchIdx, log)) {
@@ -310,7 +311,6 @@ function handleUnitActive(p, benchIdx) {
     case 'charmy':   if (charmyActive(state, p, benchIdx, log)){ refreshBoard(); winGuard(); } break;
     case 'espio':    if (espioActive(state, p, benchIdx, log)) { refreshBoard(); winGuard(); } break;
     case 'vector':   if (vectorActive(state, p, benchIdx, log)){ refreshBoard(); winGuard(); } break;
-    case 'omega':    openOmegaModal(p, benchIdx);    break;
   }
 }
 
@@ -350,6 +350,50 @@ function openBlockModal(attackerP, defenderP) {
   document.getElementById('btn-take-hit')._defenderP  = defenderP;
 
   showOverlay('block-overlay');
+}
+
+function openSilverBounceModal(p, benchIdx) {
+  // Silver can target any bench unit including himself
+  const bench = state.players[p].bench;
+  const cost  = getActiveCost(state, bench[benchIdx]);
+  if (!canAfford(state, cost)) { addLog('❌ Not enough energy', 'damage'); return; }
+
+  const c = document.getElementById('target-options');
+  c.innerHTML = '';
+  document.getElementById('target-title').textContent = 'SILVER: BOUNCE TARGET';
+  document.getElementById('target-desc').textContent  = 'Choose a bench unit to return to your hand:';
+
+  bench.forEach((unit, ui) => {
+    c.appendChild(mkBtn(`${unit.name} (${unit.currentHp}/${unit.hp} HP)`, () => {
+      closeOverlay('target-overlay');
+      if (silverActive(state, p, benchIdx, ui, log)) {
+        refreshBoard();
+        winGuard();
+        checkPendingEffects(); // opens scry modal if needed
+      }
+    }));
+  });
+  showOverlay('target-overlay');
+}
+
+function openSilverScryModal() {
+  const { playerIdx, cards } = state.pendingSilverScry;
+  const c = document.getElementById('silver-scry-options');
+  c.innerHTML = '';
+
+  cards.forEach((card, si) => {
+    c.appendChild(mkBtn(`${card.name} (${card.type}) — add to hand`, () => {
+      // Chosen card → hand, other → bottom of deck
+      const other = cards[si === 0 ? 1 : 0];
+      state.players[playerIdx].hand.push(card);
+      state.players[playerIdx].deck.push(other); // bottom of deck
+      addLog(`⚡ Silver scry: ${card.name} to hand, ${other.name} to bottom of deck`, 'draw');
+      state.pendingSilverScry = null;
+      closeOverlay('silver-scry-overlay');
+      refreshBoard();
+    }));
+  });
+  showOverlay('silver-scry-overlay');
 }
 
 function openTailsModal(p, benchIdx) {
@@ -407,20 +451,7 @@ function openCreamModal(p, benchIdx) {
   showOverlay('target-overlay');
 }
 
-function openOmegaModal(p, benchIdx) {
-  const opp = opponent(p);
-  if (state.players[opp].bench.length === 0) { addLog('🤖 Omega: No opponent bench units', 'phase'); return; }
   const c = document.getElementById('omega-options');
-  c.innerHTML = '';
-  state.players[opp].bench.forEach((unit, ui) => {
-    c.appendChild(mkBtn(`${unit.name} (${unit.currentHp}/${unit.hp} HP)`, () => {
-      omegaActive(state, p, benchIdx, ui, log);
-      closeOverlay('omega-overlay');
-      refreshBoard(); winGuard();
-    }));
-  });
-  showOverlay('omega-overlay');
-}
 
 function openMightyAttackModal(p) {
   const opp = opponent(p);
@@ -606,7 +637,6 @@ function bindStaticButtons() {
   document.getElementById('btn-cancel-tails').addEventListener('click',  () => closeOverlay('tails-overlay'));
   document.getElementById('btn-cancel-sonic').addEventListener('click',  () => closeOverlay('sonic-overlay'));
   document.getElementById('btn-cancel-mighty').addEventListener('click', () => closeOverlay('mighty-attack-overlay'));
-  document.getElementById('btn-cancel-omega').addEventListener('click',  () => closeOverlay('omega-overlay'));
 
   document.getElementById('btn-take-hit').addEventListener('click', () => {
     const btn = document.getElementById('btn-take-hit');

@@ -343,13 +343,6 @@ body {
   text-align: center; font-size: 5.5px; color: var(--red);
   background: #000000aa; padding: 1px 0;
 }
-.bench-unit.omega-locked::after {
-  content: '🔒 LOCKED';
-  position: absolute; bottom: 0; left: 0; right: 0;
-  text-align: center; font-size: 5.5px; color: #ff8844;
-  background: #200800aa; padding: 1px 0;
-}
-.bench-unit.omega-locked { opacity: 0.45; filter: grayscale(0.4) sepia(0.3); border-color: #883300 !important; }
 .bench-unit.can-activate   { border-color: var(--sonic-bright); box-shadow: var(--glow-blue); }
 .bench-unit:hover:not(.exhausted) { transform: translateY(-3px); }
 

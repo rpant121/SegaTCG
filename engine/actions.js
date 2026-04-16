@@ -21,7 +21,13 @@ export function spendEnergy(state, cost) {
 }
 
 export function getActiveCost(state, unit) {
-  return state.masterEmeraldActive ? 0 : unit.activeCost;
+  if (state.masterEmeraldActive) return 0;
+  const p = state.activePlayer;
+  const hasSilver = state.players[p].bench.some(
+    u => u.id === 'silver' && !u.exhausted && u.uid !== unit.uid
+  );
+  const reduction = hasSilver ? 1 : 0;
+  return Math.max(1, unit.activeCost - reduction);
 }
 
 // ---------------------------------------------------------------------------
@@ -250,16 +256,8 @@ export function exhaustUnit(state, p, benchIdx) {
   if (state.masterEmeraldActive) return;
   const unit = state.players[p].bench[benchIdx];
   if (!unit) return;
-
-  const silverIdx = state.players[p].bench.findIndex(u => u.id === 'silver' && !u.exhausted);
-  if (silverIdx !== -1 && silverIdx !== benchIdx) {
-    state.players[p].bench[silverIdx].exhausted = true;
-    log_noop(); // caller logs context
-    return;
-  }
   unit.exhausted = true;
 }
-function log_noop() {} // exhaustUnit can't receive log; Silver exhaust logged by callers
 
 // ---------------------------------------------------------------------------
 // Rouge passive — call after any hand/deck→own-discard event
@@ -361,18 +359,31 @@ export function bigActive(state, p, benchIdx, log) {
   return true;
 }
 
-// Silver active: deal 1 damage per active used this turn (including this one)
-export function silverActive(state, p, benchIdx, log) {
+// Silver active: bounce one bench unit to hand, scry 2 (choose 1 for hand, 1 to bottom)
+export function silverActive(state, p, benchIdx, targetBenchIdx, log) {
   const cost = getActiveCost(state, state.players[p].bench[benchIdx]);
-  if (!canAfford(state, cost)) { log(`❌ Not enough energy`, 'damage'); return false; }
+  if (!canAfford(state, cost)) { log('❌ Not enough energy', 'damage'); return false; }
   spendEnergy(state, cost);
-  // Silver always exhausts himself (by design — not redirected by his own passive)
-  state.players[p].bench[benchIdx].exhausted = true;
-  state.activesUsedThisTurn++;
-  const dmg = state.activesUsedThisTurn;
-  const opp = opponent(p);
-  log(`⚡ Silver: ${dmg} damage to Player ${opp + 1}'s Leader (${dmg} actives used)`, 'damage');
-  applyDamageToLeader(state, opp, dmg, log);
+  exhaustUnit(state, p, benchIdx);
+
+  // Bounce the chosen bench unit back to hand as a fresh card
+  const bounced = state.players[p].bench.splice(targetBenchIdx, 1)[0];
+  if (!bounced) return false;
+  state.players[p].hand.push({ ...bounced, currentHp: bounced.hp, exhausted: false });
+  log(`⚡ Silver: ${bounced.name} returned to hand`, 'play');
+
+  // Scry 2
+  const scryCards = state.players[p].deck.splice(0, Math.min(2, state.players[p].deck.length));
+  if (scryCards.length === 0) {
+    log('⚡ Silver: deck empty, no scry', 'phase');
+    return true;
+  }
+  if (scryCards.length === 1) {
+    state.players[p].hand.push(scryCards[0]);
+    log(`⚡ Silver scry: ${scryCards[0].name} added to hand`, 'draw');
+    return true;
+  }
+  state.pendingSilverScry = { playerIdx: p, cards: scryCards };
   return true;
 }
 
@@ -518,23 +529,6 @@ export function vectorActive(state, p, benchIdx, log) {
   return true;
 }
 
-// Omega active: persistently exhaust one opponent bench unit until start of next turn
-export function omegaActive(state, p, benchIdx, targetUnitIdx, log) {
-  const cost = getActiveCost(state, state.players[p].bench[benchIdx]);
-  if (!canAfford(state, cost)) { log(`❌ Not enough energy`, 'damage'); return false; }
-  const opp  = opponent(p);
-  const unit = state.players[opp].bench[targetUnitIdx];
-  if (!unit) return false;
-  spendEnergy(state, cost);
-  exhaustUnit(state, p, benchIdx);
-  state.activesUsedThisTurn++;
-  unit.exhausted = true;
-  // Lock expires at the START of the Omega-player's next turn
-  // (turn increments when firstPlayer's turn wraps — use turn+1 as the unlock turn)
-  state.persistentExhaust[opp][unit.uid] = state.turn + 1;
-  log(`🤖 Omega: ${unit.name} is locked exhausted until Player ${p + 1}'s next turn`, 'damage');
-  return true;
-}
 
 // Leader active: Sonic — discard 1 card → draw 2
 export function sonicActive(state, handIdx, log) {

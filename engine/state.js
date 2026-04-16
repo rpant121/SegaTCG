@@ -66,10 +66,6 @@ export function createInitialState(deckIds0, deckIds1) {
     rougeUsedThisTurn:      [false, false], // Rouge active: once per turn despite no exhaust
     leaderUsedThisTurn:     [false, false], // Leader active: once per turn
 
-    // ── Omega: persistent exhaust ─────────────────────────────────────────
-    // Maps unit uid → the turn number on which the lock expires (unlocks at
-    // the START of the Omega-player's NEXT turn).
-    persistentExhaust: [{}, {}],
 
     // ── Pending async UI prompts ──────────────────────────────────────────
     pendingBigScry:      null,  // { playerIdx, card }
@@ -79,6 +75,7 @@ export function createInitialState(deckIds0, deckIds1) {
     pendingExtremeGear:  null,  // { playerIdx }         (choose cards to discard)
     pendingMightyAttack: false, // true while second attack target selection is open
     pendingBlock:        null,  // { attackerP, defenderP } — awaiting blocker choice
+    pendingSilverScry:   null,  // { playerIdx, cards } — choose 1 for hand, 1 to bottom
 
     firstTurn: true,
 
