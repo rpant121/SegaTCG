@@ -548,7 +548,6 @@ export function sonicActive(state, handIdx, log) {
   const discarded = state.players[p].hand.splice(handIdx, 1)[0];
   state.players[p].discard.push(discarded);
   log(`⚡ Sonic discards ${discarded.name} → draws 2`, 'play');
-  triggerRougePassive(state, p, log);
   drawCards(state, p, 2, log);
   return true;
 }
@@ -563,7 +562,6 @@ export function resolveExtremeGear(state, handIndices, log) {
     const card = state.players[p].hand.splice(idx, 1)[0];
     if (card) {
       state.players[p].discard.push(card);
-      triggerRougePassive(state, p, log);
       gained++;
     }
   });

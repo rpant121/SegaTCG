@@ -88,7 +88,7 @@ export const UNIT_DATA = {
   rouge: {
     id: 'rouge', name: 'Rouge', type: 'Unit', cost: 0, hp: 2,
     passive: { type: 'rouge_draw', amount: 0 },
-    passiveDesc: 'When a card moves from your hand or deck into your discard, draw 1 card',
+    passiveDesc: 'When a card is milled from the top of your deck to your discard, draw 1 card',
     activeCost: 1,
     activeDesc: 'Place the top card of your deck directly into your discard pile. Rouge does NOT exhaust.',
   },

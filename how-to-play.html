@@ -217,49 +217,42 @@
         <span class="phase-num">1</span>
         <div class="phase-content">
           <h3>Recovery</h3>
-          <p>All exhausted support units on your bench recover. They are ready to use again immediately.</p>
+          <p>All exhausted support units on your bench recover and are ready to use again.</p>
         </div>
       </li>
       <li class="phase-item">
         <span class="phase-num">2</span>
         <div class="phase-content">
-          <h3>Big's Scry</h3>
-          <p>If <strong>Big the Cat</strong> is on your bench and not exhausted, you peek at the top card of your deck and choose to discard it or leave it. Skipped if your deck is empty.</p>
+          <h3>Draw Phase</h3>
+          <p>Draw 1 card. Some units and stages may modify how many cards you draw. If your deck is empty, you take damage instead — 1 damage the first time, 2 the second, and so on. That counter resets when you successfully draw.</p>
         </div>
       </li>
       <li class="phase-item">
         <span class="phase-num">3</span>
         <div class="phase-content">
-          <h3>Draw Phase</h3>
-          <p>Draw 1 card. If your deck is empty, you take damage instead — 1 damage the first time, 2 the second, and so on. That counter resets when you successfully draw.</p>
+          <h3>Energy Phase</h3>
+          <p>Your maximum energy goes up by 1 permanently, then your energy refills to that maximum. You start with 1 energy on turn one, 2 on turn two, and so on. <strong>Unspent energy is lost at end of turn</strong> — it does not carry over.</p>
         </div>
       </li>
       <li class="phase-item">
         <span class="phase-num">4</span>
-        <div class="phase-content">
-          <h3>Energy Phase</h3>
-          <p>Your maximum energy goes up by 1 permanently, then your energy refills to that new maximum. You start with 1 energy on turn one, 2 on turn two, and so on. <strong>Unspent energy is lost at end of turn</strong> — it does not carry over.</p>
-        </div>
-      </li>
-      <li class="phase-item">
-        <span class="phase-num">5</span>
         <div class="phase-content">
           <h3>Main Phase</h3>
           <p>Do anything in any order, as many times as you can afford: play cards from your hand, deploy support units to your bench (always free), use your Leader's active ability (once per turn), or trigger a bench unit's active ability. <strong>Using a unit's active exhausts it</strong>, disabling its passive until your next Recovery Phase.</p>
         </div>
       </li>
       <li class="phase-item">
-        <span class="phase-num">6</span>
+        <span class="phase-num">5</span>
         <div class="phase-content">
           <h3>Attack Phase</h3>
-          <p>Your Leader attacks. Choose a target: the opponent's Leader, or one of their bench units. You can also skip the attack if you want.</p>
+          <p>Your Leader attacks. Choose a target: the opponent's Leader, or one of their bench units. You can also skip the attack entirely.</p>
         </div>
       </li>
       <li class="phase-item">
-        <span class="phase-num">7</span>
+        <span class="phase-num">6</span>
         <div class="phase-content">
           <h3>End Phase</h3>
-          <p>Tails draws a card if she's on your bench and not exhausted. Turn-based buffs (Chaos Emerald, Power Glove, Master Emerald) are cleared. The screen passes to your opponent.</p>
+          <p>Some unit passives trigger here. Turn-based buffs are cleared. The screen passes to your opponent.</p>
         </div>
       </li>
     </ol>
@@ -271,7 +264,7 @@
     <h2>Combat</h2>
     <p>Your Leader's damage is shown on their card. This can be increased by support unit passives and equipment cards during your turn.</p>
 
-    <p><strong>Attacking the opponent's Leader:</strong> deal your effective damage to their HP. Cream's passive reduces this by 1 per Cream on the defending side.</p>
+    <p><strong>Attacking the opponent's Leader:</strong> deal your effective damage to their HP. Some support unit passives on the defending side can reduce this damage.</p>
 
     <p><strong>Attacking a bench unit:</strong> deal your effective damage to that unit's HP. If it reaches zero, the unit is KO'd — it goes to the discard pile and its controller takes <strong>2 damage to their Leader</strong> as a penalty.</p>
 
@@ -353,7 +346,7 @@
         <tr>
           <td class="card-name-cell">Rouge</td>
           <td class="hp-cell">2</td>
-          <td>When a card moves from your hand or deck to your discard, draw 1 card</td>
+          <td>When a card is milled from the top of your deck to your discard, draw 1 card</td>
           <td>Mill top deck card to your discard. Does not exhaust. Once per turn. (1)</td>
         </tr>
         <tr>
