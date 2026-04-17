@@ -313,7 +313,8 @@
   <div class="mode-buttons">
 
     <!-- Local / Pass & Play -->
-    <a class="mode-btn local" href="deck-builder.html" id="btn-local">
+    <a class="mode-btn local" href="deck-builder.html" id="btn-local"
+       onclick="sessionStorage.removeItem('online_server_url')">
       <div class="mode-icon">🎮</div>
       <div class="mode-text">
         <div class="mode-label">LOCAL PLAY</div>
@@ -345,7 +346,7 @@
 <script>
   // If the server URL isn't set yet (no Railway deploy), dim the online button
   // and show a tooltip. Edit ONLINE_SERVER_URL to your Railway URL when ready.
-  const ONLINE_SERVER_URL = 'https://segatcg-production.up.railway.app';  // ← paste your Railway URL here when deployed
+  const ONLINE_SERVER_URL = '';  // ← paste your Railway URL here when deployed
 
   const onlineBtn = document.getElementById('btn-online');
 

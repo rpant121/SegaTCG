@@ -129,13 +129,6 @@ export const UNIT_DATA = {
 
   // ── Persona 5 IP ──────────────────────────────────────────────────────────
 
-  omega: {
-    id: 'omega', name: 'Omega', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 50,
-    passive: { type: 'none', amount: 0 },
-    passiveDesc: 'No passive.',
-    activeCost: 2,
-    activeDesc: "Choose one opponent bench unit — it stays exhausted until the start of YOUR next turn, ignoring their End Phase recovery.",
-  },
   caroline: {
     id: 'caroline', name: 'Caroline', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 20,
     passive: { type: 'caroline_passive', amount: 0 },
