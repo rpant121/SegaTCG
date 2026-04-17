@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sega TCG — Build Your Deck (Online)</title>
+  <link rel="stylesheet" href="ui/styles.css">
+  <style>
+    body { overflow: auto; }
+
+    #builder-root {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 16px;
+      padding: 16px;
+      min-height: 100vh;
+    }
+
+    .builder-header {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #1a3a5e;
+    }
+    .builder-header h1 {
+      font-family: var(--font-display);
+      font-size: 22px;
+      color: var(--sonic-bright);
+      letter-spacing: 3px;
+    }
+    .builder-header a {
+      color: var(--grey);
+      font-size: 10px;
+      text-decoration: none;
+      border: 1px solid #1a2a40;
+      padding: 4px 10px;
+      border-radius: 4px;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .builder-header a:hover { color: var(--white); border-color: var(--sonic-blue); }
+
+    /* Online mode badge */
+    .online-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #1a1400;
+      border: 1px solid var(--gold-dim);
+      color: var(--gold);
+      font-family: var(--font-display);
+      font-size: 9px;
+      letter-spacing: 1px;
+      padding: 4px 10px;
+      border-radius: 4px;
+    }
+
+    #pool-section { display: flex; flex-direction: column; gap: 12px; }
+
+    .section-title {
+      font-family: var(--font-display);
+      font-size: 11px;
+      color: var(--sonic-bright);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .card-pool { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    .pool-card {
+      width: 88px; height: 120px;
+      background: var(--card-bg);
+      border: 1.5px solid var(--card-border);
+      border-radius: 8px;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 5px 4px;
+      cursor: pointer;
+      position: relative;
+      transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+      font-size: 9px; text-align: center; overflow: hidden; user-select: none;
+    }
+    .pool-card:hover         { transform: translateY(-4px); box-shadow: var(--glow-blue); }
+    .pool-card.maxed         { opacity: 0.4; cursor: not-allowed; }
+    .pool-card.maxed:hover   { transform: none; box-shadow: none; }
+    .pool-card.card-type-unit      { background: linear-gradient(160deg, #0d2040, #0a1525); border-color: #2a5080; }
+    .pool-card.card-type-equipment { background: linear-gradient(160deg, #1e1e1e, #111); border-color: #404040; }
+    .pool-card.card-type-stage     { background: linear-gradient(160deg, #0d2a10, #081808); border-color: #1a5020; }
+    .pool-card.card-type-genesis   { background: linear-gradient(160deg, #2a0d20, #180810); border-color: #5a1a35; }
+    .pool-card .count-badge {
+      position: absolute; bottom: 4px; right: 4px;
+      background: var(--sonic-blue); color: #fff;
+      font-family: var(--font-display); font-size: 8px;
+      padding: 1px 5px; border-radius: 10px;
+    }
+    .pool-card .count-badge.at-max { background: var(--red-dim); }
+
+    #deck-section {
+      display: flex; flex-direction: column; gap: 10px;
+      position: sticky; top: 16px; align-self: start;
+    }
+    .deck-panel {
+      background: #0a152588; border: 1px solid #1a2a40;
+      border-radius: 10px; padding: 12px;
+    }
+    .deck-counter {
+      font-family: var(--font-display); font-size: 28px;
+      text-align: center; padding: 8px; margin-bottom: 6px;
+    }
+    .deck-counter.valid   { color: var(--green); text-shadow: var(--glow-green); }
+    .deck-counter.invalid { color: var(--red); }
+    .deck-subtitle { text-align: center; font-size: 9px; color: var(--grey); margin-bottom: 10px; }
+    .deck-list { display: flex; flex-direction: column; gap: 3px; max-height: 340px; overflow-y: auto; }
+
+    .deck-entry {
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 6px; background: #0d1f35;
+      border-radius: 4px; font-size: 9px; cursor: pointer;
+      transition: background 0.15s;
+    }
+    .deck-entry:hover { background: #142840; }
+    .deck-entry .de-name { flex: 1; }
+    .deck-entry .de-type { font-size: 7px; padding: 1px 4px; border-radius: 3px; }
+    .deck-entry .de-remove { color: var(--red); font-size: 11px; line-height: 1; }
+
+    #validation-panel {
+      background: #0a152588; border: 1px solid #1a2a40;
+      border-radius: 10px; padding: 12px;
+    }
+    .val-item {
+      display: flex; align-items: flex-start; gap: 6px;
+      font-size: 9px; padding: 3px 0;
+      border-bottom: 1px solid #0d1a2a; line-height: 1.4;
+    }
+    .val-item:last-child { border-bottom: none; }
+    .val-icon { flex-shrink: 0; font-size: 11px; }
+    .val-ok   { color: var(--green); }
+    .val-err  { color: var(--red); }
+
+    .action-row { display: flex; gap: 8px; }
+    .action-row .action-btn { margin-bottom: 0; }
+
+    .leader-selector { display: flex; gap: 8px; flex-wrap: wrap; }
+    .leader-opt {
+      padding: 6px 10px; border: 1px solid #1a3a5e;
+      border-radius: 6px; cursor: pointer; font-size: 9px;
+      transition: border-color 0.15s, background 0.15s; background: #0a1525;
+    }
+    .leader-opt:hover    { border-color: var(--sonic-blue); }
+    .leader-opt.selected { border-color: var(--gold); background: #1a1400; color: var(--gold); }
+
+    #toast {
+      position: fixed; bottom: 20px; left: 50%;
+      transform: translateX(-50%) translateY(60px);
+      background: #0d1f35; border: 1px solid var(--sonic-blue);
+      border-radius: 6px; padding: 8px 16px; font-size: 10px;
+      color: var(--white); box-shadow: var(--glow-blue);
+      transition: transform 0.3s; z-index: 200; white-space: nowrap;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+
+    .filter-bar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .filter-btn {
+      padding: 3px 10px; border: 1px solid #1a3a5e;
+      border-radius: 12px; background: #0a1525; color: var(--grey);
+      font-family: var(--font-mono); font-size: 9px; cursor: pointer; transition: all 0.15s;
+    }
+    .filter-btn:hover  { border-color: var(--sonic-blue); color: var(--white); }
+    .filter-btn.active { border-color: var(--sonic-bright); background: #0d2a4a; color: var(--white); }
+  </style>
+</head>
+<body>
+<div id="builder-root">
+
+  <div class="builder-header">
+    <h1>DECK BUILDER</h1>
+    <div class="online-badge">🌐 ONLINE MODE</div>
+    <div style="margin-left:8px;">
+      <div style="font-family:var(--font-display);font-size:11px;color:var(--white);">Build your deck, then join the lobby.</div>
+      <div style="font-size:9px;color:var(--grey);">Your opponent builds their own deck on their device.</div>
+    </div>
+    <a href="home.html" style="margin-left:auto;">← Back</a>
+  </div>
+
+  <div id="pool-section">
+    <div>
+      <div class="section-title">Precon Decks</div>
+      <div id="precon-buttons"></div>
+    </div>
+    <div>
+      <div class="section-title">Leader (fixed)</div>
+      <div id="leader-pool" class="leader-selector"></div>
+    </div>
+    <div>
+      <div class="section-title">Card Pool</div>
+      <div class="filter-bar" id="filter-bar">
+        <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="Unit">Units</button>
+        <button class="filter-btn" data-filter="Equipment">Equipment</button>
+        <button class="filter-btn" data-filter="Stage">Stages</button>
+        <button class="filter-btn" data-filter="Genesis">Genesis</button>
+      </div>
+    </div>
+    <div class="card-pool" id="card-pool"></div>
+  </div>
+
+  <div id="deck-section">
+    <div class="deck-panel">
+      <div class="panel-title">Your Deck</div>
+      <div class="deck-counter invalid" id="deck-counter">0 / 30</div>
+      <div class="deck-subtitle">Click a card in the pool to add · Click a deck entry to remove</div>
+      <div class="deck-list" id="deck-list"></div>
+    </div>
+    <div id="validation-panel">
+      <div class="panel-title">Validation</div>
+      <div id="validation-list"></div>
+    </div>
+    <div class="action-row">
+      <button class="action-btn danger" id="btn-clear">Clear</button>
+      <button class="action-btn" id="btn-random" style="border-color:var(--grey);color:var(--grey);">🎲 Random</button>
+    </div>
+    <button class="action-btn gold" id="btn-save" disabled>Save Deck &amp; Go to Lobby →</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script type="module">
+
+const LEADERS = [{
+  id: 'sonic', name: 'Sonic the Hedgehog', type: 'Leader',
+  hp: 100, damage: 10, activeCost: 1,
+  activeDesc: 'Discard 1 card from hand → Draw 2. Requires ≥1 card in hand.',
+}];
+
+const POOL_CARDS = [
+  { id: 'tails',    name: 'Tails',    type: 'Unit', cost: 0, hp: 20, passive: 'Draw 1 card at end of turn', active: 'Play 1 card from your discard pile', activeCost: 2 },
+  { id: 'knuckles', name: 'Knuckles', type: 'Unit', cost: 0, hp: 40, passive: '+10 to Leader Attack', active: 'Deal 10 damage to 1 opponent Support Unit', activeCost: 1 },
+  { id: 'amy',      name: 'Amy',      type: 'Unit', cost: 0, hp: 30, passive: '+10 to Leader Attack', active: "Deal 10 damage to opponent's Leader", activeCost: 1 },
+  { id: 'cream',    name: 'Cream',    type: 'Unit', cost: 0, hp: 20, passive: '-10 to damage taken by Leader', active: 'Heal 10 HP from any friendly unit', activeCost: 1 },
+  { id: 'big',      name: 'Big',      type: 'Unit', cost: 0, hp: 40, passive: 'Start of turn: look at top deck card, may discard it', active: "Discard a random card from opponent's hand", activeCost: 3 },
+  { id: 'silver',   name: 'Silver',   type: 'Unit', cost: 0, hp: 30, passive: 'All friendly unit actives cost 1 less energy (minimum 1).', active: 'Return one of your bench units to your hand.', activeCost: 3 },
+  { id: 'shadow',   name: 'Shadow',   type: 'Unit', cost: 0, hp: 40, passive: "Leader base damage doubles while Shadow is on bench (stacks)", active: "Deal 30 damage to opponent's Leader. Your Leader takes 10 unblockable damage.", activeCost: 3 },
+  { id: 'mighty',   name: 'Mighty',   type: 'Unit', cost: 0, hp: 30, passive: 'After your Leader deals ≥30 damage, draw 1 card', active: 'Your Leader attacks a second time this turn. Mighty exhausts.', activeCost: 2 },
+  { id: 'rouge',    name: 'Rouge',    type: 'Unit', cost: 0, hp: 20, passive: 'When a card is milled from your deck to your discard, draw 1', active: 'Place the top card of your deck into your discard. Rouge does NOT exhaust.', activeCost: 1 },
+  { id: 'blaze',    name: 'Blaze',    type: 'Unit', cost: 0, hp: 30, passive: 'End of turn: if discard has 5+ cards, heal Leader 10 HP', active: 'Shuffle entire discard into deck, draw 2. Blaze exhausts.', activeCost: 3 },
+  { id: 'ray',      name: 'Ray',      type: 'Unit', cost: 0, hp: 40, passive: 'When you play a card from discard, draw 1', active: 'Look at top 3 deck cards — place 1 into discard, return rest in any order', activeCost: 2 },
+  { id: 'charmy',   name: 'Charmy',   type: 'Unit', cost: 0, hp: 40, passive: 'Each equipment played this turn after the first costs 1 less (min 0)', active: 'Draw 1 card per equipment played this turn', activeCost: 2 },
+  { id: 'espio',    name: 'Espio',    type: 'Unit', cost: 0, hp: 30, passive: 'After Draw Phase: draw 1 extra per equipment in discard (max 2)', active: 'Shuffle up to 3 equipment from discard into deck, draw 1', activeCost: 2 },
+  { id: 'vector',   name: 'Vector',   type: 'Unit', cost: 0, hp: 20, passive: 'Each time your Leader takes damage this turn, draw 1', active: 'Deal damage equal to total energy spent this turn (including this cost)', activeCost: 3 },
+  { id: 'ring',              name: 'Ring',              type: 'Equipment', cost: 0,  effect: 'Gain 1 Energy immediately.' },
+  { id: 'chaos_emerald',     name: 'Chaos Emerald',     type: 'Equipment', cost: 2,  effect: 'Leader gains +20 Damage until end of turn.' },
+  { id: 'elemental_shield',  name: 'Elemental Shield',  type: 'Equipment', cost: 1,  effect: "Prevent ALL damage to yourself during opponent's next turn." },
+  { id: 'heat_barrier',      name: 'Heat Barrier',      type: 'Equipment', cost: 1,  effect: 'Heal your Leader for 20 HP. Cannot exceed max HP.' },
+  { id: 'dragons_eye',       name: "Dragon's Eye",      type: 'Equipment', cost: 2,  effect: 'Look at top 3 deck cards. Put 1 into hand; return rest in any order.' },
+  { id: 'power_glove',       name: 'Power Glove',       type: 'Equipment', cost: 3,  effect: 'Your Leader deals +30 Damage this turn only.' },
+  { id: 'speed_shoes',       name: 'Speed Shoes',       type: 'Equipment', cost: 1,  effect: 'Gain 3 Energy immediately.' },
+  { id: 'extreme_gear',      name: 'Extreme Gear',      type: 'Equipment', cost: 0,  effect: 'Discard any number of cards from hand — gain 1 Energy each.' },
+  { id: 'green_hill_zone',   name: 'Green Hill Zone',   type: 'Stage',     cost: 1,  effect: 'While active: both players draw 1 extra card during Draw Phase.' },
+  { id: 'midnight_carnival', name: 'Midnight Carnival', type: 'Stage',     cost: 2,  effect: "While active: KO'd units deal 0 penalty damage to their controller." },
+  { id: 'radical_highway',   name: 'Radical Highway',   type: 'Stage',     cost: 1,  effect: 'While active: each player gains 1 extra energy at turn start.' },
+  { id: 'master_emerald',    name: 'Master Emerald',    type: 'Genesis',   cost: 4,  effect: 'This turn: all bench unit actives cost 0 and do not exhaust.', isGenesis: true },
+  { id: 'polaris_pact',      name: 'Polaris Pact',      type: 'Genesis',   cost: 5,  effect: 'Both players draw to 6 cards. Opponent discards 1.', isGenesis: true },
+  { id: 'super_form',        name: 'Super Form',        type: 'Genesis',   cost: 4,  effect: 'Double your current energy.', isGenesis: true },
+];
+
+const VALID_IDS = new Set(POOL_CARDS.map(c => c.id));
+
+const PRECON_DECKS = {
+  aggro: {
+    name: 'Heavy Hitters',
+    desc: 'Knuckles and Amy stack attack passives. Shadow doubles base damage. Mighty closes games with a second attack.',
+    ids: ['knuckles','knuckles','knuckles','amy','amy','amy','shadow','shadow','mighty','mighty','mighty','silver','silver','cream','cream','chaos_emerald','chaos_emerald','chaos_emerald','power_glove','power_glove','power_glove','ring','ring','ring','elemental_shield','elemental_shield','heat_barrier','heat_barrier','midnight_carnival','master_emerald'],
+  },
+  setup: {
+    name: 'Discard Engine',
+    desc: 'Big scries the top each turn. Tails replays from discard. Rouge draws on every mill. Blaze resets the loop.',
+    ids: ['tails','tails','tails','big','big','big','rouge','rouge','rouge','ray','ray','ray','blaze','blaze','silver','ring','ring','ring','dragons_eye','dragons_eye','dragons_eye','green_hill_zone','green_hill_zone','green_hill_zone','elemental_shield','elemental_shield','heat_barrier','heat_barrier','chaos_emerald','master_emerald'],
+  },
+  rings: {
+    name: 'Chaotix Burst',
+    desc: 'Charmy discounts chained equipment. Vector converts energy into damage. Super Form is the nova button.',
+    ids: ['charmy','charmy','charmy','espio','espio','espio','vector','vector','vector','cream','cream','tails','tails','rouge','rouge','ring','ring','ring','speed_shoes','speed_shoes','speed_shoes','extreme_gear','extreme_gear','extreme_gear','chaos_emerald','chaos_emerald','power_glove','radical_highway','super_form','heat_barrier'],
+  },
+};
+
+let deck        = [];
+let leaderId    = 'sonic';
+let activeFilter = 'all';
+
+function countInDeck(id) { return deck.filter(x => x === id).length; }
+function maxCopies(card) { return card.isGenesis ? 1 : 3; }
+function cardTypeClass(type) {
+  return { Unit:'card-type-unit', Equipment:'card-type-equipment', Stage:'card-type-stage', Genesis:'card-type-genesis' }[type] ?? 'card-type-equipment';
+}
+
+function validate() {
+  const errors = [], ok = [];
+  if (deck.length === 30) ok.push('Deck contains exactly 30 cards');
+  else errors.push(`Deck has ${deck.length}/30 cards`);
+  const counts = {};
+  for (const id of deck) counts[id] = (counts[id] ?? 0) + 1;
+  const violations = Object.entries(counts)
+    .filter(([id, n]) => { const c = POOL_CARDS.find(x => x.id === id); return c && n > maxCopies(c); })
+    .map(([id, n]) => `${POOL_CARDS.find(x=>x.id===id).name} ×${n}`);
+  if (violations.length) errors.push('Copy limit exceeded: ' + violations.join('; '));
+  else ok.push('All copy limits respected');
+  const genCount = deck.filter(id => POOL_CARDS.find(x=>x.id===id)?.isGenesis).length;
+  if (genCount > 1) errors.push(`Too many Genesis cards: ${genCount} (max 1)`);
+  else ok.push(`Genesis: ${genCount}/1`);
+  return { errors, ok, valid: errors.length === 0 && deck.length === 30 };
+}
+
+function refreshUI() { renderPool(); renderDeckList(); renderValidation(); renderCounter(); }
+
+function renderPool() {
+  const container = document.getElementById('card-pool');
+  container.innerHTML = '';
+  const filtered = activeFilter === 'all' ? POOL_CARDS : POOL_CARDS.filter(c => c.type === activeFilter);
+  filtered.forEach(card => {
+    const count = countInDeck(card.id), max = maxCopies(card);
+    const isMaxed = count >= max || deck.length >= 30;
+    const div = document.createElement('div');
+    div.className = `pool-card ${cardTypeClass(card.type)}` + (isMaxed ? ' maxed' : '');
+    const typeClass = { Unit:'type-unit', Stage:'type-stage', Equipment:'type-equipment', Genesis:'type-genesis' }[card.type] ?? 'type-equipment';
+    const desc = card.effect ?? card.passive ?? '';
+    div.innerHTML = `
+      <div class="card-type-badge ${typeClass}" style="width:100%;text-align:center;">${card.type.toUpperCase()}</div>
+      ${card.cost > 0 ? `<div class="card-cost">${card.cost}</div>` : ''}
+      <div class="card-name">${card.name}</div>
+      ${card.hp !== undefined ? `<div style="font-size:8px;color:var(--green);">HP:${card.hp}</div>` : ''}
+      <div style="font-size:7px;color:#8899bb;line-height:1.3;text-align:left;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;">${desc}</div>
+      <div class="count-badge ${count >= max ? 'at-max' : ''}">${count}/${max}</div>`;
+    if (!isMaxed) div.addEventListener('click', () => { deck.push(card.id); refreshUI(); });
+    container.appendChild(div);
+  });
+}
+
+function renderDeckList() {
+  const container = document.getElementById('deck-list');
+  container.innerHTML = '';
+  const seen = new Map();
+  deck.forEach((id, i) => {
+    if (!seen.has(id)) seen.set(id, { count: 0, indices: [] });
+    seen.get(id).count++; seen.get(id).indices.push(i);
+  });
+  const order = { Unit:0, Stage:1, Equipment:2, Genesis:3 };
+  [...seen.entries()].sort(([a],[b]) => {
+    const ca = POOL_CARDS.find(x=>x.id===a), cb = POOL_CARDS.find(x=>x.id===b);
+    return (order[ca?.type]??9)-(order[cb?.type]??9) || a.localeCompare(b);
+  }).forEach(([id, { count, indices }]) => {
+    const card = POOL_CARDS.find(c=>c.id===id);
+    if (!card) return;
+    const typeClass = { Unit:'type-unit', Stage:'type-stage', Equipment:'type-equipment', Genesis:'type-genesis' }[card.type] ?? 'type-equipment';
+    const div = document.createElement('div');
+    div.className = 'deck-entry';
+    div.innerHTML = `
+      <span class="de-name">${count > 1 ? `×${count} ` : ''}${card.name}</span>
+      <span class="de-type card-type-badge ${typeClass}">${card.type}</span>
+      ${card.cost !== undefined ? `<span style="color:var(--gold-dim);font-size:8px;">${card.cost}⚡</span>` : ''}
+      <span class="de-remove">✕</span>`;
+    div.addEventListener('click', () => { deck.splice(indices[indices.length-1], 1); refreshUI(); });
+    container.appendChild(div);
+  });
+  if (!deck.length) {
+    const e = document.createElement('div');
+    e.style.cssText = 'text-align:center;color:var(--grey);font-size:9px;padding:12px;';
+    e.textContent = 'No cards yet — click cards in the pool to add them';
+    container.appendChild(e);
+  }
+}
+
+function renderCounter() {
+  const el = document.getElementById('deck-counter');
+  const valid = deck.length === 30 && validate().valid;
+  el.textContent = `${deck.length} / 30`;
+  el.className = 'deck-counter ' + (valid ? 'valid' : 'invalid');
+  document.getElementById('btn-save').disabled = !valid;
+}
+
+function renderValidation() {
+  const container = document.getElementById('validation-list');
+  container.innerHTML = '';
+  const { errors, ok } = validate();
+  const add = (icon, text, cls) => {
+    const div = document.createElement('div');
+    div.className = `val-item ${cls}`;
+    div.innerHTML = `<span class="val-icon">${icon}</span><span>${text}</span>`;
+    container.appendChild(div);
+  };
+  errors.forEach(e => add('✗', e, 'val-err'));
+  ok.forEach(o => add('✓', o, 'val-ok'));
+}
+
+function renderLeaderPool() {
+  const container = document.getElementById('leader-pool');
+  container.innerHTML = '';
+  LEADERS.forEach(leader => {
+    const div = document.createElement('div');
+    div.className = 'leader-opt' + (leader.id === leaderId ? ' selected' : '');
+    div.innerHTML = `<div style="font-family:var(--font-display);font-size:9px;color:var(--gold);margin-bottom:2px;">🦔 ${leader.name}</div>
+      <div style="font-size:8px;color:var(--grey);">HP:${leader.hp} · DMG:${leader.damage} · Active:${leader.activeCost}⚡</div>`;
+    div.addEventListener('click', () => { leaderId = leader.id; renderLeaderPool(); });
+    container.appendChild(div);
+  });
+}
+
+function renderPrecons() {
+  const container = document.getElementById('precon-buttons');
+  container.innerHTML = '';
+  Object.entries(PRECON_DECKS).forEach(([key, precon]) => {
+    const btn = document.createElement('button');
+    btn.className = 'action-btn';
+    btn.style.cssText = 'margin-bottom:4px;font-size:9px;';
+    btn.textContent = `⚡ ${precon.name}`;
+    btn.title = precon.desc;
+    btn.addEventListener('click', () => { deck = [...precon.ids]; refreshUI(); showToast(`Loaded: ${precon.name}`); });
+    container.appendChild(btn);
+  });
+}
+
+function getDeckName() {
+  for (const [, precon] of Object.entries(PRECON_DECKS)) {
+    if (JSON.stringify([...precon.ids].sort()) === JSON.stringify([...deck].sort())) return precon.name;
+  }
+  return 'Custom Deck';
+}
+
+function handleSave() {
+  const { valid } = validate();
+  if (!valid) return;
+  // Save as deck_p1 — main.online.js reads whichever key is present
+  const payload = JSON.stringify({ leaderId, deck, deckName: getDeckName() });
+  sessionStorage.setItem('deck_p1', payload);
+  showToast('Deck saved! Loading lobby…');
+  setTimeout(() => { window.location.href = 'index.html'; }, 600);
+}
+
+function buildRandom() {
+  deck = [];
+  const nonGenesis = POOL_CARDS.filter(c => !c.isGenesis);
+  const genesis    = POOL_CARDS.filter(c =>  c.isGenesis);
+  if (genesis.length) deck.push(genesis[Math.floor(Math.random() * genesis.length)].id);
+  let tries = 0;
+  while (deck.length < 30 && tries < 10000) {
+    tries++;
+    const card = nonGenesis[Math.floor(Math.random() * nonGenesis.length)];
+    if (countInDeck(card.id) < 3) deck.push(card.id);
+  }
+  refreshUI();
+  showToast('Random deck generated!');
+}
+
+let _toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+document.getElementById('filter-bar').addEventListener('click', e => {
+  const btn = e.target.closest('.filter-btn');
+  if (!btn) return;
+  activeFilter = btn.dataset.filter;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderPool();
+});
+document.getElementById('btn-clear').addEventListener('click', () => { deck = []; refreshUI(); showToast('Deck cleared'); });
+document.getElementById('btn-random').addEventListener('click', buildRandom);
+document.getElementById('btn-save').addEventListener('click', handleSave);
+
+// Clear any stale deck from a previous local game so the online lobby
+// reads the freshly-built deck instead
+sessionStorage.removeItem('deck_p1');
+sessionStorage.removeItem('deck_p2');
+
+renderLeaderPool();
+renderPrecons();
+refreshUI();
+</script>
+</body>
+</html>
