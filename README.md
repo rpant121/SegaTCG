@@ -15,6 +15,7 @@ npm start
 # Player 1: http://localhost:3000
 # Player 2: http://localhost:3000  (different browser or incognito)
 ```
+ 
 
 ## How to Activate Online Mode
 
