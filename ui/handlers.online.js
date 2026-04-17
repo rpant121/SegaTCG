@@ -187,22 +187,16 @@ function attachBoardHandlers() {
 
   // ── Setup phase — concurrent: both players deploy simultaneously ─────────
   if (state.phase === 'setup') {
-    // Hand is already rendered correctly by refreshBoard() — just wire drag events
-    // by querying the existing card elements rather than re-rendering
-    const handEl = document.getElementById(`p${p + 1}-hand`);
-    if (handEl) {
-      const cards = handEl.querySelectorAll('.card:not(.face-down)');
-      cards.forEach((div, idx) => {
-        const card = state.players[p].hand[idx];
-        if (card && !card.hidden && card.type === 'Unit') {
-          attachDragToHandCard(div, idx, p);
-        }
-      });
-    }
-    attachBenchDropZone(`p${p + 1}-bench`, p);
+    // renderHand returns { div, idx, card } — use those indices directly
+    const setupHandEls = renderHand(`p${p + 1}-hand`, state, p, p);
+    setupHandEls.forEach(({ div, idx, card }) => {
+      if (card && !card.hidden && card.type === 'Unit') {
+        attachDragToHandCard(div, idx, p);
+      }
+    });
+    attachBenchDropZoneOnce(`p${p + 1}-bench`, p);
 
     const btnEnd = document.getElementById('btn-end-phase');
-    // Just update display — click is handled by bindStaticButtons
     const alreadyReady = btnEnd.dataset.setupReady === '1';
     btnEnd.textContent = alreadyReady ? 'Waiting for opponent…' : 'Done Setup →';
     btnEnd.disabled    = alreadyReady;
@@ -225,7 +219,7 @@ function attachBoardHandlers() {
     });
   });
 
-  attachBenchDropZone(`p${p + 1}-bench`, p);
+  attachBenchDropZoneOnce(`p${p + 1}-bench`, p);
 
   // ── Own bench: click for active ability ──────────────────────────────────
   const ownBenchEls = renderBench(`p${p + 1}-bench`, state, p);
@@ -304,6 +298,22 @@ function attachDragToHandCard(div, handIdx, p) {
 function attachBenchDropZone(benchId, p) {
   const el = document.getElementById(benchId);
   if (!el) return;
+  el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drop-hover'); });
+  el.addEventListener('dragleave', () => el.classList.remove('drop-hover'));
+  el.addEventListener('drop', e => {
+    e.preventDefault();
+    el.classList.remove('drop-hover');
+    if (_drag.active) {
+      act('PLAY_CARD', { handIdx: _drag.handIdx });
+      endDrag(p);
+    }
+  });
+}
+
+function attachBenchDropZoneOnce(benchId, p) {
+  const el = document.getElementById(benchId);
+  if (!el || el.dataset.dropWired === '1') return;
+  el.dataset.dropWired = '1';
   el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drop-hover'); });
   el.addEventListener('dragleave', () => el.classList.remove('drop-hover'));
   el.addEventListener('drop', e => {
