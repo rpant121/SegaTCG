@@ -60,10 +60,11 @@ export function playCardFromHand(state, handIdx, log) {
 
   // During setup phase: units are free, no energy check
   if (state.phase === 'setup') {
+    const sp = state._setupPlayer ?? 0;
     if (card.type !== 'Unit') { log(`❌ Only units can be deployed during setup`, 'damage'); return false; }
-    if (state.players[p].bench.length >= 3) { log(`❌ Bench is full`, 'damage'); return false; }
-    state.players[p].hand.splice(handIdx, 1);
-    deployUnit(state, p, card, log);
+    if (state.players[sp].bench.length >= 3) { log(`❌ Bench is full`, 'damage'); return false; }
+    state.players[sp].hand.splice(handIdx, 1);
+    deployUnit(state, sp, card, log);
     return true;
   }
 
