@@ -254,10 +254,11 @@ function attachBoardHandlers() {
 
   // ── Opponent bench: attack targets ───────────────────────────────────────
   const oppBenchEls = renderBench(`p${opp + 1}-bench`, state, opp);
+  console.log('[DEBUG] attack wiring — phase:', state.phase, 'myTurn:', isMyTurn(), 'oppBench count:', oppBenchEls.length);
   oppBenchEls.forEach(({ div, idx }) => {
     const unit = state.players[opp].bench[idx];
     if (state.phase === 'attack') {
-      div.onclick = () => act('ATTACK', { targetType: 'unit', targetBenchIdx: idx });
+      div.onclick = () => { console.log('[DEBUG] bench target clicked idx:', idx); act('ATTACK', { targetType: 'unit', targetBenchIdx: idx }); };
     }
     if (unit) {
       div.addEventListener('contextmenu', e => {
@@ -270,7 +271,7 @@ function attachBoardHandlers() {
   // ── Opponent leader: attack target ────────────────────────────────────────
   const oppLeaderDiv = renderLeader(`p${opp + 1}-leader-zone`, state, opp);
   if (state.phase === 'attack') {
-    oppLeaderDiv.onclick = () => act('ATTACK', { targetType: 'leader' });
+    oppLeaderDiv.onclick = () => { console.log('[DEBUG] leader target clicked'); act('ATTACK', { targetType: 'leader' }); };
     // Block modal is shown when server responds with pendingBlock (see state_update handler)
   }
   oppLeaderDiv.addEventListener('contextmenu', e => {
