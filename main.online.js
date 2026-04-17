@@ -191,24 +191,30 @@ socket.on('room_joined', ({ roomCode, playerIdx }) => {
   setStatus('Joined! Starting game…');
 });
 
-socket.on('game_start', ({ playerIdx, firstPlayer, deckNames }) => {
-  _playerIdx = playerIdx; // confirm assignment
+socket.on('game_start', ({ playerIdx, firstPlayer, deckNames, initialState, logEntries }) => {
+  _playerIdx = playerIdx;
+  console.log('[DEBUG] game_start received, playerIdx:', playerIdx, 'roomCode:', _roomCode);
   setStatus('Game starting!', '#00ff66');
 
-  // Remove lobby overlay immediately and init handlers BEFORE the timeout
-  // so state_update listeners are registered before the server broadcasts.
   document.getElementById('lobby-overlay').remove();
   addLog('=== SEGA CARD GAME TCG — ONLINE ===', 'phase');
   addLog(`P1: ${deckNames[0]}  |  P2: ${deckNames[1]}`, 'phase');
   addLog(`Coin flip → Player ${firstPlayer + 1} goes first!`, 'phase');
   initOnlineHandlers(socket, _roomCode, _playerIdx);
+  console.log('[DEBUG] initOnlineHandlers done');
 
-  // Ask the server to re-broadcast state now that our listeners are registered.
-  // Small delay to ensure initOnlineHandlers has fully run.
   setTimeout(() => {
+    console.log('[DEBUG] emitting REQUEST_STATE, roomCode:', _roomCode);
     socket.emit('action', { roomCode: _roomCode, type: 'REQUEST_STATE', payload: {} });
-  }, 100);
+  }, 50);
 });
+
+// Debug: log ALL incoming socket events
+const _origOnevent = socket.onevent.bind(socket);
+socket.onevent = function(packet) {
+  console.log('[DEBUG] socket event:', packet.data?.[0], packet.data?.[1]);
+  _origOnevent(packet);
+};
 
 socket.on('error', ({ message }) => {
   setStatus(`Error: ${message}`, '#cc4444');
