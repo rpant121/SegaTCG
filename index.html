@@ -281,6 +281,14 @@
 </div>
 
 
-<script type="module" src="main.js"></script>
+<script type="module">
+  // Route to the correct entry point based on how the player arrived.
+  // online_server_url is set by home.html when the player chose Online Play.
+  const isOnline = !!sessionStorage.getItem('online_server_url');
+  const script   = document.createElement('script');
+  script.type    = 'module';
+  script.src     = isOnline ? 'main.online.js' : 'main.js';
+  document.body.appendChild(script);
+</script>
 </body>
 </html>
