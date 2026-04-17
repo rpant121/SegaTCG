@@ -275,7 +275,7 @@ body {
 
 /* ── Leader Card ─────────────────────────────────────────── */
 .leader-card {
-  width: 280px; height: 78px;
+  width: 280px; height: 84px;
   background: linear-gradient(160deg, #0d2040, #060d1a);
   border: 2px solid var(--sonic-blue);
   border-radius: 10px;
@@ -323,7 +323,43 @@ body {
   font-size: 11px;
 }
 .leader-hp-text  { color: var(--green); font-weight: 700; font-family: var(--font-display); font-size: 12px; }
-.leader-dmg-text { color: var(--red); font-size: 11px; }
+
+.leader-dmg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #1a0a0a;
+  border: 1px solid var(--red-dim);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: var(--red);
+  cursor: default;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+.leader-dmg-chip.buffed {
+  background: #2a0808;
+  border-color: #ff4422;
+  color: #ff6644;
+  box-shadow: 0 0 8px #ff224444;
+  animation: dmg-pulse 1.5s ease-in-out infinite;
+}
+@keyframes dmg-pulse {
+  0%, 100% { box-shadow: 0 0 6px #ff224433; }
+  50%       { box-shadow: 0 0 14px #ff224488, 0 0 24px #ff224422; }
+}
+
+.leader-dmg-breakdown {
+  font-size: 7.5px;
+  color: #aa6655;
+  margin-top: 3px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* ── Bench Units ─────────────────────────────────────────── */
 .bench-slot {

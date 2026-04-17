@@ -11,24 +11,35 @@ import { opponent } from './state.js';
 // Shadow passive: base becomes 2 if he is on bench and not exhausted.
 // ---------------------------------------------------------------------------
 export function calcEffectiveDamage(state, p) {
-  // Shadow doubles base damage (stacks multiplicatively per Shadow)
-  let base = state.players[p].leader.damage;
-  const shadowCount = state.players[p].bench.filter(u => u.id === 'shadow' && !u.exhausted).length;
-  base = base * Math.pow(2, shadowCount);
+  const { total } = calcDamageBreakdown(state, p);
+  return total;
+}
 
-  // Attack boosts (Knuckles, Amy passives) apply AFTER doubling
+// Returns a breakdown object for display purposes
+export function calcDamageBreakdown(state, p) {
+  const base = state.players[p].leader.damage;
+  const shadowCount = state.players[p].bench.filter(u => u.id === 'shadow' && !u.exhausted).length;
+  const multiplier  = Math.pow(2, shadowCount);
+  const baseAfterShadow = base * multiplier;
+
   let boost = 0;
+  const boostSources = [];
   for (const unit of state.players[p].bench) {
     if (!unit.exhausted && unit.passive?.type === 'attack_boost') {
       boost += unit.passive.amount;
+      boostSources.push(`${unit.name} +${unit.passive.amount}`);
     }
   }
+  if (state.chaosEmeraldBuff[p] > 0) {
+    boost += state.chaosEmeraldBuff[p];
+    boostSources.push(`Chaos Emerald +${state.chaosEmeraldBuff[p]}`);
+  }
+  if (state.powerGloveBuff[p] > 0) {
+    boost += state.powerGloveBuff[p];
+    boostSources.push(`Power Glove +${state.powerGloveBuff[p]}`);
+  }
 
-  // Equipment buffs
-  boost += state.chaosEmeraldBuff[p];
-  boost += state.powerGloveBuff[p];
-
-  return base + boost;
+  return { base, multiplier, shadowCount, baseAfterShadow, boost, boostSources, total: baseAfterShadow + boost };
 }
 
 // ---------------------------------------------------------------------------

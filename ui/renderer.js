@@ -3,7 +3,7 @@
  * All DOM reads and writes. Never mutates gameState.
  */
 
-import { calcEffectiveDamage } from '../engine/combat.js';
+import { calcEffectiveDamage, calcDamageBreakdown } from '../engine/combat.js';
 import { canAfford, getActiveCost, hasUsedActiveThisTurn } from '../engine/actions.js';
 import { opponent } from '../engine/state.js';
 
@@ -147,6 +147,20 @@ export function renderLeader(containerId, state, p) {
   const ap     = state.activePlayer;
   const hpPct  = Math.max(0, (leader.currentHp / leader.hp) * 100);
   const effDmg = calcEffectiveDamage(state, p);
+  const bd     = calcDamageBreakdown(state, p);
+  const isBuffed = effDmg > bd.base;
+
+  // Build breakdown tooltip string
+  let breakdownParts = [];
+  if (bd.shadowCount > 0) breakdownParts.push(`${bd.base} × ${bd.multiplier} (Shadow)`);
+  else breakdownParts.push(`${bd.base} base`);
+  bd.boostSources.forEach(s => breakdownParts.push(s));
+  const breakdownStr = breakdownParts.join(' + ');
+
+  // Build breakdown bar HTML (shown in the hp-bar area as a sub-label)
+  const dmgBarHtml = isBuffed
+    ? `<div class="leader-dmg-breakdown">${breakdownStr} = ${effDmg}</div>`
+    : '';
 
   const isTarget = state.phase === 'attack' && p !== ap;
   const canUse   = state.phase === 'main' && p === ap
@@ -168,8 +182,9 @@ export function renderLeader(containerId, state, p) {
       <div class="leader-hp-bar"><div class="leader-hp-fill" style="width:${hpPct}%"></div></div>
       <div class="leader-stats">
         <span class="leader-hp-text">${leader.currentHp}/${leader.hp}</span>
-        <span class="leader-dmg-text">⚔${effDmg}</span>
+        <span class="leader-dmg-chip${isBuffed ? ' buffed' : ''}" title="${breakdownStr}">⚔ ${effDmg}</span>
       </div>
+      ${dmgBarHtml}
     </div>
   `;
 
@@ -240,9 +255,9 @@ export function renderBench(containerId, state, p) {
 export function renderHand(containerId, state, p, ownerP = null) {
   const el      = q(containerId);
   el.innerHTML  = '';
-  // ownerP overrides who counts as "owner" (used during setup)
-  const activeOwner = ownerP !== null ? ownerP : state.activePlayer;
-  const isOwner = p === activeOwner;
+  // ownerP=-1 means force face-down; ownerP=null means use activePlayer
+  const activeOwner = ownerP === null ? state.activePlayer : ownerP;
+  const isOwner = ownerP !== -1 && p === activeOwner;
   const cardEls = [];
 
   if (!isOwner) {

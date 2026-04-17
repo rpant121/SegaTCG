@@ -82,7 +82,8 @@ function attachBoardHandlers() {
     const sp  = state._setupPlayer ?? 0;
     const nsp = sp === 0 ? 1 : 0;
 
-    // Setup player's hand — face-up, units playable
+    // Each player's hand stays in their own zone (p1=bottom, p2=top).
+    // Only the setup player's zone is interactive.
     const setupHandEls = renderHand(`p${sp + 1}-hand`, state, sp, sp);
     setupHandEls.forEach(({ div, idx, card }) => {
       div.addEventListener('contextmenu', (e) => { e.preventDefault(); openCardInspect(card, null); });
@@ -95,11 +96,10 @@ function attachBoardHandlers() {
     renderBench(`p${sp + 1}-bench`, state, sp);
     attachBenchDropZone(`p${sp + 1}-bench`, sp);
 
-    // Other player — face-down hand, static bench
-    renderHand(`p${nsp + 1}-hand`, state, nsp, sp); // sp as owner = nsp is NOT owner = face-down
+    // Other player — face-down, non-interactive
+    renderHand(`p${nsp + 1}-hand`, state, nsp, -1); // -1 = no owner = all face-down
     renderBench(`p${nsp + 1}-bench`, state, nsp);
 
-    // Both leaders
     renderLeader('p1-leader-zone', state, 0);
     renderLeader('p2-leader-zone', state, 1);
     return;

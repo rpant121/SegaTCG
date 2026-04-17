@@ -75,7 +75,7 @@ export const UNIT_DATA = {
   mighty: {
     id: 'mighty', name: 'Mighty', type: 'Unit', cost: 0, hp: 30,
     passive: { type: 'mighty_draw', amount: 0 },
-    passiveDesc: 'After your Leader attacks, if damage dealt was 3 or higher, draw 1 card',
+    passiveDesc: 'After your Leader attacks, if damage dealt was 300 or higher, draw 1 card',
     activeCost: 2,
     activeDesc: 'Your Leader attacks a second time this turn with full target selection. Mighty exhausts.',
   },
