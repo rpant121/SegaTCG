@@ -80,10 +80,10 @@ function attachBoardHandlers() {
   // ── Setup phase: only the setup player's units are playable ───────────
   if (state.phase === 'setup') {
     const sp  = state._setupPlayer ?? 0;
-    const nsp = sp === 0 ? 1 : 0; // non-setup player
+    const nsp = sp === 0 ? 1 : 0;
 
-    // Setup player's hand — units playable, drag enabled
-    const setupHandEls = renderHand(`p${sp + 1}-hand`, state, sp);
+    // Setup player's hand — face-up, units playable
+    const setupHandEls = renderHand(`p${sp + 1}-hand`, state, sp, sp);
     setupHandEls.forEach(({ div, idx, card }) => {
       div.addEventListener('contextmenu', (e) => { e.preventDefault(); openCardInspect(card, null); });
       if (card.type !== 'Unit') return;
@@ -96,13 +96,13 @@ function attachBoardHandlers() {
     attachBenchDropZone(`p${sp + 1}-bench`, sp);
 
     // Other player — face-down hand, static bench
-    renderHand(`p${nsp + 1}-hand`, state, nsp);
+    renderHand(`p${nsp + 1}-hand`, state, nsp, sp); // sp as owner = nsp is NOT owner = face-down
     renderBench(`p${nsp + 1}-bench`, state, nsp);
 
     // Both leaders
     renderLeader('p1-leader-zone', state, 0);
     renderLeader('p2-leader-zone', state, 1);
-    return; // skip normal phase wiring
+    return;
   }
 
   // ── Own hand ──────────────────────────────────────────────────────────

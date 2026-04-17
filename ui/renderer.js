@@ -53,14 +53,10 @@ export function render(state) {
   renderLeader('p2-leader-zone', state, 1);
   renderBench('p1-bench', state, 0);
   renderBench('p2-bench', state, 1);
-  if (state.phase === 'setup') {
-    const sp = state._setupPlayer ?? 0;
-    renderHand('p1-hand', state, sp === 0 ? 0 : 1);
-    renderHand('p2-hand', state, sp === 1 ? 1 : 0);
-  } else {
-    renderHand('p1-hand', state, 0);
-    renderHand('p2-hand', state, 1);
-  }
+  // During setup, show setup player's hand face-up, other face-down
+  const sp = state.phase === 'setup' ? (state._setupPlayer ?? 0) : state.activePlayer;
+  renderHand('p1-hand', state, 0, sp);
+  renderHand('p2-hand', state, 1, sp);
   renderInfoRow('p1-info', state, 0);
   renderInfoRow('p2-info', state, 1);
   renderPlayerLabels(state);
@@ -241,13 +237,12 @@ export function renderBench(containerId, state, p) {
 // ---------------------------------------------------------------------------
 // Hand
 // ---------------------------------------------------------------------------
-export function renderHand(containerId, state, p) {
+export function renderHand(containerId, state, p, ownerP = null) {
   const el      = q(containerId);
   el.innerHTML  = '';
-  const ap      = state.activePlayer;
-  // During setup, show the setup player's hand face-up
-  const setupP  = state._setupPlayer;
-  const isOwner = state.phase === 'setup' ? (p === setupP) : (p === ap);
+  // ownerP overrides who counts as "owner" (used during setup)
+  const activeOwner = ownerP !== null ? ownerP : state.activePlayer;
+  const isOwner = p === activeOwner;
   const cardEls = [];
 
   if (!isOwner) {
