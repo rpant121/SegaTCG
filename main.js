@@ -1,6 +1,5 @@
 /**
- * MAIN
- * Application entry point.
+ * MAIN — local two-player mode entry point.
  * Reads both player decks from sessionStorage (set by deck-builder).
  * If either deck is missing, redirects to the deck builder.
  */
@@ -16,14 +15,13 @@ const raw1 = sessionStorage.getItem('deck_p1');
 const raw2 = sessionStorage.getItem('deck_p2');
 
 if (!raw1 || !raw2) {
-  // Clear any partial state and send players to build their decks
   sessionStorage.removeItem('deck_p1');
   sessionStorage.removeItem('deck_p2');
   window.location.href = 'deck-builder.html';
-  throw new Error('Redirecting to deck builder'); // stops further execution
+  throw new Error('Redirecting to deck builder');
 }
 
-const saved1 = JSON.parse(raw1); // { leaderId, deck: string[] }
+const saved1 = JSON.parse(raw1); // { leaderId, deck: string[], deckName: string }
 const saved2 = JSON.parse(raw2);
 
 // ---------------------------------------------------------------------------

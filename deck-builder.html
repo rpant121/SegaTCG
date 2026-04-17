@@ -381,56 +381,85 @@
    Flow: P1 builds → save & pass → P2 builds → launch game
    ============================================================ */
 
-const LEADERS = [{
-  id: 'sonic', name: 'Sonic the Hedgehog', type: 'Leader',
-  hp: 10, damage: 1, activeCost: 1,
-  activeDesc: 'Discard 1 card from hand → Draw 2. Requires ≥1 card in hand.',
-}];
+const LEADERS = [
+  { id: 'sonic', name: 'Sonic the Hedgehog', ip: 'Sonic',    hp: 100, damage: 10, activeCost: 1,
+    activeDesc: 'Discard 1 card from hand → Draw 2. Requires ≥1 card in hand.' },
+  { id: 'joker', name: 'Joker',              ip: 'Persona 5', hp: 150, damage: 10, activeCost: 1,
+    activeDesc: 'Activate any 30-cost or below bench active. Pay 10 extra for 40-cost or above.' },
+  { id: 'kiryu', name: 'Kazuma Kiryu',       ip: 'Yakuza',   hp: 200, damage: 20, activeCost: 2,
+    activeDesc: '+10 attack this turn. Can be used multiple times per turn.' },
+];
 
 const POOL_CARDS = [
-  // ── Original Units ────────────────────────────────────────────────────
-  { id: 'tails',    name: 'Tails',    type: 'Unit', cost: 0, hp: 2,  passive: 'Draw 1 card at end of turn', active: 'Play 1 card from your discard pile', activeCost: 2 },
-  { id: 'knuckles', name: 'Knuckles', type: 'Unit', cost: 0, hp: 4,  passive: '+10 to Leader Attack', active: 'Deal 10 damage to 1 opponent Support Unit', activeCost: 1 },
-  { id: 'amy',      name: 'Amy',      type: 'Unit', cost: 0, hp: 3,  passive: '+10 to Leader Attack', active: "Deal 10 damage to opponent's Leader", activeCost: 1 },
-  { id: 'cream',    name: 'Cream',    type: 'Unit', cost: 0, hp: 2,  passive: '-10 to damage taken by Leader', active: 'Heal 10 HP from any friendly unit', activeCost: 1 },
-  { id: 'big',      name: 'Big',      type: 'Unit', cost: 0, hp: 4,  passive: 'Start of turn: look at top deck card, may discard it', active: "Discard a random card from opponent's hand", activeCost: 3 },
-  // ── Aggro Units ───────────────────────────────────────────────────────
-  { id: 'silver',   name: 'Silver',   type: 'Unit', cost: 0, hp: 3,  passive: 'All friendly unit actives cost 1 less energy (minimum 1).', active: 'Return one of your bench units to your hand.', activeCost: 3 },
-  { id: 'shadow',   name: 'Shadow',   type: 'Unit', cost: 0, hp: 4,  passive: "Leader base damage doubles while Shadow is on bench (stacks)", active: "Deal 30 damage to opponent's Leader. Your Leader takes 10 unblockable damage.", activeCost: 3 },
-  { id: 'mighty',   name: 'Mighty',   type: 'Unit', cost: 0, hp: 3,  passive: 'After your Leader deals ≥30 damage, draw 1 card', active: 'Your Leader attacks a second time this turn. Mighty exhausts.', activeCost: 2 },
-  // ── Setup Units ───────────────────────────────────────────────────────
-  { id: 'rouge',    name: 'Rouge',    type: 'Unit', cost: 0, hp: 2,  passive: 'When a card is milled from your deck to your discard, draw 1', active: 'Place the top card of your deck into your discard. Rouge does NOT exhaust.', activeCost: 1 },
-  { id: 'blaze',    name: 'Blaze',    type: 'Unit', cost: 0, hp: 3,  passive: 'End of turn: if discard has 5+ cards, heal Leader 10 HP', active: 'Shuffle entire discard into deck, draw 2. Blaze exhausts.', activeCost: 3 },
-  { id: 'ray',      name: 'Ray',      type: 'Unit', cost: 0, hp: 4,  passive: 'When you play a card from discard, draw 1', active: 'Look at top 3 deck cards — place 1 into discard, return rest in any order', activeCost: 2 },
-  // ── Rings Units ───────────────────────────────────────────────────────
-  { id: 'charmy',   name: 'Charmy',   type: 'Unit', cost: 0, hp: 4,  passive: 'Each equipment played this turn after the first costs 1 less (min 0)', active: 'Draw 1 card per equipment played this turn', activeCost: 2 },
-  { id: 'espio',    name: 'Espio',    type: 'Unit', cost: 0, hp: 3,  passive: 'After Draw Phase: draw 1 extra per equipment in discard (max 2)', active: 'Shuffle up to 3 equipment from discard into deck, draw 1', activeCost: 2 },
-  { id: 'vector',   name: 'Vector',   type: 'Unit', cost: 0, hp: 2,  passive: 'Each time your Leader takes damage this turn, draw 1', active: 'Deal damage equal to total energy spent this turn (including this cost)', activeCost: 3 },
-  // ── Original Equipment ────────────────────────────────────────────────
-  { id: 'ring',              name: 'Ring',              type: 'Equipment', cost: 0, effect: 'Gain 1 Energy immediately.' },
-  { id: 'chaos_emerald',     name: 'Chaos Emerald',     type: 'Equipment', cost: 2, effect: 'Leader gains +20 Damage until end of turn.' },
-  { id: 'elemental_shield',  name: 'Elemental Shield',  type: 'Equipment', cost: 1, effect: '-20 to the next instance of damage you receive.' },
-  { id: 'heat_barrier',      name: 'Heat Barrier',      type: 'Equipment', cost: 1, effect: 'Heal your Leader for 20 HP. Cannot exceed max HP.' },
-  { id: 'dragons_eye',       name: "Dragon's Eye",      type: 'Equipment', cost: 2, effect: 'Look at top 3 deck cards. Put 1 into hand; return rest in any order.' },
-  { id: 'power_glove',       name: 'Power Glove',       type: 'Equipment', cost: 3, effect: 'Your Leader deals +30 Damage this turn only.' },
-  // ── Rings Equipment ───────────────────────────────────────────────────
-  { id: 'speed_shoes',       name: 'Speed Shoes',       type: 'Equipment', cost: 1, effect: 'Gain 3 Energy immediately.' },
-  { id: 'extreme_gear',      name: 'Extreme Gear',      type: 'Equipment', cost: 0, effect: 'Discard up to 3 cards from hand — gain 1 Energy each.' },
-  // ── Stages ────────────────────────────────────────────────────────────
-  { id: 'green_hill_zone',   name: 'Green Hill Zone',   type: 'Stage',     cost: 1, effect: 'While active: both players draw 1 extra card during Draw Phase.' },
-  { id: 'midnight_carnival', name: 'Midnight Carnival', type: 'Stage',     cost: 2, effect: "While active: KO'd units deal 0 penalty damage to their controller." },
-  { id: 'radical_highway',   name: 'Radical Highway',   type: 'Stage',     cost: 1, effect: 'While active: each player gains 1 extra energy at turn start.' },
-  // ── Genesis ───────────────────────────────────────────────────────────
-  { id: 'master_emerald',    name: 'Master Emerald',    type: 'Genesis',   cost: 4, effect: 'This turn: all bench unit actives cost 0 and do not exhaust.', isGenesis: true },
-  { id: 'polaris_pact',      name: 'Polaris Pact',      type: 'Genesis',   cost: 2, effect: 'If a friendly support died last turn: both shuffle hands into decks. You draw 5, opponent draws 2.', isGenesis: true },
-  { id: 'super_form',        name: 'Super Form',        type: 'Genesis',   cost: 4, effect: 'Double your current energy.', isGenesis: true },
+  // ── Sonic IP — Units ──────────────────────────────────────────────────────
+  { id: 'tails',    name: 'Tails',    type: 'Unit', ip: 'Sonic',    cost: 0, hp: 40, passive: 'Draw 1 card at end of turn', active: 'Play 1 card from your discard — shuffles back into deck after use.', activeCost: 2 },
+  { id: 'knuckles', name: 'Knuckles', type: 'Unit', ip: 'Sonic',    cost: 0, hp: 60, passive: '+10 to Leader Attack', active: 'Deal 10 damage to 1 opponent Support Unit', activeCost: 1 },
+  { id: 'amy',      name: 'Amy',      type: 'Unit', ip: 'Sonic',    cost: 0, hp: 50, passive: '+10 to Leader Attack', active: "Deal 10 damage to opponent's Leader", activeCost: 1 },
+  { id: 'cream',    name: 'Cream',    type: 'Unit', ip: 'Sonic',    cost: 0, hp: 40, passive: '-10 to damage taken by Leader', active: 'Heal 10 HP from any friendly unit', activeCost: 1 },
+  { id: 'big',      name: 'Big',      type: 'Unit', ip: 'Sonic',    cost: 0, hp: 60, passive: 'Start of turn: look at top deck card, may discard it', active: "Discard a random card from opponent's hand", activeCost: 3 },
+  { id: 'silver',   name: 'Silver',   type: 'Unit', ip: 'Sonic',    cost: 0, hp: 50, passive: 'All friendly unit actives cost 1 less energy (minimum 1)', active: 'Return one of your bench units to your hand (active resets).', activeCost: 3 },
+  { id: 'shadow',   name: 'Shadow',   type: 'Unit', ip: 'Sonic',    cost: 0, hp: 60, passive: "Leader base damage doubles while Shadow is on bench (stacks)", active: 'Both Leaders take 10 unblockable, unreducible damage.', activeCost: 2 },
+  { id: 'mighty',   name: 'Mighty',   type: 'Unit', ip: 'Sonic',    cost: 0, hp: 50, passive: 'After your Leader deals ≥30 damage, draw 1 card', active: 'Your Leader attacks a second time. Opponent may block.', activeCost: 2 },
+  { id: 'rouge',    name: 'Rouge',    type: 'Unit', ip: 'Sonic',    cost: 0, hp: 40, passive: 'When a card is milled from deck to discard, draw 1', active: 'Place the top card of your deck into your discard. Rouge does NOT exhaust.', activeCost: 1 },
+  { id: 'blaze',    name: 'Blaze',    type: 'Unit', ip: 'Sonic',    cost: 0, hp: 50, passive: 'End of turn: if discard has 5+ cards, heal Leader 10 HP', active: 'Shuffle entire discard into deck, draw 2. Blaze exhausts.', activeCost: 3 },
+  { id: 'ray',      name: 'Ray',      type: 'Unit', ip: 'Sonic',    cost: 0, hp: 60, passive: 'When you play a card from discard, draw 1', active: 'Look at top 3 deck cards — place 1 into discard, return rest in any order', activeCost: 2 },
+  { id: 'charmy',   name: 'Charmy',   type: 'Unit', ip: 'Sonic',    cost: 0, hp: 60, passive: 'Each equipment played this turn after the first costs 1 less (min 0)', active: 'Draw 1 card per equipment played this turn', activeCost: 2 },
+  { id: 'espio',    name: 'Espio',    type: 'Unit', ip: 'Sonic',    cost: 0, hp: 50, passive: 'After Draw Phase: draw 1 extra per equipment in discard (max 2)', active: 'Shuffle up to 3 equipment from discard into deck, draw 1', activeCost: 2 },
+  { id: 'vector',   name: 'Vector',   type: 'Unit', ip: 'Sonic',    cost: 0, hp: 40, passive: 'Each time your Leader takes damage this turn, draw 1', active: "Deal damage ×10 equal to total energy spent this turn", activeCost: 3 },
+  // ── Persona 5 IP — Units ──────────────────────────────────────────────────
+  { id: 'omega',             name: 'Omega',             type: 'Unit', ip: 'Persona 5', cost: 0, hp: 50, passive: 'No passive', active: 'Choose one opponent bench unit — it stays exhausted until start of YOUR next turn.', activeCost: 2 },
+  { id: 'caroline',          name: 'Caroline',          type: 'Unit', ip: 'Persona 5', cost: 0, hp: 20, passive: 'If Justine on bench: (3E) opponent can only play 1 equipment this turn.', active: 'If Justine was KO\'d alone last turn, revive her to bench.', activeCost: 2 },
+  { id: 'justine',           name: 'Justine',           type: 'Unit', ip: 'Persona 5', cost: 0, hp: 20, passive: 'If Caroline on bench: (2E) disable an enemy active until your next turn.', active: 'If Caroline was KO\'d alone last turn, revive her to bench.', activeCost: 2 },
+  { id: 'tae_takumi',        name: 'Tae Takumi',        type: 'Unit', ip: 'Persona 5', cost: 0, hp: 30, passive: 'Your leader takes -10 damage during opponent\'s turn.', active: 'Heal your leader for 20 HP.', activeCost: 2 },
+  { id: 'sojiro_sakura',     name: 'Sojiro Sakura',     type: 'Unit', ip: 'Persona 5', cost: 0, hp: 40, passive: 'Your leader takes -10 damage during opponent\'s turn.', active: 'Gain taunt until your next turn (opponent must attack this unit first if able).', activeCost: 2 },
+  { id: 'sae_niijima',       name: 'Sae Niijima',       type: 'Unit', ip: 'Persona 5', cost: 0, hp: 40, passive: "Opponent's damage reduction effects are reduced by 10.", active: 'Your next Leader attack this turn cannot be blocked.', activeCost: 4 },
+  { id: 'sadayo_kawakami',   name: 'Sadayo Kawakami',   type: 'Unit', ip: 'Persona 5', cost: 0, hp: 10, passive: '+10 to Leader Attack', active: "Deal 10 damage to each support on the opponent's bench.", activeCost: 2 },
+  { id: 'suguru_kamoshida',  name: 'Suguru Kamoshida',  type: 'Unit', ip: 'Persona 5', cost: 0, hp: 30, passive: 'When damage is dealt to opposing leader this turn, they discard 1 at random.', active: 'Your opponent discards 2 cards at random.', activeCost: 3 },
+  { id: 'ryuji_sakamoto',    name: 'Ryuji Sakamoto',    type: 'Unit', ip: 'Persona 5', cost: 0, hp: 40, passive: 'After your Leader deals ≥20 damage, heal Leader 10 HP.', active: "Deal 10 damage to your opponent's leader.", activeCost: 1 },
+  { id: 'ann_takamaki',      name: 'Ann Takamaki',      type: 'Unit', ip: 'Persona 5', cost: 0, hp: 10, passive: 'Whenever opponent discards a card, deal 10 damage to their leader.', active: "Exile a card from opponent's discard for each card they discarded this turn.", activeCost: 2 },
+  { id: 'morgana',           name: 'Morgana',           type: 'Unit', ip: 'Persona 5', cost: 0, hp: 20, passive: 'No passive', active: 'Morgana and one enemy benched support are both sent to discard.', activeCost: 2 },
+  { id: 'yusuke_kitagawa',   name: 'Yusuke Kitagawa',   type: 'Unit', ip: 'Persona 5', cost: 0, hp: 20, passive: 'When placed on bench, copy a passive from any benched supporter.', active: "Copy and activate any friendly supporter's active ability.", activeCost: 2 },
+  { id: 'makoto_niijima',    name: 'Makoto Niijima',    type: 'Unit', ip: 'Persona 5', cost: 0, hp: 20, passive: 'After your Leader deals ≥20 damage, heal Leader 10 HP.', active: 'Deal damage to opposing leader equal to total HP healed this turn.', activeCost: 2 },
+  { id: 'futaba_sakura',     name: 'Futaba Sakura',     type: 'Unit', ip: 'Persona 5', cost: 0, hp: 20, passive: 'You may scry 1 at the end of each turn.', active: 'Draw cards equal to total damage dealt to enemy units this turn.', activeCost: 2 },
+  { id: 'haru_okumura',      name: 'Haru Okumura',      type: 'Unit', ip: 'Persona 5', cost: 0, hp: 10, passive: 'Cannot be targeted by opposing damage/abilities unless a direct Leader attack.', active: 'Prevent all damage to your leader until your next turn. Haru stays exhausted until end of your next turn.', activeCost: 2 },
+  { id: 'sumire_yoshizawa',  name: 'Sumire Yoshizawa',  type: 'Unit', ip: 'Persona 5', cost: 0, hp: 20, passive: 'Whenever opponent discards a card, deal 10 damage to their leader.', active: 'Deal 20 unblockable damage to one opposing benched supporter.', activeCost: 3 },
+  // ── Sonic IP — Equipment ──────────────────────────────────────────────────
+  { id: 'ring',              name: 'Ring',              type: 'Equipment', ip: 'Sonic',    cost: 0, effect: 'Gain 10 Energy immediately.' },
+  { id: 'chaos_emerald',     name: 'Chaos Emerald',     type: 'Equipment', ip: 'Sonic',    cost: 2, effect: 'Leader gains +20 Damage until end of turn.' },
+  { id: 'elemental_shield',  name: 'Elemental Shield',  type: 'Equipment', ip: 'Sonic',    cost: 1, effect: '-20 to the next instance of damage you receive.' },
+  { id: 'heat_barrier',      name: 'Heat Barrier',      type: 'Equipment', ip: 'Sonic',    cost: 1, effect: 'Heal your Leader for 20 HP. Cannot exceed max HP.' },
+  { id: 'dragons_eye',       name: "Dragon's Eye",      type: 'Equipment', ip: 'Sonic',    cost: 2, effect: 'Look at top 3 deck cards. Put 1 into hand; return rest in any order.' },
+  { id: 'power_glove',       name: 'Power Glove',       type: 'Equipment', ip: 'Sonic',    cost: 3, effect: 'Your Leader deals +30 Damage this turn only.' },
+  { id: 'speed_shoes',       name: 'Speed Shoes',       type: 'Equipment', ip: 'Sonic',    cost: 1, effect: 'Gain 30 Energy immediately.' },
+  { id: 'extreme_gear',      name: 'Extreme Gear',      type: 'Equipment', ip: 'Sonic',    cost: 0, effect: 'Discard up to 3 cards from hand — gain 10 Energy each.' },
+  { id: 'green_hill_zone',   name: 'Green Hill Zone',   type: 'Stage',     ip: 'Sonic',    cost: 1, effect: 'While active: both players draw 1 extra card during Draw Phase.' },
+  { id: 'midnight_carnival', name: 'Midnight Carnival', type: 'Stage',     ip: 'Sonic',    cost: 2, effect: "While active: KO'd units deal 0 penalty damage to their controller." },
+  { id: 'radical_highway',   name: 'Radical Highway',   type: 'Stage',     ip: 'Sonic',    cost: 1, effect: 'While active: each player gains 10 extra energy at turn start.' },
+  { id: 'master_emerald',    name: 'Master Emerald',    type: 'Genesis',   ip: 'Sonic',    cost: 4, effect: 'This turn: all bench unit actives cost 0 and do not exhaust.', isGenesis: true },
+  { id: 'polaris_pact',      name: 'Polaris Pact',      type: 'Genesis',   ip: 'Sonic',    cost: 2, effect: 'If a friendly support died last turn: both shuffle hands into decks. You draw 5, opponent draws 2.', isGenesis: true },
+  { id: 'super_form',        name: 'Super Form',        type: 'Genesis',   ip: 'Sonic',    cost: 4, effect: 'Double your current energy.', isGenesis: true },
+  // ── Persona 5 IP — Equipment ──────────────────────────────────────────────
+  { id: 'calling_card',              name: 'Calling Card',              type: 'Equipment', ip: 'Persona 5', cost: 0, effect: 'Your opponent discards a card from their hand at random.' },
+  { id: 'treasure_distorted_desire', name: 'Treasure (Distorted Desire)',type: 'Equipment', ip: 'Persona 5', cost: 2, effect: 'Leader gains +20 Damage this turn. If opponent has ≤3 cards, +40 instead.' },
+  { id: 'leblanc_coffee',            name: 'LeBlanc Coffee',            type: 'Equipment', ip: 'Persona 5', cost: 1, effect: 'Heal your Leader for 20 HP. Then discard 1 and draw 1.' },
+  { id: 'third_eye',                 name: 'Third Eye',                 type: 'Equipment', ip: 'Persona 5', cost: 2, effect: 'Look at top 3 deck cards. Take 1 into hand. Opponent discards 1 at random.' },
+  { id: 'phantom_thief_tools',       name: 'Phantom Thief Tools',       type: 'Equipment', ip: 'Persona 5', cost: 1, effect: 'Gain 20 Energy. If opponent has more cards than you, gain 30 instead.' },
+  { id: 'metaverse_navigator',       name: 'Metaverse Navigator',       type: 'Equipment', ip: 'Persona 5', cost: 2, effect: 'Both players discard their hand and draw that many cards.' },
+  { id: 'guard_persona',             name: 'Guard Persona',             type: 'Equipment', ip: 'Persona 5', cost: 3, effect: "Prevent ALL damage during opponent's next turn. Afterward, opponent discards 1." },
+  { id: 'all_out_attack',            name: 'All-Out Attack',            type: 'Equipment', ip: 'Persona 5', cost: 3, effect: 'Leader deals +30 Damage this turn. If opponent has ≤2 cards, +50 instead.' },
+  { id: 'shibuya_crossing',          name: 'Shibuya Crossing',          type: 'Stage',     ip: 'Persona 5', cost: 1, effect: 'While active: both draw 1 extra during Draw Phase. Opponent draws outside Draw Phase → discard 1.' },
+  { id: 'mementos_depths',           name: 'Mementos Depths',           type: 'Stage',     ip: 'Persona 5', cost: 2, effect: "While active: when a support is KO'd, its controller discards 1 card." },
+  { id: 'palace_infiltration_route', name: 'Palace Infiltration Route', type: 'Stage',     ip: 'Persona 5', cost: 1, effect: 'While active: each player gains 10 extra energy at turn start and takes 10 damage.' },
+  { id: 'holy_grail',                name: 'Holy Grail',                type: 'Genesis',   ip: 'Persona 5', cost: 4, effect: 'This turn: all bench unit actives cost 0 and do not exhaust.', isGenesis: true },
+  { id: 'contract_of_rebellion',     name: 'Contract of Rebellion',     type: 'Genesis',   ip: 'Persona 5', cost: 5, effect: 'Both draw to 6 cards. Opponent discards 2 and cannot draw outside Draw Phase until your next turn.', isGenesis: true },
+  { id: 'arsene_unleashed',          name: 'Arsène Unleashed',          type: 'Genesis',   ip: 'Persona 5', cost: 4, effect: "Set a leader's HP to half of their original max HP (rounded down).", isGenesis: true },
 ];
 
 const VALID_IDS = new Set(POOL_CARDS.map(c => c.id));
 
 const PRECON_DECKS = {
   aggro: {
-    name: 'Heavy Hitters',
+    name: 'Heavy Hitters', ip: 'Sonic',
     desc: 'Knuckles and Amy stack attack passives. Silver cuts active costs so Mighty and Shadow fire cheaply. Shadow doubles base damage. Mighty closes games with a second attack.',
     ids: [
       'knuckles','knuckles','knuckles',
@@ -449,7 +478,7 @@ const PRECON_DECKS = {
     ],
   },
   setup: {
-    name: 'Discard Engine',
+    name: 'Discard Engine', ip: 'Sonic',
     desc: 'Big scries the top of your deck each turn. Tails replays cards from discard cheaply. Rouge draws on every mill. Ray controls what goes where. Blaze resets the loop.',
     ids: [
       'tails','tails','tails',
@@ -468,7 +497,7 @@ const PRECON_DECKS = {
     ],
   },
   rings: {
-    name: 'Chaotix Burst',
+    name: 'Chaotix Burst', ip: 'Sonic',
     desc: 'Charmy discounts chained equipment and draws off it. Espio recovers the hand. Vector converts total energy spent into direct damage. Super Form is the nova button.',
     ids: [
       'charmy','charmy','charmy',
@@ -487,12 +516,21 @@ const PRECON_DECKS = {
       'heat_barrier',
     ],
   },
-};
-
+}
 let currentPlayer = 1;
 let deck          = [];
 let leaderId      = 'sonic';
 let activeFilter  = 'all';
+
+// Cards available for the current leader (IP + General)
+function getLeaderIp() {
+  return LEADERS.find(l => l.id === leaderId)?.ip ?? 'Sonic';
+}
+function poolForLeader() {
+  const ip = getLeaderIp();
+  return POOL_CARDS.filter(c => !c.ip || c.ip === ip || c.ip === 'General');
+}
+
 
 function countInDeck(id) { return deck.filter(x => x === id).length; }
 function maxCopies(card) { return card.isGenesis ? 1 : 3; }
@@ -504,17 +542,21 @@ function validate() {
   const errors = [], ok = [];
   if (deck.length === 30) ok.push('Deck contains exactly 30 cards');
   else errors.push(`Deck has ${deck.length}/30 cards — needs ${30 - deck.length} more`);
+  const pool = poolForLeader();
   const unknown = [...new Set(deck.filter(id => !VALID_IDS.has(id)))];
   if (unknown.length) errors.push(`Unknown cards: ${unknown.join(', ')}`);
   else ok.push('All cards verified against card pool');
   const counts = {};
   for (const id of deck) counts[id] = (counts[id] ?? 0) + 1;
   const violations = Object.entries(counts).filter(([id, n]) => {
-    const c = POOL_CARDS.find(x => x.id === id); return c && n > maxCopies(c);
+    const c = pool.find(x => x.id === id) ?? POOL_CARDS.find(x => x.id === id); return c && n > maxCopies(c);
   }).map(([id, n]) => `${POOL_CARDS.find(x=>x.id===id).name} ×${n}`);
   if (violations.length) errors.push('Copy limit exceeded: ' + violations.join('; '));
   else ok.push('All copy limits respected');
   const genCount = deck.filter(id => POOL_CARDS.find(x=>x.id===id)?.isGenesis).length;
+  // Check IP legality
+  const ipViolations = deck.filter(id => { const c = POOL_CARDS.find(x=>x.id===id); return c && c.ip && c.ip !== 'General' && c.ip !== getLeaderIp(); });
+  if (ipViolations.length) errors.push('Deck contains cards from wrong IP: ' + [...new Set(ipViolations)].join(', '));
   if (genCount > 1) errors.push(`Too many Genesis cards: ${genCount} (max 1)`);
   else ok.push(`Genesis: ${genCount}/1`);
   return { errors, ok, valid: errors.length === 0 && deck.length === 30 };
@@ -535,7 +577,8 @@ function refreshUI() { renderPool(); renderDeckList(); renderValidation(); rende
 function renderPool() {
   const container = document.getElementById('card-pool');
   container.innerHTML = '';
-  const filtered = activeFilter === 'all' ? POOL_CARDS : POOL_CARDS.filter(c => c.type === activeFilter);
+  const pool = poolForLeader();
+  const filtered = activeFilter === 'all' ? pool : pool.filter(c => c.type === activeFilter);
   filtered.forEach(card => {
     const count   = countInDeck(card.id);
     const max     = maxCopies(card);
@@ -622,9 +665,19 @@ function renderLeaderPool() {
   LEADERS.forEach(leader => {
     const div = document.createElement('div');
     div.className = 'leader-opt' + (leader.id === leaderId ? ' selected' : '');
-    div.innerHTML = `<div style="font-family:var(--font-display);font-size:9px;color:var(--gold);margin-bottom:2px;">🦔 ${leader.name}</div>
+    div.innerHTML = `<div style="font-family:var(--font-display);font-size:9px;color:var(--gold);margin-bottom:2px;">${leader.name}</div>
+      <div style="font-size:8px;color:#8aaabb;margin-bottom:2px;">[${leader.ip}]</div>
       <div style="font-size:8px;color:var(--grey);">HP:${leader.hp} · DMG:${leader.damage} · Active:${leader.activeCost}⚡</div>`;
-    div.addEventListener('click', () => { leaderId = leader.id; renderLeaderPool(); });
+    div.addEventListener('click', () => {
+      if (leaderId !== leader.id) {
+        leaderId = leader.id;
+        deck = []; // clear deck when switching leaders — IP changes
+        renderLeaderPool();
+        renderPrecons();
+        refreshUI();
+        showToast(`Leader changed to ${leader.name} — deck cleared`);
+      }
+    });
     container.appendChild(div);
   });
 }
@@ -632,13 +685,14 @@ function renderLeaderPool() {
 function renderPrecons() {
   const container = document.getElementById('precon-buttons');
   container.innerHTML = '';
-  Object.entries(PRECON_DECKS).forEach(([key, precon]) => {
+  const ip = getLeaderIp();
+  Object.entries(PRECON_DECKS).filter(([,p]) => !p.ip || p.ip === ip).forEach(([key, precon]) => {
     const btn = document.createElement('button');
     btn.className = 'action-btn';
     btn.style.cssText = 'margin-bottom:4px;font-size:9px;';
-    btn.textContent = `⚡ ${precon.name}`;
+    btn.textContent = '⚡ ' + precon.name;
     btn.title = precon.desc;
-    btn.addEventListener('click', () => { deck = [...precon.ids]; refreshUI(); showToast(`Loaded: ${precon.name}`); });
+    btn.addEventListener('click', () => { deck = [...precon.ids]; refreshUI(); showToast('Loaded: ' + precon.name); });
     container.appendChild(btn);
   });
 }
@@ -657,8 +711,9 @@ function handleSave() {
 }
 
 function getDeckName() {
+  const ip = getLeaderIp();
   for (const [key, precon] of Object.entries(PRECON_DECKS)) {
-    if (JSON.stringify([...precon.ids].sort()) === JSON.stringify([...deck].sort())) return precon.name;
+    if ((!precon.ip || precon.ip === ip) && JSON.stringify([...precon.ids].sort()) === JSON.stringify([...deck].sort())) return precon.name;
   }
   return 'Custom Deck';
 }
@@ -747,8 +802,9 @@ function importDeck(text) {
     if (!m) { errors.push(`Unrecognised line: "${line}"`); continue; }
     const count = parseInt(m[1], 10);
     const id    = m[2].trim().toLowerCase().replace(/\s+/g, '_');
-    const card  = POOL_CARDS.find(c => c.id === id);
+    const card  = poolForLeader().find(c => c.id === id) ?? POOL_CARDS.find(c => c.id === id);
     if (!card) { errors.push(`Unknown card: "${id}"`); continue; }
+    if (card.ip && card.ip !== 'General' && card.ip !== getLeaderIp()) { errors.push(`${card.name} is not available for this leader's IP`); continue; }
     const max = card.isGenesis ? 1 : 3;
     if (count > max) { errors.push(`${card.name}: max ${max} copies`); continue; }
     for (let i = 0; i < count; i++) newDeck.push(id);

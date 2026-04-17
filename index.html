@@ -357,13 +357,16 @@
 
 <!-- ============================================================
      ENTRY POINT — routes to main.js (local) or main.online.js
+     A dynamic import() is used because <script type="module"> src
+     cannot be chosen at runtime with a plain src attribute change.
      ============================================================ -->
 <script type="module">
   const isOnline = !!sessionStorage.getItem('online_server_url');
-  const script   = document.createElement('script');
-  script.type    = 'module';
-  script.src     = isOnline ? 'main.online.js' : 'main.js';
-  document.body.appendChild(script);
+  if (isOnline) {
+    await import('./main.online.js');
+  } else {
+    await import('./main.js');
+  }
 </script>
 
 <!-- Deck Builder nav routing -->
