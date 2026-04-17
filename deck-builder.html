@@ -377,13 +377,13 @@ const LEADERS = [{
 const POOL_CARDS = [
   // ── Original Units ────────────────────────────────────────────────────
   { id: 'tails',    name: 'Tails',    type: 'Unit', cost: 0, hp: 2,  passive: 'Draw 1 card at end of turn', active: 'Play 1 card from your discard pile', activeCost: 2 },
-  { id: 'knuckles', name: 'Knuckles', type: 'Unit', cost: 0, hp: 4,  passive: "+1 to Leader Attack", active: 'Deal 1 damage to 1 opponent Support Unit', activeCost: 1 },
-  { id: 'amy',      name: 'Amy',      type: 'Unit', cost: 0, hp: 3,  passive: "+1 to Leader Attack", active: "Deal 1 damage to opponent's Leader", activeCost: 1 },
-  { id: 'cream',    name: 'Cream',    type: 'Unit', cost: 0, hp: 2,  passive: '-1 to damage taken by Leader', active: 'Heal 1 HP from any friendly unit', activeCost: 1 },
+  { id: 'knuckles', name: 'Knuckles', type: 'Unit', cost: 0, hp: 4,  passive: "+10 to Leader Attack", active: 'Deal 1 damage to 1 opponent Support Unit', activeCost: 1 },
+  { id: 'amy',      name: 'Amy',      type: 'Unit', cost: 0, hp: 3,  passive: "+10 to Leader Attack", active: "Deal 1 damage to opponent's Leader", activeCost: 1 },
+  { id: 'cream',    name: 'Cream',    type: 'Unit', cost: 0, hp: 2,  passive: '-10 to damage taken by Leader', active: 'Heal 1 HP from any friendly unit', activeCost: 1 },
   { id: 'big',      name: 'Big',      type: 'Unit', cost: 0, hp: 4,  passive: 'Start of turn: look at top deck card, may discard it', active: "Discard a random card from opponent's hand", activeCost: 3 },
   // ── Aggro Units ───────────────────────────────────────────────────────
-  { id: 'silver',   name: 'Silver',   type: 'Unit', cost: 0, hp: 3,  passive: 'All friendly unit actives cost 1 less energy (minimum 1).', active: 'Return one bench unit to your hand. Scry 2: put 1 in hand, 1 on the bottom of your deck.', activeCost: 3 },
-  { id: 'shadow',   name: 'Shadow',   type: 'Unit', cost: 0, hp: 4,  passive: "Leader base damage is 2 instead of 1", active: "Deal 3 damage to opponent's Leader. Your Leader takes 2 unblockable damage.", activeCost: 3 },
+  { id: 'silver',   name: 'Silver',   type: 'Unit', cost: 0, hp: 3,  passive: 'All friendly unit actives cost 1 less energy (minimum 1).', active: 'Return one of your bench units to your hand.', activeCost: 3 },
+  { id: 'shadow',   name: 'Shadow',   type: 'Unit', cost: 0, hp: 4,  passive: "Leader base damage is 2 instead of 1", active: "Deal 30 damage to opponent's Leader. Your Leader takes 10 unblockable damage.", activeCost: 3 },
   { id: 'mighty',   name: 'Mighty',   type: 'Unit', cost: 0, hp: 3,  passive: 'After your Leader attacks for ≥3 damage, draw 1 card', active: 'Your Leader attacks a second time this turn. Mighty exhausts.', activeCost: 2 },
   // ── Setup Units ───────────────────────────────────────────────────────
   { id: 'rouge',    name: 'Rouge',    type: 'Unit', cost: 0, hp: 2,  passive: 'When a card moves from your hand or deck into your discard, draw 1', active: 'Place the top card of your deck into your discard. Rouge does NOT exhaust.', activeCost: 1 },
@@ -395,11 +395,11 @@ const POOL_CARDS = [
   { id: 'vector',   name: 'Vector',   type: 'Unit', cost: 0, hp: 2,  passive: 'Each time your Leader takes damage this turn, draw 1', active: "Deal damage equal to total energy spent this turn (including this cost)", activeCost: 3 },
   // ── Original Equipment ────────────────────────────────────────────────
   { id: 'ring',              name: 'Ring',              type: 'Equipment', cost: 0, effect: 'Gain 1 Energy immediately.' },
-  { id: 'chaos_emerald',     name: 'Chaos Emerald',     type: 'Equipment', cost: 2, effect: 'Leader gains +2 Damage until end of turn.' },
+  { id: 'chaos_emerald',     name: 'Chaos Emerald',     type: 'Equipment', cost: 2, effect: 'Leader gains +20 Damage until end of turn.' },
   { id: 'elemental_shield',  name: 'Elemental Shield',  type: 'Equipment', cost: 1, effect: "Prevent ALL damage to yourself during opponent's next turn." },
-  { id: 'heat_barrier',      name: 'Heat Barrier',      type: 'Equipment', cost: 1, effect: 'Heal your Leader for 2 HP. Cannot exceed max HP.' },
+  { id: 'heat_barrier',      name: 'Heat Barrier',      type: 'Equipment', cost: 1, effect: 'Heal your Leader for 20 HP. Cannot exceed max HP.' },
   { id: 'dragons_eye',       name: "Dragon's Eye",      type: 'Equipment', cost: 2, effect: 'Look at top 3 deck cards. Put 1 into hand; return rest in any order.' },
-  { id: 'power_glove',       name: 'Power Glove',       type: 'Equipment', cost: 3, effect: 'Your Leader deals +3 Damage this turn only.' },
+  { id: 'power_glove',       name: 'Power Glove',       type: 'Equipment', cost: 3, effect: 'Your Leader deals +30 Damage this turn only.' },
   // ── Rings Equipment ───────────────────────────────────────────────────
   { id: 'speed_shoes',       name: 'Speed Shoes',       type: 'Equipment', cost: 1, effect: 'Gain 3 Energy immediately.' },
   { id: 'extreme_gear',      name: 'Extreme Gear',      type: 'Equipment', cost: 0, effect: 'Discard any number of cards from hand — gain 1 Energy each.' },

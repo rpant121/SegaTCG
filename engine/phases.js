@@ -25,8 +25,9 @@ export function startTurn(state, log, emit) {
   state.leaderDamageTakenThisTurn[p]  = false;
   if (state.rougeUsedThisTurn) state.rougeUsedThisTurn[p] = false;
   if (state.leaderUsedThisTurn) state.leaderUsedThisTurn[p] = false;
+  state.usedActivesThisTurn = [];
 
-  // Recover all exhausted units for the active player (except Omega-locked ones)
+  // Recover all exhausted units for the active player
   for (const u of state.players[p].bench) {
     if (u.exhausted) {
       u.exhausted = false;
@@ -44,21 +45,6 @@ export function startTurn(state, log, emit) {
   }
 
   runDrawPhase(state, log, emit);
-}
-
-function _resolveOmegaUnlocks(state, p, log) {
-  const locks = state.persistentExhaust[p];
-  const bench = state.players[p].bench;
-  for (const uid of Object.keys(locks)) {
-    if (locks[uid] <= state.turn) {
-      const unit = bench.find(u => u.uid === uid);
-      if (unit) {
-        unit.exhausted = false;
-        log(`🤖 Omega lock expired — ${unit.name} is no longer exhausted`, 'phase');
-      }
-      delete locks[uid];
-    }
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -170,10 +156,9 @@ export function enterEndPhase(state, log, emit) {
   const blaze = state.players[p].bench.find(u => u.id === 'blaze' && !u.exhausted);
   if (blaze && state.players[p].discard.length >= 5) {
     const leader = state.players[p].leader;
-    const healed = Math.min(1, leader.hp - leader.currentHp);
-    if (healed > 0) {
-      leader.currentHp += healed;
-      log(`🔥 Blaze: heals Leader 1 HP (${leader.currentHp}/${leader.hp})`, 'heal');
+    if (leader.currentHp < leader.hp) {
+      leader.currentHp = Math.min(leader.currentHp + 10, leader.hp);
+      log(`🔥 Blaze: heals Leader 10 HP (${leader.currentHp}/${leader.hp})`, 'heal');
     }
   }
 
@@ -189,6 +174,7 @@ export function enterEndPhase(state, log, emit) {
   state.leaderDamageTakenThisTurn[p] = false;
   state.rougeUsedThisTurn[p]         = false;
   state.leaderUsedThisTurn[p]        = false;
+  state.usedActivesThisTurn           = [];
 
   emit('phase_changed', state.phase);
   emit('request_pass', opponent(p) + 1);

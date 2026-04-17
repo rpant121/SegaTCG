@@ -35,7 +35,7 @@
   --col-unit:      #2a6abf;
   --col-equipment: #555555;
   --col-stage:     #2a7a3a;
-  --col-genesis:   #8a2a6a;
+  --col-genesis:   #cc2288;
   --col-leader:    #7a4a10;
 }
 
@@ -140,7 +140,7 @@ body {
 /* ── Hand cards ──────────────────────────────────────────── */
 .card {
   width: 116px;
-  height: 160px;
+  height: 200px;
   border-radius: 7px;
   display: flex;
   flex-direction: column;
@@ -160,7 +160,7 @@ body {
 .card.card-type-unit      { background: linear-gradient(160deg, #0e2448, #081528); border-color: #2a5080; }
 .card.card-type-equipment { background: linear-gradient(160deg, #1e1e1e, #111111); border-color: #444444; }
 .card.card-type-stage     { background: linear-gradient(160deg, #0e2e12, #081a0a); border-color: #246028; }
-.card.card-type-genesis   { background: linear-gradient(160deg, #2e0e28, #180810); border-color: #6a1a55; }
+.card.card-type-genesis   { background: linear-gradient(160deg, #3a0a30, #220018); border-color: #cc2288; }
 .card.card-type-leader    { background: linear-gradient(160deg, #2e1e00, #181000); border-color: #5a3a00; }
 
 /* Face-down always overrides */
@@ -171,7 +171,7 @@ body {
   border-color: #1a2a40 !important;
   cursor: default;
   width: 98px;
-  height: 136px;
+  height: 170px;
 }
 .card.face-down:hover { transform: none; }
 
@@ -205,7 +205,7 @@ body {
 }
 .type-equipment { background: #2a2a2a; color: #aaaaaa; }
 .type-stage     { background: #1a3a20; color: #7affa0; }
-.type-genesis   { background: #3a1a40; color: #e088dd; }
+.type-genesis   { background: #4a0a38; color: #ff66cc; }
 .type-unit      { background: #1a2a4e; color: #88b8ff; }
 .type-leader    { background: #2a1a0e; color: #ffcf7a; }
 
@@ -245,7 +245,7 @@ body {
 }
 
 .card-effect-text {
-  font-size: 10px;
+  font-size: 8px;
   color: #8899bb;
   line-height: 1.3;
   overflow: hidden;
@@ -255,6 +255,22 @@ body {
   text-align: left;
   padding: 0 1px;
   margin-top: 2px;
+  width: 100%;
+}
+
+.card-active-text {
+  font-size: 7.5px;
+  color: #c8a820;
+  line-height: 1.3;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  text-align: left;
+  padding: 3px 1px 0;
+  margin-top: 3px;
+  border-top: 1px solid #2a2000;
+  width: 100%;
 }
 
 /* ── Leader Card ─────────────────────────────────────────── */
@@ -342,6 +358,18 @@ body {
   position: absolute; bottom: 0; left: 0; right: 0;
   text-align: center; font-size: 5.5px; color: var(--red);
   background: #000000aa; padding: 1px 0;
+}
+
+/* Exhausted units that are also attack targets show clearly as attackable */
+.bench-unit.exhausted.attack-target {
+  opacity: 0.75;
+  filter: grayscale(0.2);
+  border-color: var(--red);
+  box-shadow: var(--glow-red);
+  animation: pulse-red 0.8s infinite alternate;
+}
+.bench-unit.exhausted.attack-target::after {
+  content: 'EXHAUSTED';
 }
 .bench-unit.can-activate   { border-color: var(--sonic-bright); box-shadow: var(--glow-blue); }
 .bench-unit:hover:not(.exhausted) { transform: translateY(-3px); }
@@ -549,7 +577,7 @@ body {
 .cim-header.type-unit      { background: linear-gradient(160deg, #1a4080, #0d2448); }
 .cim-header.type-equipment { background: linear-gradient(160deg, #2a2a2a, #181818); }
 .cim-header.type-stage     { background: linear-gradient(160deg, #1a4820, #0e2a12); }
-.cim-header.type-genesis   { background: linear-gradient(160deg, #5a1a50, #300a2a); }
+.cim-header.type-genesis   { background: linear-gradient(160deg, #7a1060, #3a0030); }
 .cim-header.type-leader    { background: linear-gradient(160deg, #5a3a10, #2a1a00); }
 
 .cim-art {
@@ -585,7 +613,7 @@ body {
 .cim-type-pill.type-unit      { background: #2a5080; color: #aad0ff; }
 .cim-type-pill.type-equipment { background: #444; color: #ccc; }
 .cim-type-pill.type-stage     { background: #246028; color: #90ffa8; }
-.cim-type-pill.type-genesis   { background: #601860; color: #e8a0e8; }
+.cim-type-pill.type-genesis   { background: #7a1060; color: #ff88dd; }
 .cim-type-pill.type-leader    { background: #5a3808; color: #ffcc88; }
 
 .cim-cost-pill {

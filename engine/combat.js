@@ -11,16 +11,24 @@ import { opponent } from './state.js';
 // Shadow passive: base becomes 2 if he is on bench and not exhausted.
 // ---------------------------------------------------------------------------
 export function calcEffectiveDamage(state, p) {
-  const hasShadow = state.players[p].bench.some(u => u.id === 'shadow' && !u.exhausted);
-  let dmg = hasShadow ? 2 : state.players[p].leader.damage;
-  dmg += state.chaosEmeraldBuff[p];
-  dmg += state.powerGloveBuff[p];
+  // Shadow doubles base damage (stacks multiplicatively per Shadow)
+  let base = state.players[p].leader.damage;
+  const shadowCount = state.players[p].bench.filter(u => u.id === 'shadow' && !u.exhausted).length;
+  base = base * Math.pow(2, shadowCount);
+
+  // Attack boosts (Knuckles, Amy passives) apply AFTER doubling
+  let boost = 0;
   for (const unit of state.players[p].bench) {
     if (!unit.exhausted && unit.passive?.type === 'attack_boost') {
-      dmg += unit.passive.amount;
+      boost += unit.passive.amount;
     }
   }
-  return dmg;
+
+  // Equipment buffs
+  boost += state.chaosEmeraldBuff[p];
+  boost += state.powerGloveBuff[p];
+
+  return base + boost;
 }
 
 // ---------------------------------------------------------------------------
@@ -108,7 +116,7 @@ export function applyDamageToUnit(state, attackerP, targetP, unitIdx, log) {
   if (unit.currentHp <= 0) {
     state.players[targetP].bench.splice(unitIdx, 1);
     state.players[targetP].discard.push(unit);
-    const koPenalty = state.activeStage?.id === 'midnight_carnival' ? 0 : 2;
+    const koPenalty = state.activeStage?.id === 'midnight_carnival' ? 0 : 20;
     if (koPenalty > 0) {
       log(`💀 ${unit.name} KO'd! +${koPenalty} damage penalty to Player ${targetP + 1}`, 'damage');
       applyDamageToLeader(state, targetP, koPenalty, log);
@@ -149,7 +157,7 @@ export function resolveBlock(state, attackerP, defenderP, blockerIdx, log) {
   if (unit.currentHp <= 0) {
     state.players[defenderP].bench.splice(blockerIdx, 1);
     state.players[defenderP].discard.push(unit);
-    const koPenalty = state.activeStage?.id === 'midnight_carnival' ? 0 : 2;
+    const koPenalty = state.activeStage?.id === 'midnight_carnival' ? 0 : 20;
     if (koPenalty > 0) {
       log(`💀 ${unit.name} KO'd while blocking! +${koPenalty} penalty to Player ${defenderP + 1}`, 'damage');
       applyDamageToLeader(state, defenderP, koPenalty, log, true); // unblockable KO penalty

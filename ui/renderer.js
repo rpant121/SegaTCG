@@ -4,7 +4,7 @@
  */
 
 import { calcEffectiveDamage } from '../engine/combat.js';
-import { canAfford, getActiveCost } from '../engine/actions.js';
+import { canAfford, getActiveCost, hasUsedActiveThisTurn } from '../engine/actions.js';
 import { opponent } from '../engine/state.js';
 
 // ---------------------------------------------------------------------------
@@ -39,6 +39,7 @@ function passiveIcon(unit) {
 }
 
 const PHASE_LABELS = {
+  setup: 'SETUP PHASE',
   big_scry: 'BIG SCRY', draw: 'DRAW', energy: 'ENERGY',
   main: 'MAIN PHASE', attack: 'ATTACK', end: 'END PHASE',
 };
@@ -52,8 +53,14 @@ export function render(state) {
   renderLeader('p2-leader-zone', state, 1);
   renderBench('p1-bench', state, 0);
   renderBench('p2-bench', state, 1);
-  renderHand('p1-hand', state, 0);
-  renderHand('p2-hand', state, 1);
+  if (state.phase === 'setup') {
+    const sp = state._setupPlayer ?? 0;
+    renderHand('p1-hand', state, sp === 0 ? 0 : 1);
+    renderHand('p2-hand', state, sp === 1 ? 1 : 0);
+  } else {
+    renderHand('p1-hand', state, 0);
+    renderHand('p2-hand', state, 1);
+  }
   renderInfoRow('p1-info', state, 0);
   renderInfoRow('p2-info', state, 1);
   renderPlayerLabels(state);
@@ -107,7 +114,7 @@ function renderHUD(state) {
 }
 
 function renderPlayerLabels(state) {
-  const p = state.activePlayer;
+  const p = state.phase === 'setup' ? (state._setupPlayer ?? 0) : state.activePlayer;
   q('p1-label').className = 'player-label' + (p === 0 ? ' active' : '');
   q('p2-label').className = 'player-label' + (p === 1 ? ' active' : '');
 }
@@ -195,7 +202,8 @@ export function renderBench(containerId, state, p) {
     const cost        = getActiveCost(state, unit);
     const canActivate = state.phase === 'main' && isActiveP && !unit.exhausted
       && canAfford(state, cost)
-      && !(unit.id === 'rouge' && (state.rougeUsedThisTurn ?? [false,false])[p]);
+      && !(unit.id === 'rouge' && (state.rougeUsedThisTurn ?? [false,false])[p])
+      && !hasUsedActiveThisTurn(state, unit);
     const isTarget    = isAttack && !isActiveP;
     const icon        = passiveIcon(unit);
 
@@ -237,7 +245,9 @@ export function renderHand(containerId, state, p) {
   const el      = q(containerId);
   el.innerHTML  = '';
   const ap      = state.activePlayer;
-  const isOwner = p === ap;
+  // During setup, show the setup player's hand face-up
+  const setupP  = state._setupPlayer;
+  const isOwner = state.phase === 'setup' ? (p === setupP) : (p === ap);
   const cardEls = [];
 
   if (!isOwner) {
@@ -281,7 +291,9 @@ export function buildCardEl(card, playable = false) {
     <div class="card-emoji">${cardEmoji(card)}</div>
     <div class="card-name">${card.name}</div>
     ${card.hp !== undefined ? `<div class="card-hp-small">HP ${card.hp}</div>` : ''}
-    <div class="card-effect-text">${card.effectDesc ?? card.passiveDesc ?? ''}</div>
+    ${card.passiveDesc ? `<div class="card-effect-text">${card.passiveDesc}</div>` : ''}
+    ${card.activeDesc  ? `<div class="card-active-text">⚡${card.activeCost}: ${card.activeDesc}</div>` : ''}
+    ${card.effectDesc  ? `<div class="card-effect-text">${card.effectDesc}</div>` : ''}
   `;
   return div;
 }
@@ -449,6 +461,13 @@ function renderActionButtons(state) {
   const p         = state.activePlayer;
   const btnLeader = q('btn-leader-active');
   const btnEnd    = q('btn-end-phase');
+
+  if (state.phase === 'setup') {
+    btnLeader.style.display = 'none';
+    btnEnd.textContent      = 'Done Setup →';
+    btnEnd.disabled         = false;
+    return;
+  }
 
   if (state.phase === 'main') {
     btnLeader.style.display = '';

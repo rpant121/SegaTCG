@@ -16,7 +16,7 @@ import { opponent } from '../engine/state.js';
 import { checkWin } from '../engine/combat.js';
 import { attackLeader, applyDamageToUnit, resolveBlock, calcEffectiveDamage } from '../engine/combat.js';
 import {
-  playCardFromHand, resolveExtremeGear, canAfford, getActiveCost,
+  playCardFromHand, resolveExtremeGear, canAfford, getActiveCost, hasUsedActiveThisTurn,
   tailsActive, knucklesActive, amyActive, creamActive, bigActive,
   silverActive, shadowActive, mightyActive, rougeActive, blazeActive,
   rayActive, charmyActive, espioActive, vectorActive,
@@ -77,6 +77,34 @@ function attachBoardHandlers() {
   const p   = state.activePlayer;
   const opp = opponent(p);
 
+  // ── Setup phase: only the setup player's units are playable ───────────
+  if (state.phase === 'setup') {
+    const sp  = state._setupPlayer ?? 0;
+    const nsp = sp === 0 ? 1 : 0; // non-setup player
+
+    // Setup player's hand — units playable, drag enabled
+    const setupHandEls = renderHand(`p${sp + 1}-hand`, state, sp);
+    setupHandEls.forEach(({ div, idx, card }) => {
+      div.addEventListener('contextmenu', (e) => { e.preventDefault(); openCardInspect(card, null); });
+      if (card.type !== 'Unit') return;
+      if (state.players[sp].bench.length >= 3) return;
+      div.classList.add('playable');
+      div.onclick = () => { playCardFromHand(state, idx, log); refreshBoard(); };
+      attachDragSource(div, idx, card);
+    });
+    renderBench(`p${sp + 1}-bench`, state, sp);
+    attachBenchDropZone(`p${sp + 1}-bench`, sp);
+
+    // Other player — face-down hand, static bench
+    renderHand(`p${nsp + 1}-hand`, state, nsp);
+    renderBench(`p${nsp + 1}-bench`, state, nsp);
+
+    // Both leaders
+    renderLeader('p1-leader-zone', state, 0);
+    renderLeader('p2-leader-zone', state, 1);
+    return; // skip normal phase wiring
+  }
+
   // ── Own hand ──────────────────────────────────────────────────────────
   const handEls = renderHand(`p${p + 1}-hand`, state, p);
   handEls.forEach(({ div, idx, card }) => {
@@ -119,7 +147,8 @@ function attachBoardHandlers() {
     if (!unit || unit.exhausted) return;
     const cost = getActiveCost(state, unit);
     const canUse = state.phase === 'main' && canAfford(state, cost)
-      && !(unit.id === 'rouge' && state.rougeUsedThisTurn[p]);
+      && !(unit.id === 'rouge' && state.rougeUsedThisTurn[p])
+      && !hasUsedActiveThisTurn(state, unit);
     if (canUse) {
       div.onclick = () => handleUnitActive(p, idx);
     }
@@ -281,7 +310,6 @@ function checkPendingEffects() {
   if (state.pendingPolarisPact)  { openPolarisPactModal();  return; }
   if (state.pendingRayActive)    { openRayActiveModal();    return; }
   if (state.pendingExtremeGear)  { openExtremeGearModal();  return; }
-  if (state.pendingSilverScry)   { openSilverScryModal();   return; }
   if (state.pendingMightyAttack) { openMightyAttackModal(state.activePlayer); state.pendingMightyAttack = false; return; }
 }
 
@@ -376,27 +404,9 @@ function openSilverBounceModal(p, benchIdx) {
   showOverlay('target-overlay');
 }
 
-function openSilverScryModal() {
-  const { playerIdx, cards } = state.pendingSilverScry;
-  const c = document.getElementById('silver-scry-options');
-  c.innerHTML = '';
-
-  cards.forEach((card, si) => {
-    c.appendChild(mkBtn(`${card.name} (${card.type}) — add to hand`, () => {
-      // Chosen card → hand, other → bottom of deck
-      const other = cards[si === 0 ? 1 : 0];
-      state.players[playerIdx].hand.push(card);
-      state.players[playerIdx].deck.push(other); // bottom of deck
-      addLog(`⚡ Silver scry: ${card.name} to hand, ${other.name} to bottom of deck`, 'draw');
-      state.pendingSilverScry = null;
-      closeOverlay('silver-scry-overlay');
-      refreshBoard();
-    }));
-  });
-  showOverlay('silver-scry-overlay');
-}
 
 function openTailsModal(p, benchIdx) {
+  const discard = state.players[p].discard;
   if (discard.length === 0) { addLog('♻ Tails: Discard is empty', 'phase'); return; }
   const c = document.getElementById('tails-discard-options');
   c.innerHTML = '';
@@ -611,6 +621,7 @@ function handlePassContinue() {
 // ---------------------------------------------------------------------------
 function bindStaticButtons() {
   document.getElementById('btn-end-phase').addEventListener('click', () => {
+    if (state.phase === 'setup') return; // handled by onclick set in runSetupPhase
     if (state.phase === 'main')        enterAttackPhase(state, log, emit);
     else if (state.phase === 'attack') enterEndPhase(state, log, emit);
   });
@@ -685,17 +696,66 @@ export function initHandlers(gameState) {
   state = gameState;
   bindStaticButtons();
 
-  const firstP = state.activePlayer + 1;
-  document.getElementById('pass-title').textContent = `PLAYER ${firstP} GOES FIRST`;
-  document.getElementById('pass-msg').textContent   =
-    `Coin flip result: Player ${firstP} starts! Get ready.`;
+  // ── Setup Phase ─────────────────────────────────────────────────────────
+  // Both players get a chance to deploy units before the game starts.
+  // P1 deploys → pass → P2 deploys → pass → normal turn begins.
+  state.phase = 'setup';
+  state._setupPlayer = 0; // track whose setup turn it is (always 0 then 1)
+
+  runSetupPhase(0);
+}
+
+function runSetupPhase(playerIdx) {
+  state.phase = 'setup';
+  state._setupPlayer = playerIdx;
+
+  // Show setup pass screen
+  document.getElementById('pass-title').textContent =
+    `PLAYER ${playerIdx + 1} — SETUP`;
+  document.getElementById('pass-msg').textContent =
+    `Player ${playerIdx + 1}: deploy any units from your hand to your bench, then press Continue.`;
 
   const btn = document.getElementById('btn-continue');
-  btn.onclick = function onFirstContinue() {
+  btn.onclick = function onSetupContinue() {
     closeOverlay('pass-overlay');
-    btn.onclick = handlePassContinue;
-    startTurn(state, log, emit);
-    refreshBoard();
+    refreshBoard(); // show the player their hand in setup mode
+    // Wire a "Done" button to finish setup
+    document.getElementById('btn-end-phase').textContent = 'Done Setup →';
+    document.getElementById('btn-end-phase').disabled = false;
+    document.getElementById('btn-end-phase').onclick = function onSetupDone() {
+      // Restore normal end-phase button behaviour
+      document.getElementById('btn-end-phase').onclick = null;
+      document.getElementById('btn-end-phase').textContent = 'Start Attack →';
+
+      if (playerIdx === 0) {
+        // P1 done — pass to P2
+        document.getElementById('pass-title').textContent = 'PASS TO PLAYER 2';
+        document.getElementById('pass-msg').textContent =
+          `Player 2: deploy any units from your hand to your bench, then press Continue.`;
+        const btn2 = document.getElementById('btn-continue');
+        btn2.onclick = function onP2SetupContinue() {
+          closeOverlay('pass-overlay');
+          runSetupPhase(1);
+        };
+        showOverlay('pass-overlay');
+      } else {
+        // P2 done — begin the real game
+        state.phase = 'big_scry';
+        delete state._setupPlayer;
+        document.getElementById('pass-title').textContent =
+          `PLAYER ${state.activePlayer + 1} GOES FIRST`;
+        document.getElementById('pass-msg').textContent =
+          `Coin flip result: Player ${state.activePlayer + 1} starts! Hand the device over.`;
+        const btnF = document.getElementById('btn-continue');
+        btnF.onclick = function onFirstContinue() {
+          closeOverlay('pass-overlay');
+          btnF.onclick = handlePassContinue;
+          startTurn(state, log, emit);
+          refreshBoard();
+        };
+        showOverlay('pass-overlay');
+      }
+    };
   };
 
   render(state);

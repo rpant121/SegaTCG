@@ -60,6 +60,7 @@ export function createInitialState(deckIds0, deckIds1) {
 
     // ── Per-turn tracking (reset in End Phase) ────────────────────────────
     activesUsedThisTurn:    0,      // Silver active: count actives fired this turn
+    usedActivesThisTurn:    [],     // Array of unit UIDs that have used their active this turn
     equipmentPlayedThisTurn:[0, 0], // Charmy passive/active: equipment plays per player
     energySpentThisTurn:    [0, 0], // Vector active: total energy spent this turn
     leaderDamageTakenThisTurn: [false, false], // legacy; replaced by per-event draw
@@ -75,7 +76,6 @@ export function createInitialState(deckIds0, deckIds1) {
     pendingExtremeGear:  null,  // { playerIdx }         (choose cards to discard)
     pendingMightyAttack: false, // true while second attack target selection is open
     pendingBlock:        null,  // { attackerP, defenderP } — awaiting blocker choice
-    pendingSilverScry:   null,  // { playerIdx, cards } — choose 1 for hand, 1 to bottom
 
     firstTurn: true,
 

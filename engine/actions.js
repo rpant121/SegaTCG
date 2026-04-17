@@ -37,7 +37,7 @@ export function drawCards(state, p, count, log) {
   for (let i = 0; i < count; i++) {
     if (state.players[p].deck.length === 0) {
       state.missedDraws[p]++;
-      const penalty = state.missedDraws[p];
+      const penalty = state.missedDraws[p] * 10;
       log(`⚠ Player ${p + 1} empty deck — takes ${penalty} damage!`, 'damage');
       applyDamageToLeader(state, p, penalty, log);
     } else {
@@ -57,6 +57,15 @@ export function playCardFromHand(state, handIdx, log) {
   const p    = state.activePlayer;
   const card = state.players[p].hand[handIdx];
   if (!card) return false;
+
+  // During setup phase: units are free, no energy check
+  if (state.phase === 'setup') {
+    if (card.type !== 'Unit') { log(`❌ Only units can be deployed during setup`, 'damage'); return false; }
+    if (state.players[p].bench.length >= 3) { log(`❌ Bench is full`, 'damage'); return false; }
+    state.players[p].hand.splice(handIdx, 1);
+    deployUnit(state, p, card, log);
+    return true;
+  }
 
   // Apply Charmy discount to cost
   const baseCost  = card.cost ?? 0;
@@ -165,7 +174,7 @@ export function applyEquipmentEffect(state, p, card, log) {
       break;
 
     case 'chaos_emerald':
-      state.chaosEmeraldBuff[p] += 2;
+      state.chaosEmeraldBuff[p] += 20;
       log(`💎 Chaos Emerald: Leader +2 Damage this turn`, 'play');
       break;
 
@@ -200,7 +209,7 @@ export function applyEquipmentEffect(state, p, card, log) {
       break;
 
     case 'power_glove':
-      state.powerGloveBuff[p] += 3;
+      state.powerGloveBuff[p] += 30;
       log(`🥊 Power Glove: Leader +3 Damage this turn`, 'play');
       break;
 
@@ -253,10 +262,18 @@ function _refillToSix(state, p, log) {
 // of the target (only when a *different* unit would exhaust).
 // ---------------------------------------------------------------------------
 export function exhaustUnit(state, p, benchIdx) {
-  if (state.masterEmeraldActive) return;
   const unit = state.players[p].bench[benchIdx];
   if (!unit) return;
+  // Always record the uid as used this turn, even under Master Emerald
+  if (!state.usedActivesThisTurn.includes(unit.uid)) {
+    state.usedActivesThisTurn.push(unit.uid);
+  }
+  if (state.masterEmeraldActive) return; // ME skips the physical exhaust
   unit.exhausted = true;
+}
+
+export function hasUsedActiveThisTurn(state, unit) {
+  return state.usedActivesThisTurn.includes(unit.uid);
 }
 
 // ---------------------------------------------------------------------------
@@ -299,12 +316,12 @@ export function knucklesActive(state, p, benchIdx, targetUnitIdx, log) {
   spendEnergy(state, cost);
   exhaustUnit(state, p, benchIdx);
   state.activesUsedThisTurn++;
-  unit.currentHp -= 1;
-  log(`👊 Knuckles: 1 damage to ${unit.name} (${unit.currentHp}/${unit.hp})`, 'damage');
+  unit.currentHp -= 10;
+  log(`👊 Knuckles: 10 damage to ${unit.name} (${unit.currentHp}/${unit.hp})`, 'damage');
   if (unit.currentHp <= 0) {
     state.players[opp].bench.splice(targetUnitIdx, 1);
     state.players[opp].discard.push(unit);
-    const pen = state.activeStage?.id === 'midnight_carnival' ? 0 : 2;
+    const pen = state.activeStage?.id === 'midnight_carnival' ? 0 : 20;
     if (pen > 0) { log(`💀 ${unit.name} KO'd! +${pen} damage to P${opp + 1}`, 'damage'); applyDamageToLeader(state, opp, pen, log); }
     else          { log(`💀 ${unit.name} KO'd! (Midnight Carnival: no penalty)`, 'damage'); }
   }
@@ -318,7 +335,7 @@ export function amyActive(state, p, benchIdx, log) {
   exhaustUnit(state, p, benchIdx);
   state.activesUsedThisTurn++;
   const opp = opponent(p);
-  log(`🌸 Amy: 1 damage to Player ${opp + 1}'s Leader`, 'damage');
+  log(`🌸 Amy: 10 damage to Player ${opp + 1}'s Leader`, 'damage');
   applyDamageToLeader(state, opp, 1, log);
   return true;
 }
@@ -335,7 +352,7 @@ export function creamActive(state, p, benchIdx, targetType, targetBenchIdx, log)
     log(`💚 Cream heals Leader to ${l.currentHp}/${l.hp}`, 'heal');
   } else {
     const u = state.players[p].bench[targetBenchIdx];
-    u.currentHp = Math.min(u.currentHp + 1, u.hp);
+    u.currentHp = Math.min(u.currentHp + 10, u.hp);
     log(`💚 Cream heals ${u.name} to ${u.currentHp}/${u.hp}`, 'heal');
   }
   return true;
@@ -353,8 +370,8 @@ export function bigActive(state, p, benchIdx, log) {
   else {
     const idx  = Math.floor(Math.random() * hand.length);
     const card = hand.splice(idx, 1)[0];
-    state.players[opp].discard.push(card);
-    log(`🐟 Big: Discards ${card.name} from opponent's hand`, 'damage');
+    state.players[p].discard.push(card);
+    log(`🐟 Big: Takes ${card.name} from opponent's hand into your discard`, 'damage');
   }
   return true;
 }
@@ -372,18 +389,6 @@ export function silverActive(state, p, benchIdx, targetBenchIdx, log) {
   state.players[p].hand.push({ ...bounced, currentHp: bounced.hp, exhausted: false });
   log(`⚡ Silver: ${bounced.name} returned to hand`, 'play');
 
-  // Scry 2
-  const scryCards = state.players[p].deck.splice(0, Math.min(2, state.players[p].deck.length));
-  if (scryCards.length === 0) {
-    log('⚡ Silver: deck empty, no scry', 'phase');
-    return true;
-  }
-  if (scryCards.length === 1) {
-    state.players[p].hand.push(scryCards[0]);
-    log(`⚡ Silver scry: ${scryCards[0].name} added to hand`, 'draw');
-    return true;
-  }
-  state.pendingSilverScry = { playerIdx: p, cards: scryCards };
   return true;
 }
 
@@ -395,11 +400,11 @@ export function shadowActive(state, p, benchIdx, log) {
   exhaustUnit(state, p, benchIdx);
   state.activesUsedThisTurn++;
   const opp = opponent(p);
-  log(`🌑 Shadow: 3 damage to Player ${opp + 1}'s Leader`, 'damage');
-  applyDamageToLeader(state, opp, 3, log);
-  log(`🌑 Shadow: Player ${p + 1}'s Leader takes 2 unblockable damage`, 'damage');
+  log(`🌑 Shadow: 30 damage to Player ${opp + 1}'s Leader`, 'damage');
+  applyDamageToLeader(state, opp, 30, log);
+  log(`🌑 Shadow: Player ${p + 1}'s Leader takes 10 unblockable damage`, 'damage');
   // Unblockable = bypasses shield AND reduction
-  state.players[p].leader.currentHp -= 2;
+  state.players[p].leader.currentHp -= 10;
   if (state.players[p].leader.currentHp < 0) state.players[p].leader.currentHp = 0;
   return true;
 }

@@ -7,8 +7,8 @@ export const LEADER_DATA = {
   id: 'sonic',
   name: 'Sonic the Hedgehog',
   type: 'Leader',
-  hp: 10,
-  damage: 1,
+  hp: 100,
+  damage: 10,
   activeCost: 1,
   activeDesc: 'Discard 1 card from hand → Draw 2 cards. Requires ≥1 card in hand.',
 };
@@ -18,35 +18,35 @@ export const UNIT_DATA = {
   // ── Original Units ────────────────────────────────────────────────────────
 
   tails: {
-    id: 'tails', name: 'Tails', type: 'Unit', cost: 0, hp: 2,
+    id: 'tails', name: 'Tails', type: 'Unit', cost: 0, hp: 20,
     passive: { type: 'draw_end', amount: 1 },
     passiveDesc: 'Draw 1 card at end of turn',
     activeCost: 2,
     activeDesc: 'Play 1 card from your discard pile',
   },
   knuckles: {
-    id: 'knuckles', name: 'Knuckles', type: 'Unit', cost: 0, hp: 4,
-    passive: { type: 'attack_boost', amount: 1 },
-    passiveDesc: '+1 to Leader Attack',
+    id: 'knuckles', name: 'Knuckles', type: 'Unit', cost: 0, hp: 40,
+    passive: { type: 'attack_boost', amount: 10 },
+    passiveDesc: '+10 to Leader Attack',
     activeCost: 1,
     activeDesc: 'Deal 1 damage to 1 opponent Support Unit',
   },
   amy: {
-    id: 'amy', name: 'Amy', type: 'Unit', cost: 0, hp: 3,
-    passive: { type: 'attack_boost', amount: 1 },
-    passiveDesc: '+1 to Leader Attack',
+    id: 'amy', name: 'Amy', type: 'Unit', cost: 0, hp: 30,
+    passive: { type: 'attack_boost', amount: 10 },
+    passiveDesc: '+10 to Leader Attack',
     activeCost: 1,
     activeDesc: "Deal 1 damage to opponent's Leader",
   },
   cream: {
-    id: 'cream', name: 'Cream', type: 'Unit', cost: 0, hp: 2,
-    passive: { type: 'damage_reduction', amount: 1 },
-    passiveDesc: '-1 to damage taken by Leader',
+    id: 'cream', name: 'Cream', type: 'Unit', cost: 0, hp: 20,
+    passive: { type: 'damage_reduction', amount: 10 },
+    passiveDesc: '-10 to damage taken by Leader',
     activeCost: 1,
     activeDesc: 'Heal 1 HP from any friendly unit (cannot exceed max HP)',
   },
   big: {
-    id: 'big', name: 'Big', type: 'Unit', cost: 0, hp: 4,
+    id: 'big', name: 'Big', type: 'Unit', cost: 0, hp: 40,
     passive: { type: 'big_scry', amount: 0 },
     passiveDesc: 'Start of turn: look at top deck card, may discard it',
     activeCost: 3,
@@ -59,21 +59,21 @@ export const UNIT_DATA = {
   // with a second Leader attack.
 
   silver: {
-    id: 'silver', name: 'Silver', type: 'Unit', cost: 0, hp: 3,
+    id: 'silver', name: 'Silver', type: 'Unit', cost: 0, hp: 30,
     passive: { type: 'silver_cost_reduce', amount: 1 },
     passiveDesc: 'All friendly unit actives cost 1 less energy (minimum 1)',
     activeCost: 3,
-    activeDesc: 'Return one of your bench units to your hand. Scry 2: put 1 in your hand and 1 on the bottom of your deck.',
+    activeDesc: 'Return one of your bench units to your hand.',
   },
   shadow: {
-    id: 'shadow', name: 'Shadow', type: 'Unit', cost: 0, hp: 4,
+    id: 'shadow', name: 'Shadow', type: 'Unit', cost: 0, hp: 40,
     passive: { type: 'shadow_boost', amount: 1 },
-    passiveDesc: "Your Leader's base damage is 2 instead of 1",
+    passiveDesc: "While on bench: double your Leader's base damage. Stacks per Shadow.",
     activeCost: 3,
-    activeDesc: "Deal 3 damage to the opponent's Leader. Your Leader takes 2 unblockable, unreducible damage.",
+    activeDesc: "Deal 3 damage to the opponent's Leader. Your Leader takes 10 unblockable, unreducible damage.",
   },
   mighty: {
-    id: 'mighty', name: 'Mighty', type: 'Unit', cost: 0, hp: 3,
+    id: 'mighty', name: 'Mighty', type: 'Unit', cost: 0, hp: 30,
     passive: { type: 'mighty_draw', amount: 0 },
     passiveDesc: 'After your Leader attacks, if damage dealt was 3 or higher, draw 1 card',
     activeCost: 2,
@@ -86,21 +86,21 @@ export const UNIT_DATA = {
   // event. Blaze resets the loop. Ray surgically feeds the discard.
 
   rouge: {
-    id: 'rouge', name: 'Rouge', type: 'Unit', cost: 0, hp: 2,
+    id: 'rouge', name: 'Rouge', type: 'Unit', cost: 0, hp: 20,
     passive: { type: 'rouge_draw', amount: 0 },
     passiveDesc: 'When a card is milled from the top of your deck to your discard, draw 1 card',
     activeCost: 1,
     activeDesc: 'Place the top card of your deck directly into your discard pile. Rouge does NOT exhaust.',
   },
   blaze: {
-    id: 'blaze', name: 'Blaze', type: 'Unit', cost: 0, hp: 3,
+    id: 'blaze', name: 'Blaze', type: 'Unit', cost: 0, hp: 30,
     passive: { type: 'blaze_sustain', amount: 0 },
     passiveDesc: 'At the end of your turn, if your discard pile has 5+ cards, heal your Leader 1 HP',
     activeCost: 3,
     activeDesc: 'Shuffle your entire discard pile back into your deck, then draw 2 cards. Blaze exhausts.',
   },
   ray: {
-    id: 'ray', name: 'Ray', type: 'Unit', cost: 0, hp: 4,
+    id: 'ray', name: 'Ray', type: 'Unit', cost: 0, hp: 40,
     passive: { type: 'ray_passive', amount: 0 },
     passiveDesc: 'When you play a card from your discard pile, draw 1 card',
     activeCost: 2,
@@ -114,21 +114,21 @@ export const UNIT_DATA = {
   // available energy for the ultimate burst turn.
 
   charmy: {
-    id: 'charmy', name: 'Charmy', type: 'Unit', cost: 0, hp: 4,
+    id: 'charmy', name: 'Charmy', type: 'Unit', cost: 0, hp: 40,
     passive: { type: 'charmy_discount', amount: 0 },
     passiveDesc: 'Each equipment card played this turn after the first costs 1 less energy (minimum 0)',
     activeCost: 2,
     activeDesc: 'Draw 1 card for each equipment card played this turn',
   },
   espio: {
-    id: 'espio', name: 'Espio', type: 'Unit', cost: 0, hp: 3,
+    id: 'espio', name: 'Espio', type: 'Unit', cost: 0, hp: 30,
     passive: { type: 'espio_draw', amount: 0 },
     passiveDesc: 'After your Draw Phase: draw 1 extra card for each equipment card in your discard (max 2 extra)',
     activeCost: 2,
     activeDesc: 'Shuffle up to 3 equipment cards from your discard back into your deck, then draw 1',
   },
   vector: {
-    id: 'vector', name: 'Vector', type: 'Unit', cost: 0, hp: 2,
+    id: 'vector', name: 'Vector', type: 'Unit', cost: 0, hp: 20,
     passive: { type: 'vector_passive', amount: 0 },
     passiveDesc: 'Each time your Leader takes damage this turn, draw 1 card',
     activeCost: 3,
@@ -148,7 +148,7 @@ export const EQUIP_DATA = {
   chaos_emerald: {
     id: 'chaos_emerald', name: 'Chaos Emerald', type: 'Equipment', cost: 2,
     isPersistent: false,
-    effectDesc: 'Leader gains +2 Damage until end of this turn.',
+    effectDesc: 'Leader gains +20 Damage until end of this turn.',
   },
   master_emerald: {
     id: 'master_emerald', name: 'Master Emerald', type: 'Equipment', cost: 4,
@@ -171,7 +171,7 @@ export const EQUIP_DATA = {
   heat_barrier: {
     id: 'heat_barrier', name: 'Heat Barrier', type: 'Equipment', cost: 1,
     isPersistent: false,
-    effectDesc: 'Heal your Leader for 2 HP. Cannot exceed max HP.',
+    effectDesc: 'Heal your Leader for 20 HP. Cannot exceed max HP.',
   },
   dragons_eye: {
     id: 'dragons_eye', name: "Dragon's Eye", type: 'Equipment', cost: 2,
@@ -181,7 +181,7 @@ export const EQUIP_DATA = {
   power_glove: {
     id: 'power_glove', name: 'Power Glove', type: 'Equipment', cost: 3,
     isPersistent: false,
-    effectDesc: 'Your Leader deals +3 Damage this turn only.',
+    effectDesc: 'Your Leader deals +30 Damage this turn only.',
   },
   midnight_carnival: {
     id: 'midnight_carnival', name: 'Midnight Carnival', type: 'Stage', cost: 2,
