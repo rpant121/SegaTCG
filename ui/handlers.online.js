@@ -88,6 +88,28 @@ function bindSocketListeners() {
       return;
     }
 
+    // Setup phase — show the appropriate prompt for each player
+    if (state.phase === 'setup') {
+      const sp = state._setupPlayer ?? 0;
+      if (sp === myPlayerIdx) {
+        // It's our setup turn — show the deploy prompt
+        document.getElementById('pass-title').textContent = `PLAYER ${myPlayerIdx + 1} — SETUP`;
+        document.getElementById('pass-msg').textContent =
+          'Deploy any units from your hand to your bench, then press Continue.';
+        document.getElementById('btn-continue').style.display = '';
+        document.getElementById('btn-continue').onclick = () => {
+          closeOverlay('pass-overlay');
+          refreshBoard();
+        };
+        showOverlay('pass-overlay');
+      } else {
+        // Waiting for opponent to finish their setup
+        showWaitingOverlay(`Waiting for Player ${sp + 1} to finish setup…`);
+      }
+      refreshBoard();
+      return;
+    }
+
     // If it's now the END phase, show the pass screen before advancing turn
     if (state.phase === 'end') {
       const nextPlayerNum = opponent(state.activePlayer) + 1;
