@@ -149,11 +149,12 @@ function refreshBoard() {
   if (!state) return;
   render(state);
   // After render, correct the hand visibility based on who we are.
-  // render() doesn't know myPlayerIdx so it may show the wrong hands.
-  // We re-render each hand with the correct owner: our hand face-up,
-  // opponent's hand face-down (-1 = force face-down).
   if (myPlayerIdx !== null) {
     const opp = opponent(myPlayerIdx);
+    console.log('[DEBUG] refreshBoard myPlayerIdx:', myPlayerIdx, 'opp:', opp,
+      'myHand:', state.players[myPlayerIdx]?.hand?.length,
+      'oppHand:', state.players[opp]?.hand?.length,
+      'oppHand[0]:', JSON.stringify(state.players[opp]?.hand?.[0]));
     renderHand(`p${myPlayerIdx + 1}-hand`, state, myPlayerIdx, myPlayerIdx);
     renderHand(`p${opp + 1}-hand`,         state, opp,         -1);
   }
