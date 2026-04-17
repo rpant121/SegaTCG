@@ -191,9 +191,11 @@ socket.on('room_joined', ({ roomCode, playerIdx }) => {
   setStatus('Joined! Starting game…');
 });
 
-socket.on('game_start', ({ playerIdx, firstPlayer, deckNames, initialState, logEntries }) => {
+socket.on('game_start', ({ playerIdx, roomCode: gameRoomCode, firstPlayer, deckNames, initialState, logEntries }) => {
   _playerIdx = playerIdx;
-  console.log('[DEBUG] game_start received, playerIdx:', playerIdx, 'roomCode:', _roomCode);
+  // Use roomCode from game_start payload — for Player 2, room_joined may not
+  // have arrived yet so _roomCode could still be null at this point.
+  if (gameRoomCode) _roomCode = gameRoomCode;
   setStatus('Game starting!', '#00ff66');
 
   document.getElementById('lobby-overlay').remove();
@@ -201,20 +203,12 @@ socket.on('game_start', ({ playerIdx, firstPlayer, deckNames, initialState, logE
   addLog(`P1: ${deckNames[0]}  |  P2: ${deckNames[1]}`, 'phase');
   addLog(`Coin flip → Player ${firstPlayer + 1} goes first!`, 'phase');
   initOnlineHandlers(socket, _roomCode, _playerIdx);
-  console.log('[DEBUG] initOnlineHandlers done');
-
+  
   setTimeout(() => {
-    console.log('[DEBUG] emitting REQUEST_STATE, roomCode:', _roomCode);
     socket.emit('action', { roomCode: _roomCode, type: 'REQUEST_STATE', payload: {} });
   }, 50);
 });
 
-// Debug: log ALL incoming socket events
-const _origOnevent = socket.onevent.bind(socket);
-socket.onevent = function(packet) {
-  console.log('[DEBUG] socket event:', packet.data?.[0], packet.data?.[1]);
-  _origOnevent(packet);
-};
 
 socket.on('error', ({ message }) => {
   setStatus(`Error: ${message}`, '#cc4444');

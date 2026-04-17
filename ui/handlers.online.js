@@ -202,19 +202,10 @@ function attachBoardHandlers() {
     attachBenchDropZone(`p${p + 1}-bench`, p);
 
     const btnEnd = document.getElementById('btn-end-phase');
-    // Check if already marked ready (optimistic UI)
+    // Just update display — click is handled by bindStaticButtons
     const alreadyReady = btnEnd.dataset.setupReady === '1';
     btnEnd.textContent = alreadyReady ? 'Waiting for opponent…' : 'Done Setup →';
     btnEnd.disabled    = alreadyReady;
-    if (!alreadyReady) {
-      btnEnd.onclick = () => {
-        btnEnd.onclick  = null;
-        btnEnd.textContent = 'Waiting for opponent…';
-        btnEnd.disabled    = true;
-        btnEnd.dataset.setupReady = '1';
-        act('SETUP_DONE');
-      };
-    }
     return;
   }
 
@@ -379,9 +370,19 @@ function handleUnitActive(p, benchIdx) {
 // ---------------------------------------------------------------------------
 function bindStaticButtons() {
 
-  // Phase advance button
+  // Phase advance button — also handles Setup Done (no turn-ownership check)
   document.getElementById('btn-end-phase').addEventListener('click', () => {
-    if (!isMyTurn() || !state) return;
+    if (!state) return;
+    if (state.phase === 'setup') {
+      const btn = document.getElementById('btn-end-phase');
+      if (btn.dataset.setupReady === '1') return; // already sent
+      btn.textContent = 'Waiting for opponent…';
+      btn.disabled = true;
+      btn.dataset.setupReady = '1';
+      act('SETUP_DONE');
+      return;
+    }
+    if (!isMyTurn()) return;
     if (state.phase === 'main')        act('ENTER_ATTACK_PHASE');
     else if (state.phase === 'attack') act('END_PHASE');
   });
