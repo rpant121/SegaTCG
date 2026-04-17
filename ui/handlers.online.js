@@ -88,24 +88,8 @@ function bindSocketListeners() {
       return;
     }
 
-    // Setup phase — show the appropriate prompt for each player
+    // Setup phase — concurrent: both players deploy at the same time
     if (state.phase === 'setup') {
-      const sp = state._setupPlayer ?? 0;
-      if (sp === myPlayerIdx) {
-        // It's our setup turn — show the deploy prompt
-        document.getElementById('pass-title').textContent = `PLAYER ${myPlayerIdx + 1} — SETUP`;
-        document.getElementById('pass-msg').textContent =
-          'Deploy any units from your hand to your bench, then press Continue.';
-        document.getElementById('btn-continue').style.display = '';
-        document.getElementById('btn-continue').onclick = () => {
-          closeOverlay('pass-overlay');
-          refreshBoard();
-        };
-        showOverlay('pass-overlay');
-      } else {
-        // Waiting for opponent to finish their setup
-        showWaitingOverlay(`Waiting for Player ${sp + 1} to finish setup…`);
-      }
       refreshBoard();
       return;
     }
@@ -196,23 +180,29 @@ function attachBoardHandlers() {
   // ── Not my turn — nothing interactive (except pending block handled separately) ──
   if (!isMyTurn() && state.phase !== 'setup') return;
 
-  // ── Setup phase ─────────────────────────────────────────────────────────
+  // ── Setup phase — concurrent: both players deploy simultaneously ─────────
   if (state.phase === 'setup') {
-    const sp = state._setupPlayer ?? 0;
-    if (sp !== myPlayerIdx) return; // not our setup turn
-
-    // Wire drag-to-deploy for unit cards during setup
+    // Show own hand, allow unit drag-to-deploy
     const setupHandEls = renderHand(`p${p + 1}-hand`, state, p);
     setupHandEls.forEach(({ div, idx, card }) => {
-      if (card.type === 'Unit') attachDragToHandCard(div, idx, p);
+      if (card && card.type === 'Unit') attachDragToHandCard(div, idx, p);
     });
+    attachBenchDropZone(`p${p + 1}-bench`, p);
 
-    document.getElementById('btn-end-phase').textContent = 'Done Setup →';
-    document.getElementById('btn-end-phase').disabled = false;
-    document.getElementById('btn-end-phase').onclick = () => {
-      document.getElementById('btn-end-phase').onclick = null;
-      act('SETUP_DONE');
-    };
+    const btnEnd = document.getElementById('btn-end-phase');
+    // Check if already marked ready (optimistic UI)
+    const alreadyReady = btnEnd.dataset.setupReady === '1';
+    btnEnd.textContent = alreadyReady ? 'Waiting for opponent…' : 'Done Setup →';
+    btnEnd.disabled    = alreadyReady;
+    if (!alreadyReady) {
+      btnEnd.onclick = () => {
+        btnEnd.onclick  = null;
+        btnEnd.textContent = 'Waiting for opponent…';
+        btnEnd.disabled    = true;
+        btnEnd.dataset.setupReady = '1';
+        act('SETUP_DONE');
+      };
+    }
     return;
   }
 

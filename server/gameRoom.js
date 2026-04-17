@@ -107,9 +107,10 @@ export class GameRoom {
       });
     });
 
-    // Kick off setup phase and broadcast initial state
+    // Concurrent setup: both players deploy simultaneously
     this.state.phase = 'setup';
-    this.state._setupPlayer = 0;
+    this.state._setupReady = [false, false]; // tracks which players are done
+    delete this.state._setupPlayer;          // not used in online concurrent mode
     this._broadcast({ logEntries: [{ msg: '=== GAME START ===', type: 'phase' }] });
   }
 
@@ -134,7 +135,21 @@ export class GameRoom {
       const asyncActions = new Set([
         'RESOLVE_POLARIS_PACT',
         'REQUEST_STATE',
+        'SETUP_DONE',   // both players complete setup independently
       ]);
+
+      // During setup, both players can deploy units freely
+      if (state.phase === 'setup' && type === 'PLAY_CARD') {
+        const card = state.players[playerIdx].hand[payload.handIdx];
+        if (!card) throw new Error('No card at that hand index.');
+        if (card.type !== 'Unit') throw new Error('Only units can be deployed during setup.');
+        if (state.players[playerIdx].bench.length >= 3) throw new Error('Bench is full.');
+        state.players[playerIdx].hand.splice(payload.handIdx, 1);
+        state.players[playerIdx].bench.push({ ...card, currentHp: card.hp, exhausted: false });
+        log(`📌 Player ${playerIdx + 1} deploys ${card.name}`, 'play');
+        this._broadcast({ logEntries: log.flush() });
+        return;
+      }
 
       // For most actions, enforce active-player turn ownership
       if (!asyncActions.has(type) && playerIdx !== state.activePlayer) {
@@ -181,14 +196,13 @@ export class GameRoom {
 
       // ── Setup ────────────────────────────────────────────────────────────
       case 'SETUP_DONE': {
-        // Called when the active setup player finishes deploying units
-        const sp = state._setupPlayer ?? 0;
-        if (playerIdx !== sp) throw new Error('Not your setup turn.');
-        if (sp === 0) {
-          state._setupPlayer = 1;
-          this._broadcastToPlayer(1, 'setup_turn', {});
-        } else {
-          delete state._setupPlayer;
+        // Concurrent setup: each player marks themselves ready independently
+        if (!state._setupReady) state._setupReady = [false, false];
+        state._setupReady[playerIdx] = true;
+        log(`Player ${playerIdx + 1} ready`, 'phase');
+        // Once both players are ready, start the game
+        if (state._setupReady[0] && state._setupReady[1]) {
+          delete state._setupReady;
           state.phase = 'big_scry';
           startTurn(state, log, emit);
         }
