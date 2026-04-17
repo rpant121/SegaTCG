@@ -51,10 +51,8 @@ export function drawCards(state, p, count, log) {
 
 // ---------------------------------------------------------------------------
 // Play a card from hand
-// Returns true if consumed, false if it stays in hand.
 // ---------------------------------------------------------------------------
 export function playCardFromHand(state, handIdx, log) {
-  // During setup phase: units are free, deploy to setup player's bench
   if (state.phase === 'setup') {
     const sp   = state._setupPlayer ?? 0;
     const card = state.players[sp].hand[handIdx];
@@ -70,7 +68,6 @@ export function playCardFromHand(state, handIdx, log) {
   const card = state.players[p].hand[handIdx];
   if (!card) return false;
 
-  // Apply Charmy discount to cost
   const baseCost  = card.cost ?? 0;
   const isEquip   = card.type === 'Equipment' || card.type === 'Genesis' || card.type === 'Stage';
   const charmyDiscount = (isEquip && state.equipmentPlayedThisTurn[p] > 0)
@@ -83,7 +80,6 @@ export function playCardFromHand(state, handIdx, log) {
     return false;
   }
 
-  // Pre-play validation (card stays in hand on failure)
   if (card.type === 'Unit' && state.players[p].bench.length >= 3) {
     log(`❌ Bench is full — ${card.name} stays in hand`, 'damage');
     return false;
@@ -107,18 +103,18 @@ export function playCardFromHand(state, handIdx, log) {
     case 'Genesis':
       applyEquipmentEffect(state, p, card, log);
       state.players[p].discard.push(card);
+      if (card.isGenesis) state._genesisPlayedBy = p;
       break;
   }
   return true;
 }
 
 // ---------------------------------------------------------------------------
-// Play a card from discard (Tails / Blaze — energy cost already paid)
+// Play a card from discard (Tails / Blaze)
 // ---------------------------------------------------------------------------
 export function playCardFromDiscard(state, p, card, log) {
   log(`♻ Player ${p + 1} plays ${card.name} from discard`, 'play');
 
-  // Ray passive: draw 1 when a card is played from discard
   const ray = state.players[p].bench.find(u => u.id === 'ray' && !u.exhausted);
   if (ray) {
     log(`🐿 Ray: draws 1 (card played from discard)`, 'draw');
@@ -139,9 +135,6 @@ export function playCardFromDiscard(state, p, card, log) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Deploy a unit to the bench
-// ---------------------------------------------------------------------------
 function deployUnit(state, p, card, log) {
   if (state.players[p].bench.length >= 3) {
     log(`❌ Bench full — ${card.name} sent to discard`, 'damage');
@@ -152,45 +145,35 @@ function deployUnit(state, p, card, log) {
   log(`📌 ${card.name} deployed to bench`, 'play');
 }
 
-// ---------------------------------------------------------------------------
-// Activate a Stage card
-// ---------------------------------------------------------------------------
 function activateStage(state, p, card, log) {
   if (state.activeStage) {
-    state.players[p].discard.push(state.activeStage);
-    log(`🔄 ${state.activeStage.name} replaced by ${card.name}`, 'phase');
+    const originalOwner = state.activeStage._playedBy ?? p;
+    state.players[originalOwner].discard.push(state.activeStage);
+    log(`🔄 ${state.activeStage.name} returned to P${originalOwner + 1}, replaced by ${card.name}`, 'phase');
   }
-  state.activeStage = { ...card };
+  state.activeStage = { ...card, _playedBy: p };
   log(`🏔 Stage: ${card.name} is now active`, 'play');
 }
 
-// ---------------------------------------------------------------------------
-// Equipment / Genesis effects
-// ---------------------------------------------------------------------------
 export function applyEquipmentEffect(state, p, card, log) {
   const opp = opponent(p);
   switch (card.id) {
-
     case 'ring':
       state.energy[p] += 1;
       log(`💍 Ring: +1 Energy (now ${state.energy[p]})`, 'play');
       break;
-
     case 'chaos_emerald':
       state.chaosEmeraldBuff[p] += 20;
       log(`💎 Chaos Emerald: Leader +20 Damage this turn`, 'play');
       break;
-
     case 'master_emerald':
       state.masterEmeraldActive = true;
       log(`💚 Master Emerald: All bench actives free this turn!`, 'play');
       break;
-
     case 'elemental_shield':
       state.shieldActive[p] = true;
       log(`🛡 Elemental Shield: Player ${p + 1} shielded next opponent turn`, 'play');
       break;
-
     case 'heat_barrier': {
       const leader = state.players[p].leader;
       const healed = Math.min(20, leader.hp - leader.currentHp);
@@ -198,7 +181,6 @@ export function applyEquipmentEffect(state, p, card, log) {
       log(`🔥 Heat Barrier: Leader healed ${healed} HP (${leader.currentHp}/${leader.hp})`, 'heal');
       break;
     }
-
     case 'dragons_eye':
       if (state.players[p].deck.length === 0) {
         log(`👁 Dragon's Eye: Deck is empty — no effect`, 'phase');
@@ -210,24 +192,20 @@ export function applyEquipmentEffect(state, p, card, log) {
       };
       log(`👁 Dragon's Eye: Choose 1 of the top ${state.pendingDragonsEye.cards.length} cards`, 'play');
       break;
-
     case 'power_glove':
       state.powerGloveBuff[p] += 30;
       log(`🥊 Power Glove: Leader +30 Damage this turn`, 'play');
       break;
-
     case 'polaris_pact':
       _refillToSix(state, 0, log);
       _refillToSix(state, 1, log);
       log(`🌌 Polaris Pact: Both players refilled to 6. Opponent discards 1.`, 'play');
       state.pendingPolarisPact = { opponentIdx: opp };
       break;
-
     case 'speed_shoes':
       state.energy[p] += 3;
       log(`👟 Speed Shoes: +3 Energy (now ${state.energy[p]})`, 'play');
       break;
-
     case 'extreme_gear':
       if (state.players[p].hand.length === 0) {
         log(`⚙ Extreme Gear: hand is empty — no effect`, 'phase');
@@ -236,7 +214,6 @@ export function applyEquipmentEffect(state, p, card, log) {
       state.pendingExtremeGear = { playerIdx: p };
       log(`⚙ Extreme Gear: Choose cards to discard for energy`, 'play');
       break;
-
     case 'super_form':
       state.energy[p] *= 2;
       log(`✨ Super Form: Energy doubled to ${state.energy[p]}!`, 'play');
@@ -254,7 +231,7 @@ function _refillToSix(state, p, log) {
 }
 
 // ---------------------------------------------------------------------------
-// Exhaust a unit
+// Exhaust helpers
 // ---------------------------------------------------------------------------
 export function exhaustUnit(state, p, benchIdx) {
   const unit = state.players[p].bench[benchIdx];
@@ -262,7 +239,7 @@ export function exhaustUnit(state, p, benchIdx) {
   if (!state.usedActivesThisTurn.includes(unit.uid)) {
     state.usedActivesThisTurn.push(unit.uid);
   }
-  if (state.masterEmeraldActive) return; // ME skips the physical exhaust
+  if (state.masterEmeraldActive) return;
   unit.exhausted = true;
 }
 
@@ -271,7 +248,7 @@ export function hasUsedActiveThisTurn(state, unit) {
 }
 
 // ---------------------------------------------------------------------------
-// Rouge passive — call after any deck→own-discard event
+// Rouge passive
 // ---------------------------------------------------------------------------
 export function triggerRougePassive(state, p, log) {
   const rouge = state.players[p].bench.find(u => u.id === 'rouge' && !u.exhausted);
@@ -287,7 +264,6 @@ export function triggerRougePassive(state, p, log) {
 // ---------------------------------------------------------------------------
 // Unit actives
 // ---------------------------------------------------------------------------
-
 export function tailsActive(state, p, benchIdx, discardIdx, log) {
   const cost = getActiveCost(state, state.players[p].bench[benchIdx]);
   if (!canAfford(state, cost)) { log(`❌ Not enough energy`, 'damage'); return false; }
@@ -296,8 +272,18 @@ export function tailsActive(state, p, benchIdx, discardIdx, log) {
   exhaustUnit(state, p, benchIdx);
   state.activesUsedThisTurn++;
   const card = state.players[p].discard.splice(discardIdx, 1)[0];
-  log(`♻ Tails: plays ${card.name} from discard`, 'play');
+  // After the effect, card goes back into the deck at a random position
+  log(`♻ Tails: plays ${card.name} from discard, then shuffles it into deck`, 'play');
   playCardFromDiscard(state, p, card, log);
+  // Units land on bench; stages become active stage. Equipment/Genesis go to discard
+  // via playCardFromDiscard — pull them back out and put into deck instead.
+  if (card.type === 'Equipment' || card.type === 'Genesis') {
+    const di = state.players[p].discard.indexOf(card);
+    if (di !== -1) state.players[p].discard.splice(di, 1);
+    const pos = Math.floor(Math.random() * (state.players[p].deck.length + 1));
+    state.players[p].deck.splice(pos, 0, card);
+    log(`♻ ${card.name} shuffled back into deck`, 'play');
+  }
   return true;
 }
 
@@ -330,7 +316,7 @@ export function amyActive(state, p, benchIdx, log) {
   state.activesUsedThisTurn++;
   const opp = opponent(p);
   log(`🌸 Amy: 10 damage to Player ${opp + 1}'s Leader`, 'damage');
-  applyDamageToLeader(state, opp, 10, log);  // ✅ fixed: was incorrectly 1
+  applyDamageToLeader(state, opp, 10, log);
   return true;
 }
 
@@ -383,7 +369,6 @@ export function silverActive(state, p, benchIdx, targetBenchIdx, log) {
   return true;
 }
 
-// Shadow active: both Leaders take 10 unblockable, unreducible damage
 export function shadowActive(state, p, benchIdx, log) {
   const cost = getActiveCost(state, state.players[p].bench[benchIdx]);
   if (!canAfford(state, cost)) { log(`❌ Not enough energy`, 'damage'); return false; }
@@ -392,11 +377,10 @@ export function shadowActive(state, p, benchIdx, log) {
   state.activesUsedThisTurn++;
   const opp = opponent(p);
   log(`🌑 Shadow: both Leaders take 10 unblockable damage`, 'damage');
-  state.players[p].leader.currentHp = Math.max(0, state.players[p].leader.currentHp - 10);
+  state.players[p].leader.currentHp   = Math.max(0, state.players[p].leader.currentHp - 10);
   state.players[opp].leader.currentHp = Math.max(0, state.players[opp].leader.currentHp - 10);
   return true;
 }
-
 export function mightyActive(state, p, benchIdx, log) {
   const cost = getActiveCost(state, state.players[p].bench[benchIdx]);
   if (!canAfford(state, cost)) { log(`❌ Not enough energy`, 'damage'); return false; }
@@ -499,9 +483,9 @@ export function espioActive(state, p, benchIdx, log) {
 export function vectorActive(state, p, benchIdx, log) {
   const cost = getActiveCost(state, state.players[p].bench[benchIdx]);
   if (!canAfford(state, cost)) { log(`❌ Not enough energy`, 'damage'); return false; }
-  spendEnergy(state, cost); // spend is counted before reading total
+  spendEnergy(state, cost);
   state.activesUsedThisTurn++;
-  const dmg = state.energySpentThisTurn[p]; // includes the cost just spent
+  const dmg = state.energySpentThisTurn[p] * 10; // scaled x10
   const opp = opponent(p);
   exhaustUnit(state, p, benchIdx);
   log(`🐊 Vector: deals ${dmg} damage (total energy spent this turn)`, 'damage');
@@ -536,7 +520,7 @@ export function resolveExtremeGear(state, handIndices, log) {
     }
   });
   state.energy[p] += gained;
-  state.energySpentThisTurn[p] -= gained; // energy gained, not spent
+  state.energySpentThisTurn[p] -= gained;
   log(`⚙ Extreme Gear: discarded ${gained} card(s), gained ${gained} Energy (now ${state.energy[p]})`, 'play');
   state.pendingExtremeGear = null;
 }

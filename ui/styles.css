@@ -808,3 +808,39 @@ body {
 ::-webkit-scrollbar       { width: 3px; height: 3px; }
 ::-webkit-scrollbar-track { background: #040c18; }
 ::-webkit-scrollbar-thumb { background: #1a3a5e; border-radius: 2px; }
+
+
+/* ── ADD TO ui/styles.css ──────────────────────────────────────────────── */
+
+/* Genesis glow — flash player's board side pink */
+@keyframes genesis-pulse {
+  0%   { box-shadow: 0 0 0px #e040fb00; background-color: transparent; }
+  30%  { box-shadow: 0 0 40px #e040fbcc, inset 0 0 30px #e040fb44; background-color: #e040fb0a; }
+  70%  { box-shadow: 0 0 30px #e040fb88; background-color: #e040fb06; }
+  100% { box-shadow: 0 0 0px #e040fb00; background-color: transparent; }
+}
+.genesis-glow {
+  animation: genesis-pulse 1.8s ease-out forwards;
+  border-color: #e040fb88 !important;
+}
+
+/* Status effects panel */
+#status-effects-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 0;
+}
+.status-tag {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  padding: 3px 7px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  line-height: 1.4;
+}
+.status-positive { color: #7af0a0; border-color: #2a6040; background: #0a2010; }
+.status-negative { color: #f07a7a; border-color: #602a2a; background: #200a0a; }
+.status-stage    { color: #7abaff; border-color: #2a4a70; background: #0a1830; }
+.status-warn     { color: #ffd060; border-color: #604020; background: #1a1000; }
+.status-none     { color: var(--grey); border-color: #1a2a40; font-style: italic; }

@@ -75,6 +75,7 @@ function bindSocketListeners() {
 
   socket.on('state_update', ({ state: newState, logEntries, winner, pendingBlock }) => {
     state = newState;
+
     // Replay log entries from server
     if (Array.isArray(logEntries)) {
       logEntries.forEach(({ msg, type }) => addLog(msg, type));
@@ -87,44 +88,44 @@ function bindSocketListeners() {
       return;
     }
 
-    // Dismiss waiting overlay — re-shown below if still needed
+    // Dismiss waiting overlay
     hideWaitingOverlay();
 
-    // Once setup is over, reset the Done Setup button so it works normally
+    // Reset Done Setup button when leaving setup
     if (state.phase !== 'setup') {
       const btn = document.getElementById('btn-end-phase');
-      if (btn && btn.dataset.setupReady) {
-        delete btn.dataset.setupReady;
-        btn.disabled = false;
-      }
+      if (btn && btn.dataset.setupReady) { delete btn.dataset.setupReady; btn.disabled = false; }
     }
 
-    // Setup phase — concurrent: both players deploy at the same time
-    if (state.phase === 'setup') {
-      refreshBoard();
-      return;
-    }
+    // Genesis glow
+    if (state._genesisPlayedBy !== undefined) triggerGenesisGlow(state._genesisPlayedBy);
 
-    // If it's now the END phase, show the pass screen before advancing turn
+    // Setup phase
+    if (state.phase === 'setup') { refreshBoard(); return; }
+
+    // End phase - auto advance
     if (state.phase === 'end') {
       if (state.activePlayer === myPlayerIdx) {
-        // Online: no pass modal needed — automatically advance the turn.
-        // A brief delay lets the end-phase log entries render first.
         refreshBoard();
         setTimeout(() => act('ADVANCE_TURN'), 800);
       } else {
-        // Opponent's end phase — just show a waiting state
         showWaitingOverlay(`Waiting for Player ${state.activePlayer + 1} to finish their turn…`);
         refreshBoard();
       }
       return;
     }
 
-    // Pending block: if we are the defender, show block modal
-    if (pendingBlock && pendingBlock.defenderP === myPlayerIdx) {
-      refreshBoard();
-      openBlockModal(pendingBlock.attackerP, pendingBlock.defenderP);
-      return;
+    // Pending block
+    if (pendingBlock) {
+      if (pendingBlock.defenderP === myPlayerIdx) {
+        refreshBoard();
+        openBlockModal(pendingBlock.attackerP, pendingBlock.defenderP);
+        return;
+      } else {
+        showWaitingOverlay('Opponent is choosing whether to block…');
+        refreshBoard();
+        return;
+      }
     }
 
     // Pending Big scry: if we are the active player
@@ -161,12 +162,16 @@ function bindSocketListeners() {
 function refreshBoard() {
   if (!state) return;
   render(state);
-  // After render, correct the hand visibility based on who we are.
   if (myPlayerIdx !== null) {
     const opp = opponent(myPlayerIdx);
     renderHand(`p${myPlayerIdx + 1}-hand`, state, myPlayerIdx, myPlayerIdx);
-    renderHand(`p${opp + 1}-hand`,         state, opp,         -1);
+    renderHand(`p${opp + 1}-hand`, state, opp, -1);
   }
+  renderStatusEffects(state);
+  const myLabel  = document.getElementById(`p${myPlayerIdx + 1}-label`);
+  const oppLabel = document.getElementById(`p${opponent(myPlayerIdx) + 1}-label`);
+  if (myLabel)  myLabel.textContent  = `YOU (P${myPlayerIdx + 1})`;
+  if (oppLabel) oppLabel.textContent = `OPP (P${opponent(myPlayerIdx) + 1})`;
   attachBoardHandlers();
 }
 
@@ -198,21 +203,24 @@ function attachBoardHandlers() {
   // ── Not my turn — nothing interactive (except pending block handled separately) ──
   if (!isMyTurn() && state.phase !== 'setup') return;
 
-  // ── Setup phase — concurrent: both players deploy simultaneously ─────────
+  // ── Setup phase ─────────────────────────────────────────────────────────
   if (state.phase === 'setup') {
-    // renderHand returns { div, idx, card } — use those indices directly
+    const sp = state._setupPlayer ?? 0;
+    if (sp !== myPlayerIdx) return; // not our setup turn
+
+    // Unit cards in hand are drag-deployable (re-use same drag logic wired below)
     const setupHandEls = renderHand(`p${p + 1}-hand`, state, p, p);
     setupHandEls.forEach(({ div, idx, card }) => {
-      if (card && !card.hidden && card.type === 'Unit') {
-        attachDragToHandCard(div, idx, p);
-      }
+      if (card && !card.hidden && card.type === 'Unit') attachDragToHandCard(div, idx, p);
     });
     attachBenchDropZoneOnce(`p${p + 1}-bench`, p);
 
-    const btnEnd = document.getElementById('btn-end-phase');
-    const alreadyReady = btnEnd.dataset.setupReady === '1';
-    btnEnd.textContent = alreadyReady ? 'Waiting for opponent…' : 'Done Setup →';
-    btnEnd.disabled    = alreadyReady;
+    document.getElementById('btn-end-phase').textContent = 'Done Setup →';
+    document.getElementById('btn-end-phase').disabled = false;
+    document.getElementById('btn-end-phase').onclick = () => {
+      document.getElementById('btn-end-phase').onclick = null;
+      act('SETUP_DONE');
+    };
     return;
   }
 
@@ -254,11 +262,10 @@ function attachBoardHandlers() {
 
   // ── Opponent bench: attack targets ───────────────────────────────────────
   const oppBenchEls = renderBench(`p${opp + 1}-bench`, state, opp);
-  console.log('[DEBUG] attack wiring — phase:', state.phase, 'myTurn:', isMyTurn(), 'oppBench count:', oppBenchEls.length);
   oppBenchEls.forEach(({ div, idx }) => {
     const unit = state.players[opp].bench[idx];
     if (state.phase === 'attack') {
-      div.onclick = () => { console.log('[DEBUG] bench target clicked idx:', idx); act('ATTACK', { targetType: 'unit', targetBenchIdx: idx }); };
+      div.onclick = () => act('ATTACK', { targetType: 'unit', targetBenchIdx: idx });
     }
     if (unit) {
       div.addEventListener('contextmenu', e => {
@@ -271,7 +278,7 @@ function attachBoardHandlers() {
   // ── Opponent leader: attack target ────────────────────────────────────────
   const oppLeaderDiv = renderLeader(`p${opp + 1}-leader-zone`, state, opp);
   if (state.phase === 'attack') {
-    oppLeaderDiv.onclick = () => { console.log('[DEBUG] leader target clicked'); act('ATTACK', { targetType: 'leader' }); };
+    oppLeaderDiv.onclick = () => act('ATTACK', { targetType: 'leader' });
     // Block modal is shown when server responds with pendingBlock (see state_update handler)
   }
   oppLeaderDiv.addEventListener('contextmenu', e => {
@@ -317,10 +324,7 @@ function attachBenchDropZone(benchId, p) {
   el.addEventListener('drop', e => {
     e.preventDefault();
     el.classList.remove('drop-hover');
-    if (_drag.active) {
-      act('PLAY_CARD', { handIdx: _drag.handIdx });
-      endDrag(p);
-    }
+    if (_drag.active) { act('PLAY_CARD', { handIdx: _drag.handIdx }); endDrag(p); }
   });
 }
 
@@ -333,11 +337,41 @@ function attachBenchDropZoneOnce(benchId, p) {
   el.addEventListener('drop', e => {
     e.preventDefault();
     el.classList.remove('drop-hover');
-    if (_drag.active) {
-      act('PLAY_CARD', { handIdx: _drag.handIdx });
-      endDrag(p);
-    }
+    if (_drag.active) { act('PLAY_CARD', { handIdx: _drag.handIdx }); endDrag(p); }
   });
+}
+
+function triggerGenesisGlow(playerIdx) {
+  const zones = playerIdx === 0
+    ? ['p1-hand', 'p1-bench', 'p1-leader-row']
+    : ['p2-hand', 'p2-bench', 'p2-leader-row'];
+  zones.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.add('genesis-glow');
+    setTimeout(() => el.classList.remove('genesis-glow'), 1800);
+  });
+}
+
+function renderStatusEffects(state) {
+  const el = document.getElementById('status-effects-panel');
+  if (!el || !state) return;
+  const p   = myPlayerIdx ?? 0;
+  const opp = opponent(p);
+  const effects = [];
+  if (state.activeStage) effects.push({ label: 'Stage: ' + state.activeStage.name, cls: 'status-stage' });
+  if (state.shieldActive && state.shieldActive[p])   effects.push({ label: 'Your Shield Active', cls: 'status-positive' });
+  if (state.shieldActive && state.shieldActive[opp]) effects.push({ label: 'Opponent Shield Active', cls: 'status-negative' });
+  if ((state.chaosEmeraldBuff?.[p] ?? 0) > 0)   effects.push({ label: '+' + state.chaosEmeraldBuff[p] + ' Chaos Emerald', cls: 'status-positive' });
+  if ((state.chaosEmeraldBuff?.[opp] ?? 0) > 0)  effects.push({ label: 'Opp +' + state.chaosEmeraldBuff[opp] + ' Emerald', cls: 'status-negative' });
+  if ((state.powerGloveBuff?.[p] ?? 0) > 0)      effects.push({ label: '+' + state.powerGloveBuff[p] + ' Power Glove', cls: 'status-positive' });
+  if ((state.powerGloveBuff?.[opp] ?? 0) > 0)    effects.push({ label: 'Opp +' + state.powerGloveBuff[opp] + ' Glove', cls: 'status-negative' });
+  if (state.masterEmeraldActive) effects.push({ label: 'Master Emerald Active', cls: 'status-positive' });
+  const exhausted = (state.players[p].bench || []).filter(u => u.exhausted);
+  if (exhausted.length) effects.push({ label: 'Exhausted: ' + exhausted.map(u => u.name).join(', '), cls: 'status-warn' });
+  el.innerHTML = effects.length
+    ? effects.map(e => '<div class="status-tag ' + e.cls + '">' + e.label + '</div>').join('')
+    : '<div class="status-tag status-none">No active effects</div>';
 }
 
 function highlightBenchZone(on, p) {
@@ -363,29 +397,39 @@ function checkPendingEffects() {
 }
 
 // ---------------------------------------------------------------------------
-// Unit active dispatch
+// Unit active dispatch - confirm first
 // ---------------------------------------------------------------------------
 function handleUnitActive(p, benchIdx) {
   const unit = state.players[p].bench[benchIdx];
   if (!unit) return;
+  openUnitActiveConfirm(unit, benchIdx, p);
+}
+
+function openUnitActiveConfirm(unit, benchIdx, p) {
+  const cost = getActiveCost(state, unit);
+  const overlay = document.getElementById('unit-confirm-overlay');
+  if (!overlay) { fireUnitActive(p, benchIdx); return; }
+  document.getElementById('unit-confirm-name').textContent = unit.name;
+  document.getElementById('unit-confirm-desc').textContent = unit.activeDesc ?? '';
+  document.getElementById('unit-confirm-cost').textContent = cost + ' Energy';
+  document.getElementById('btn-unit-confirm-yes').onclick = () => {
+    closeOverlay('unit-confirm-overlay');
+    fireUnitActive(p, benchIdx);
+  };
+  document.getElementById('btn-unit-confirm-cancel').onclick = () => closeOverlay('unit-confirm-overlay');
+  overlay.onclick = (e) => { if (e.target === overlay) closeOverlay('unit-confirm-overlay'); };
+  showOverlay('unit-confirm-overlay');
+}
+
+function fireUnitActive(p, benchIdx) {
+  const unit = state.players[p].bench[benchIdx];
+  if (!unit) return;
   switch (unit.id) {
-    case 'tails':    openTailsModal(p, benchIdx);    break;
-    case 'knuckles': openKnucklesModal(p, benchIdx); break;
-    case 'amy':      act('USE_UNIT_ACTIVE', { benchIdx });                          break;
-    case 'cream':    openCreamModal(p, benchIdx);    break;
-    case 'big':      act('USE_UNIT_ACTIVE', { benchIdx });                          break;
+    case 'tails':    openTailsModal(p, benchIdx);       break;
+    case 'knuckles': openKnucklesModal(p, benchIdx);    break;
+    case 'cream':    openCreamModal(p, benchIdx);       break;
     case 'silver':   openSilverBounceModal(p, benchIdx); break;
-    case 'shadow':   act('USE_UNIT_ACTIVE', { benchIdx });                          break;
-    case 'mighty':
-      act('USE_UNIT_ACTIVE', { benchIdx });
-      // Mighty attack modal will appear when server echoes pendingMightyAttack=true
-      break;
-    case 'rouge':    act('USE_UNIT_ACTIVE', { benchIdx });                          break;
-    case 'blaze':    act('USE_UNIT_ACTIVE', { benchIdx });                          break;
-    case 'ray':      act('USE_UNIT_ACTIVE', { benchIdx });                          break;
-    case 'charmy':   act('USE_UNIT_ACTIVE', { benchIdx });                          break;
-    case 'espio':    act('USE_UNIT_ACTIVE', { benchIdx });                          break;
-    case 'vector':   act('USE_UNIT_ACTIVE', { benchIdx });                          break;
+    default:         act('USE_UNIT_ACTIVE', { benchIdx }); break;
   }
 }
 
@@ -394,12 +438,12 @@ function handleUnitActive(p, benchIdx) {
 // ---------------------------------------------------------------------------
 function bindStaticButtons() {
 
-  // Phase advance button — also handles Setup Done (no turn-ownership check)
+  // Phase advance button
   document.getElementById('btn-end-phase').addEventListener('click', () => {
     if (!state) return;
     if (state.phase === 'setup') {
       const btn = document.getElementById('btn-end-phase');
-      if (btn.dataset.setupReady === '1') return; // already sent
+      if (btn.dataset.setupReady === '1') return;
       btn.textContent = 'Waiting for opponent…';
       btn.disabled = true;
       btn.dataset.setupReady = '1';
@@ -408,7 +452,7 @@ function bindStaticButtons() {
     }
     if (!isMyTurn()) return;
     if (state.phase === 'main')        act('ENTER_ATTACK_PHASE');
-    else if (state.phase === 'attack') act('END_PHASE');
+    else if (state.phase === 'attack') act('SKIP_ATTACK');
   });
 
   // Leader active button (opens Sonic modal)
@@ -521,10 +565,11 @@ function openSonicModal() {
 // ── Tails ────────────────────────────────────────────────────────────────────
 function openTailsModal(p, benchIdx) {
   const discard = state.players[p].discard;
-  if (discard.length === 0) { addLog('♻ Tails: Discard is empty', 'phase'); return; }
+  const playable = discard.map((card, di) => ({ card, di })).filter(({ card }) => card.type !== 'Stage');
+  if (playable.length === 0) { addLog('♻ Tails: No playable cards in discard', 'phase'); return; }
   const c = document.getElementById('tails-discard-options');
   c.innerHTML = '';
-  discard.forEach((card, di) => {
+  playable.forEach(({ card, di }) => {
     c.appendChild(mkBtn(`${card.name} (${card.type})`, () => {
       act('USE_UNIT_ACTIVE', { benchIdx, discardIdx: di });
       closeOverlay('tails-overlay');
@@ -697,4 +742,4 @@ function openExtremeGearModal() {
 
   updateCount();
   showOverlay('extreme-gear-overlay');
-}
+} 
