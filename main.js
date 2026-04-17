@@ -27,7 +27,11 @@ const saved2 = JSON.parse(raw2);
 // ---------------------------------------------------------------------------
 // Boot game
 // ---------------------------------------------------------------------------
-const state = createInitialState(saved1.deck, saved2.deck);
+const state = createInitialState(
+  saved1.deck, saved2.deck,
+  saved1.leaderId ?? 'sonic',
+  saved2.leaderId ?? 'sonic'
+);
 
 addLog('=== SEGA CARD GAME TCG ===', 'phase');
 addLog(`Player 1: ${saved1.deckName ?? 'Custom Deck'} | Player 2: ${saved2.deckName ?? 'Custom Deck'}`, 'phase');

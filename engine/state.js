@@ -27,7 +27,7 @@ function idsToCards(idList) {
   });
 }
 
-export function createInitialState(deckIds0, deckIds1) {
+export function createInitialState(deckIds0, deckIds1, leaderId0 = 'sonic', leaderId1 = 'sonic') {
   const deck0 = shuffle(idsToCards(deckIds0));
   const deck1 = shuffle(idsToCards(deckIds1));
   const hand0 = deck0.splice(0, 5);
@@ -71,15 +71,16 @@ export function createInitialState(deckIds0, deckIds1) {
     firstTurn: true,
 
     players: [
-      makePlayerState(deck0, hand0),
-      makePlayerState(deck1, hand1),
+      makePlayerState(deck0, hand0, leaderId0),
+      makePlayerState(deck1, hand1, leaderId1),
     ],
   };
 }
 
-function makePlayerState(deck, hand) {
+function makePlayerState(deck, hand, leaderId = 'sonic') {
+  const leaderDef = LEADER_DATA[leaderId] ?? LEADER_DATA.sonic;
   return {
-    leader:  { ...LEADER_DATA, uid: uid(), currentHp: LEADER_DATA.hp },
+    leader:  { ...leaderDef, uid: uid(), currentHp: leaderDef.hp },
     bench:   [],
     hand,
     deck,

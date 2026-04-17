@@ -70,7 +70,7 @@ io.on('connection', (socket) => {
   // ── CREATE ROOM ──────────────────────────────────────────────────────────
   // Client sends: { deck: string[], deckName: string }
   // Server replies: { roomCode, playerIdx: 0 }
-  socket.on('create_room', ({ deck, deckName } = {}) => {
+  socket.on('create_room', ({ deck, deckName, leaderId } = {}) => {
     if (!Array.isArray(deck) || deck.length !== 30) {
       return socket.emit('error', { message: 'Invalid deck: must be 30 cards.' });
     }
@@ -78,7 +78,7 @@ io.on('connection', (socket) => {
     const room = new GameRoom(code, io);
     rooms.set(code, room);
 
-    const idx = room.join(socket, deck, deckName ?? 'Custom Deck');
+    const idx = room.join(socket, deck, deckName ?? 'Custom Deck', leaderId ?? 'sonic');
     console.log(`[Lobby] Room ${code} created by ${socket.id} (P${idx + 1})`);
 
     socket.emit('room_created', { roomCode: code, playerIdx: idx });
@@ -87,7 +87,7 @@ io.on('connection', (socket) => {
   // ── JOIN ROOM ────────────────────────────────────────────────────────────
   // Client sends: { roomCode: string, deck: string[], deckName: string }
   // Server replies: { roomCode, playerIdx: 1 } then both players get 'game_start'
-  socket.on('join_room', ({ roomCode, deck, deckName } = {}) => {
+  socket.on('join_room', ({ roomCode, deck, deckName, leaderId } = {}) => {
     const code = (roomCode ?? '').toUpperCase().trim();
     const room = rooms.get(code);
 
@@ -101,7 +101,7 @@ io.on('connection', (socket) => {
       return socket.emit('error', { message: 'Invalid deck: must be 30 cards.' });
     }
 
-    const idx = room.join(socket, deck, deckName ?? 'Custom Deck');
+    const idx = room.join(socket, deck, deckName ?? 'Custom Deck', leaderId ?? 'sonic');
     console.log(`[Lobby] ${socket.id} joined room ${code} (P${idx + 1})`);
 
     socket.emit('room_joined', { roomCode: code, playerIdx: idx });

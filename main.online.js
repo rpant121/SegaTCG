@@ -150,7 +150,7 @@ document.getElementById('btn-create-room').addEventListener('click', () => {
   socket.connect();
   setStatus('Connecting…');
   socket.once('connect', () => {
-    socket.emit('create_room', { deck: saved.deck, deckName: saved.deckName ?? 'Custom Deck' });
+    socket.emit('create_room', { deck: saved.deck, deckName: saved.deckName ?? 'Custom Deck', leaderId: saved.leaderId ?? 'sonic' });
   });
 });
 
@@ -163,7 +163,7 @@ document.getElementById('btn-join-room').addEventListener('click', () => {
   socket.connect();
   setStatus('Connecting…');
   socket.once('connect', () => {
-    socket.emit('join_room', { roomCode: code, deck: saved.deck, deckName: saved.deckName ?? 'Custom Deck' });
+    socket.emit('join_room', { roomCode: code, deck: saved.deck, deckName: saved.deckName ?? 'Custom Deck', leaderId: saved.leaderId ?? 'sonic' });
   });
 });
 

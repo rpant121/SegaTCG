@@ -86,6 +86,7 @@ export class GameRoom {
     this.io         = io;
     this.sockets    = [null, null];   // socket.id per playerIdx
     this.decks      = [null, null];   // card id arrays
+    this.leaderIds  = ['sonic', 'sonic'];
     this.deckNames  = ['Custom Deck', 'Custom Deck'];
     this.state      = null;
     this.log        = makeLog();
@@ -94,13 +95,14 @@ export class GameRoom {
 
   // ── Membership ────────────────────────────────────────────────────────────
 
-  join(socket, deck, deckName) {
+  join(socket, deck, deckName, leaderId = 'sonic') {
     const slot = this.sockets.indexOf(null);
     if (slot === -1) throw new Error('Room is full');
 
     this.sockets[slot]   = socket.id;
     this.decks[slot]     = deck;
     this.deckNames[slot] = deckName;
+    this.leaderIds[slot] = leaderId;
 
     socket.join(this.roomCode);
 
@@ -117,7 +119,7 @@ export class GameRoom {
   // ── Game start ────────────────────────────────────────────────────────────
 
   _startGame() {
-    this.state = createInitialState(this.decks[0], this.decks[1]);
+    this.state = createInitialState(this.decks[0], this.decks[1], this.leaderIds[0], this.leaderIds[1]);
 
     // Concurrent setup: both players deploy simultaneously
     this.state.phase = 'setup';
@@ -261,7 +263,14 @@ export class GameRoom {
           case 'big':      bigActive(state, playerIdx, benchIdx, log);                                        break;
           case 'silver':   silverActive(state, playerIdx, benchIdx, targetBenchIdx, log);                     break;
           case 'shadow':   shadowActive(state, playerIdx, benchIdx, log);                                     break;
-          case 'mighty':   mightyActive(state, playerIdx, benchIdx, log);                                     break;
+          case 'mighty':
+            mightyActive(state, playerIdx, benchIdx, log);
+            // Mighty's effect: grant a second attack phase this turn
+            if (state.pendingMightyAttack) {
+              state.pendingMightyAttack = false;
+              enterAttackPhase(state, log, emit);
+            }
+            break;
           case 'rouge':    rougeActive(state, playerIdx, benchIdx, log);                                      break;
           case 'blaze':    blazeActive(state, playerIdx, benchIdx, log);                                      break;
           case 'ray':      rayActive(state, playerIdx, benchIdx, log);                                        break;
@@ -367,10 +376,9 @@ export class GameRoom {
         const opp = opponent(playerIdx);
         if (targetType === 'leader') {
           const canBlock = state.players[opp].bench.some(u => !u.exhausted);
-          if (!state.shieldActive[opp] && canBlock) {
+          if (canBlock) {
             // Store pending block — defender must respond
             state.pendingBlock = { attackerP: playerIdx, defenderP: opp };
-            // Don't call enterEndPhase yet — wait for RESOLVE_BLOCK
           } else {
             attackLeader(state, playerIdx, opp, log);
             if (checkWin(state) === null) enterEndPhase(state, log, emit);
@@ -406,6 +414,13 @@ export class GameRoom {
       case 'REQUEST_STATE':
         // Just re-broadcast — no state mutation needed
         break;
+
+      // ── Skip attack (cancel attack phase → end phase) ─────────────────────
+      case 'SKIP_ATTACK': {
+        if (state.phase !== 'attack') throw new Error('Not in attack phase.');
+        enterEndPhase(state, log, emit);
+        break;
+      }
 
       default:
         throw new Error(`Unknown action type: "${type}"`);
