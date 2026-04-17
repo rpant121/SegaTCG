@@ -313,8 +313,7 @@
   <div class="mode-buttons">
 
     <!-- Local / Pass & Play -->
-    <a class="mode-btn local" href="deck-builder.html" id="btn-local"
-       onclick="sessionStorage.removeItem('online_server_url')">
+    <a class="mode-btn local" href="#" id="btn-local">
       <div class="mode-icon">🎮</div>
       <div class="mode-text">
         <div class="mode-label">LOCAL PLAY</div>
@@ -324,7 +323,7 @@
     </a>
 
     <!-- Online -->
-    <a class="mode-btn online" href="deck-builder-online.html" id="btn-online">
+    <a class="mode-btn online" href="#" id="btn-online">
       <div class="mode-icon">🌐</div>
       <div class="mode-text">
         <div class="mode-label">ONLINE PLAY</div>
@@ -344,22 +343,34 @@
 </div>
 
 <script>
-  // If the server URL isn't set yet (no Railway deploy), dim the online button
-  // and show a tooltip. Edit ONLINE_SERVER_URL to your Railway URL when ready.
+  // ── Configure your Railway URL here ──────────────────────────────────────
   const ONLINE_SERVER_URL = '';  // ← paste your Railway URL here when deployed
+  // ─────────────────────────────────────────────────────────────────────────
 
+  const localBtn  = document.getElementById('btn-local');
   const onlineBtn = document.getElementById('btn-online');
 
+  // LOCAL PLAY: always clear online flag before navigating
+  localBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    sessionStorage.removeItem('online_server_url');
+    window.location.href = 'deck-builder.html';
+  });
+
   if (!ONLINE_SERVER_URL) {
-    onlineBtn.style.opacity      = '0.45';
-    onlineBtn.style.cursor       = 'not-allowed';
-    onlineBtn.style.pointerEvents= 'none';
+    onlineBtn.style.opacity       = '0.45';
+    onlineBtn.style.cursor        = 'not-allowed';
+    onlineBtn.style.pointerEvents = 'none';
     onlineBtn.querySelector('.mode-desc').textContent =
       'Server not configured yet. See README for setup.';
     onlineBtn.querySelector('.mode-arrow').textContent = '⚠';
   } else {
-    // Store the server URL so main.online.js can pick it up
-    sessionStorage.setItem('online_server_url', ONLINE_SERVER_URL);
+    // ONLINE PLAY: set the server URL then navigate
+    onlineBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      sessionStorage.setItem('online_server_url', ONLINE_SERVER_URL);
+      window.location.href = 'deck-builder-online.html';
+    });
   }
 </script>
 </body>
