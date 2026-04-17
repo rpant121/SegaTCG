@@ -178,7 +178,7 @@ export function applyEquipmentEffect(state, p, card, log) {
 
     case 'chaos_emerald':
       state.chaosEmeraldBuff[p] += 20;
-      log(`💎 Chaos Emerald: Leader +2 Damage this turn`, 'play');
+      log(`💎 Chaos Emerald: Leader +20 Damage this turn`, 'play');
       break;
 
     case 'master_emerald':
@@ -193,7 +193,7 @@ export function applyEquipmentEffect(state, p, card, log) {
 
     case 'heat_barrier': {
       const leader = state.players[p].leader;
-      const healed = Math.min(2, leader.hp - leader.currentHp);
+      const healed = Math.min(20, leader.hp - leader.currentHp);
       leader.currentHp += healed;
       log(`🔥 Heat Barrier: Leader healed ${healed} HP (${leader.currentHp}/${leader.hp})`, 'heal');
       break;
@@ -213,7 +213,7 @@ export function applyEquipmentEffect(state, p, card, log) {
 
     case 'power_glove':
       state.powerGloveBuff[p] += 30;
-      log(`🥊 Power Glove: Leader +3 Damage this turn`, 'play');
+      log(`🥊 Power Glove: Leader +30 Damage this turn`, 'play');
       break;
 
     case 'polaris_pact':
@@ -223,15 +223,12 @@ export function applyEquipmentEffect(state, p, card, log) {
       state.pendingPolarisPact = { opponentIdx: opp };
       break;
 
-    // ── Rings archetype ───────────────────────────────────────────────────
-
     case 'speed_shoes':
       state.energy[p] += 3;
       log(`👟 Speed Shoes: +3 Energy (now ${state.energy[p]})`, 'play');
       break;
 
     case 'extreme_gear':
-      // Async: player chooses which hand cards to discard for energy
       if (state.players[p].hand.length === 0) {
         log(`⚙ Extreme Gear: hand is empty — no effect`, 'phase');
         break;
@@ -244,9 +241,6 @@ export function applyEquipmentEffect(state, p, card, log) {
       state.energy[p] *= 2;
       log(`✨ Super Form: Energy doubled to ${state.energy[p]}!`, 'play');
       break;
-
-    // Stages (midnight_carnival, radical_highway, green_hill_zone) handled
-    // by activateStage path + phase/combat checks via state.activeStage.id
   }
 }
 
@@ -261,13 +255,10 @@ function _refillToSix(state, p, log) {
 
 // ---------------------------------------------------------------------------
 // Exhaust a unit
-// Silver passive: if Silver is on bench and not exhausted, he exhausts instead
-// of the target (only when a *different* unit would exhaust).
 // ---------------------------------------------------------------------------
 export function exhaustUnit(state, p, benchIdx) {
   const unit = state.players[p].bench[benchIdx];
   if (!unit) return;
-  // Always record the uid as used this turn, even under Master Emerald
   if (!state.usedActivesThisTurn.includes(unit.uid)) {
     state.usedActivesThisTurn.push(unit.uid);
   }
@@ -280,7 +271,7 @@ export function hasUsedActiveThisTurn(state, unit) {
 }
 
 // ---------------------------------------------------------------------------
-// Rouge passive — call after any hand/deck→own-discard event
+// Rouge passive — call after any deck→own-discard event
 // ---------------------------------------------------------------------------
 export function triggerRougePassive(state, p, log) {
   const rouge = state.players[p].bench.find(u => u.id === 'rouge' && !u.exhausted);
@@ -339,7 +330,7 @@ export function amyActive(state, p, benchIdx, log) {
   state.activesUsedThisTurn++;
   const opp = opponent(p);
   log(`🌸 Amy: 10 damage to Player ${opp + 1}'s Leader`, 'damage');
-  applyDamageToLeader(state, opp, 1, log);
+  applyDamageToLeader(state, opp, 10, log);  // ✅ fixed: was incorrectly 1
   return true;
 }
 
@@ -351,7 +342,7 @@ export function creamActive(state, p, benchIdx, targetType, targetBenchIdx, log)
   state.activesUsedThisTurn++;
   if (targetType === 'leader') {
     const l = state.players[p].leader;
-    l.currentHp = Math.min(l.currentHp + 1, l.hp);
+    l.currentHp = Math.min(l.currentHp + 10, l.hp);
     log(`💚 Cream heals Leader to ${l.currentHp}/${l.hp}`, 'heal');
   } else {
     const u = state.players[p].bench[targetBenchIdx];
@@ -379,23 +370,19 @@ export function bigActive(state, p, benchIdx, log) {
   return true;
 }
 
-// Silver active: bounce one bench unit to hand, scry 2 (choose 1 for hand, 1 to bottom)
 export function silverActive(state, p, benchIdx, targetBenchIdx, log) {
   const cost = getActiveCost(state, state.players[p].bench[benchIdx]);
   if (!canAfford(state, cost)) { log('❌ Not enough energy', 'damage'); return false; }
   spendEnergy(state, cost);
   exhaustUnit(state, p, benchIdx);
 
-  // Bounce the chosen bench unit back to hand as a fresh card
   const bounced = state.players[p].bench.splice(targetBenchIdx, 1)[0];
   if (!bounced) return false;
   state.players[p].hand.push({ ...bounced, currentHp: bounced.hp, exhausted: false });
   log(`⚡ Silver: ${bounced.name} returned to hand`, 'play');
-
   return true;
 }
 
-// Shadow active: 3 damage to opponent; 2 unblockable self-damage
 export function shadowActive(state, p, benchIdx, log) {
   const cost = getActiveCost(state, state.players[p].bench[benchIdx]);
   if (!canAfford(state, cost)) { log(`❌ Not enough energy`, 'damage'); return false; }
@@ -406,18 +393,15 @@ export function shadowActive(state, p, benchIdx, log) {
   log(`🌑 Shadow: 30 damage to Player ${opp + 1}'s Leader`, 'damage');
   applyDamageToLeader(state, opp, 30, log);
   log(`🌑 Shadow: Player ${p + 1}'s Leader takes 10 unblockable damage`, 'damage');
-  // Unblockable = bypasses shield AND reduction
   state.players[p].leader.currentHp -= 10;
   if (state.players[p].leader.currentHp < 0) state.players[p].leader.currentHp = 0;
   return true;
 }
 
-// Mighty active: trigger a second Leader attack (target selection via UI)
 export function mightyActive(state, p, benchIdx, log) {
   const cost = getActiveCost(state, state.players[p].bench[benchIdx]);
   if (!canAfford(state, cost)) { log(`❌ Not enough energy`, 'damage'); return false; }
   spendEnergy(state, cost);
-  // Mighty exhausts — his passive is now gone for this attack
   state.players[p].bench[benchIdx].exhausted = true;
   state.activesUsedThisTurn++;
   state.pendingMightyAttack = true;
@@ -425,24 +409,21 @@ export function mightyActive(state, p, benchIdx, log) {
   return true;
 }
 
-// Rouge active: top-deck → discard; Rouge does NOT exhaust but can only fire once per turn
 export function rougeActive(state, p, benchIdx, log) {
   const cost = getActiveCost(state, state.players[p].bench[benchIdx]);
   if (!canAfford(state, cost)) { log(`❌ Not enough energy`, 'damage'); return false; }
   if (state.players[p].deck.length === 0) { log(`🦇 Rouge: Deck is empty`, 'phase'); return false; }
   if (state.rougeUsedThisTurn[p]) { log(`🦇 Rouge: already used this turn`, 'phase'); return false; }
   spendEnergy(state, cost);
-  // Rouge does NOT exhaust — but flag as used so she can't fire again this turn
   state.rougeUsedThisTurn[p] = true;
   state.activesUsedThisTurn++;
   const card = state.players[p].deck.shift();
   state.players[p].discard.push(card);
   log(`🦇 Rouge: mills ${card.name} to discard`, 'play');
-  triggerRougePassive(state, p, log); // her own mill triggers her own passive
+  triggerRougePassive(state, p, log);
   return true;
 }
 
-// Blaze active: shuffle entire discard into deck, draw 2
 export function blazeActive(state, p, benchIdx, log) {
   const cost = getActiveCost(state, state.players[p].bench[benchIdx]);
   if (!canAfford(state, cost)) { log(`❌ Not enough energy`, 'damage'); return false; }
@@ -450,12 +431,10 @@ export function blazeActive(state, p, benchIdx, log) {
   exhaustUnit(state, p, benchIdx);
   state.activesUsedThisTurn++;
   const count = state.players[p].discard.length;
-  // Shuffle discard back into deck
   while (state.players[p].discard.length > 0) {
     const card = state.players[p].discard.pop();
     state.players[p].deck.push(card);
   }
-  // Fisher-Yates shuffle
   const deck = state.players[p].deck;
   for (let i = deck.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -466,7 +445,6 @@ export function blazeActive(state, p, benchIdx, log) {
   return true;
 }
 
-// Ray active: look at top 3, place 1 into discard, return rest in any order (async)
 export function rayActive(state, p, benchIdx, log) {
   const cost = getActiveCost(state, state.players[p].bench[benchIdx]);
   if (!canAfford(state, cost)) { log(`❌ Not enough energy`, 'damage'); return false; }
@@ -482,7 +460,6 @@ export function rayActive(state, p, benchIdx, log) {
   return true;
 }
 
-// Charmy active: draw 1 per equipment played this turn
 export function charmyActive(state, p, benchIdx, log) {
   const cost = getActiveCost(state, state.players[p].bench[benchIdx]);
   if (!canAfford(state, cost)) { log(`❌ Not enough energy`, 'damage'); return false; }
@@ -495,14 +472,12 @@ export function charmyActive(state, p, benchIdx, log) {
   return true;
 }
 
-// Espio active: shuffle up to 3 equipment from discard into deck, draw 1
 export function espioActive(state, p, benchIdx, log) {
   const cost = getActiveCost(state, state.players[p].bench[benchIdx]);
   if (!canAfford(state, cost)) { log(`❌ Not enough energy`, 'damage'); return false; }
   spendEnergy(state, cost);
   exhaustUnit(state, p, benchIdx);
   state.activesUsedThisTurn++;
-  // Collect equipment from discard (up to 3)
   const equipCards = state.players[p].discard.filter(
     c => c.type === 'Equipment' || c.type === 'Genesis' || c.type === 'Stage'
   );
@@ -512,7 +487,6 @@ export function espioActive(state, p, benchIdx, log) {
     state.players[p].discard.splice(idx, 1);
     state.players[p].deck.push(card);
   });
-  // Shuffle deck
   const deck = state.players[p].deck;
   for (let i = deck.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -523,11 +497,10 @@ export function espioActive(state, p, benchIdx, log) {
   return true;
 }
 
-// Vector active: deal damage equal to total energy spent this turn
 export function vectorActive(state, p, benchIdx, log) {
   const cost = getActiveCost(state, state.players[p].bench[benchIdx]);
   if (!canAfford(state, cost)) { log(`❌ Not enough energy`, 'damage'); return false; }
-  spendEnergy(state, cost); // this spend is counted before we read the total
+  spendEnergy(state, cost); // spend is counted before reading total
   state.activesUsedThisTurn++;
   const dmg = state.energySpentThisTurn[p]; // includes the cost just spent
   const opp = opponent(p);
@@ -537,8 +510,6 @@ export function vectorActive(state, p, benchIdx, log) {
   return true;
 }
 
-
-// Leader active: Sonic — discard 1 card → draw 2
 export function sonicActive(state, handIdx, log) {
   const p      = state.activePlayer;
   const leader = state.players[p].leader;
@@ -554,10 +525,8 @@ export function sonicActive(state, handIdx, log) {
   return true;
 }
 
-// Extreme Gear resolution: discard chosen hand cards for energy
 export function resolveExtremeGear(state, handIndices, log) {
   const p = state.pendingExtremeGear.playerIdx;
-  // Sort descending so splicing doesn't shift indices
   const sorted = [...handIndices].sort((a, b) => b - a);
   let gained = 0;
   sorted.forEach(idx => {

@@ -179,8 +179,11 @@ function attachBoardHandlers() {
     const sp = state._setupPlayer ?? 0;
     if (sp !== myPlayerIdx) return; // not our setup turn
 
-    // Unit cards in hand are drag-deployable (re-use same drag logic wired below)
-    attachHandDrag(p);
+    // Wire drag-to-deploy for unit cards during setup
+    const setupHandEls = renderHand(`p${p + 1}-hand`, state, p);
+    setupHandEls.forEach(({ div, idx, card }) => {
+      if (card.type === 'Unit') attachDragToHandCard(div, idx, p);
+    });
 
     document.getElementById('btn-end-phase').textContent = 'Done Setup →';
     document.getElementById('btn-end-phase').disabled = false;
@@ -317,7 +320,7 @@ function checkPendingEffects() {
   if (state.pendingPolarisPact)  { openPolarisPactModal();  return; }
   if (state.pendingRayActive)    { openRayActiveModal();    return; }
   if (state.pendingExtremeGear)  { openExtremeGearModal();  return; }
-  if (state.pendingMightyAttack) { openMightyAttackModal(myPlayerIdx); state.state.pendingMightyAttack = false; return; }
+  if (state.pendingMightyAttack) { openMightyAttackModal(myPlayerIdx); state.pendingMightyAttack = false; return; }
 }
 
 // ---------------------------------------------------------------------------

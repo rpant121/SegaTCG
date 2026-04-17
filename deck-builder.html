@@ -87,7 +87,6 @@
     .pool-card.maxed         { opacity: 0.4; cursor: not-allowed; }
     .pool-card.maxed:hover   { transform: none; box-shadow: none; }
 
-    /* Pool card backgrounds by type — matches game card colours */
     .pool-card.card-type-unit      { background: linear-gradient(160deg, #0d2040, #0a1525); border-color: #2a5080; }
     .pool-card.card-type-equipment { background: linear-gradient(160deg, #1e1e1e, #111); border-color: #404040; }
     .pool-card.card-type-stage     { background: linear-gradient(160deg, #0d2a10, #081808); border-color: #1a5020; }
@@ -105,7 +104,6 @@
     }
     .pool-card .count-badge.at-max { background: var(--red-dim); }
 
-    /* Leader card in pool (not addable) */
     .pool-card.leader-pool {
       border-color: var(--gold-dim);
       cursor: default;
@@ -179,7 +177,6 @@
       line-height: 1;
     }
 
-    /* Validation messages */
     #validation-panel {
       background: #0a152588;
       border: 1px solid #1a2a40;
@@ -202,7 +199,6 @@
     .val-err  { color: var(--red); }
     .val-warn { color: var(--gold); }
 
-    /* Action row */
     .action-row {
       display: flex;
       gap: 8px;
@@ -210,7 +206,6 @@
 
     .action-row .action-btn { margin-bottom: 0; }
 
-    /* Leader selector */
     .leader-selector {
       display: flex;
       gap: 8px;
@@ -229,7 +224,6 @@
     .leader-opt:hover   { border-color: var(--sonic-blue); }
     .leader-opt.selected{ border-color: var(--gold); background: #1a1400; color: var(--gold); }
 
-    /* Toast */
     #toast {
       position: fixed;
       bottom: 20px; left: 50%;
@@ -247,7 +241,6 @@
     }
     #toast.show { transform: translateX(-50%) translateY(0); }
 
-    /* Filter bar */
     .filter-bar {
       display: flex;
       gap: 6px;
@@ -280,8 +273,8 @@
       <div style="font-family:var(--font-display);font-size:14px;color:var(--gold);letter-spacing:2px;" id="player-label">PLAYER 1</div>
       <div style="font-size:9px;color:var(--grey);" id="player-subtitle">Build your deck, then pass the device to Player 2.</div>
     </div>
-    <a href="how-to-play.html" style="margin-left:auto;margin-right:12px;">How to Play</a><a href="index.html">← Back to Game</a>
-    <a href="how-to-play.html">How to Play</a>
+    <a href="how-to-play.html" style="margin-left:auto;margin-right:12px;">How to Play</a>
+    <a href="index.html">← Back to Game</a>
   </div>
 
   <!-- Left: Card Pool -->
@@ -325,13 +318,11 @@
       <div class="deck-list" id="deck-list"></div>
     </div>
 
-    <!-- Validation -->
     <div id="validation-panel">
       <div class="panel-title">Validation</div>
       <div id="validation-list"></div>
     </div>
 
-    <!-- Actions -->
     <div class="action-row">
       <button class="action-btn danger" id="btn-clear">Clear</button>
       <button class="action-btn" id="btn-random" style="border-color:var(--grey);color:var(--grey);">🎲 Random</button>
@@ -365,9 +356,6 @@
    Flow: P1 builds → save & pass → P2 builds → launch game
    ============================================================ */
 
-// ---------------------------------------------------------------------------
-// CARD POOL (mirrors engine/cards.js)
-// ---------------------------------------------------------------------------
 const LEADERS = [{
   id: 'sonic', name: 'Sonic the Hedgehog', type: 'Leader',
   hp: 10, damage: 1, activeCost: 1,
@@ -377,22 +365,22 @@ const LEADERS = [{
 const POOL_CARDS = [
   // ── Original Units ────────────────────────────────────────────────────
   { id: 'tails',    name: 'Tails',    type: 'Unit', cost: 0, hp: 2,  passive: 'Draw 1 card at end of turn', active: 'Play 1 card from your discard pile', activeCost: 2 },
-  { id: 'knuckles', name: 'Knuckles', type: 'Unit', cost: 0, hp: 4,  passive: "+10 to Leader Attack", active: 'Deal 1 damage to 1 opponent Support Unit', activeCost: 1 },
-  { id: 'amy',      name: 'Amy',      type: 'Unit', cost: 0, hp: 3,  passive: "+10 to Leader Attack", active: "Deal 1 damage to opponent's Leader", activeCost: 1 },
-  { id: 'cream',    name: 'Cream',    type: 'Unit', cost: 0, hp: 2,  passive: '-10 to damage taken by Leader', active: 'Heal 1 HP from any friendly unit', activeCost: 1 },
+  { id: 'knuckles', name: 'Knuckles', type: 'Unit', cost: 0, hp: 4,  passive: '+10 to Leader Attack', active: 'Deal 10 damage to 1 opponent Support Unit', activeCost: 1 },
+  { id: 'amy',      name: 'Amy',      type: 'Unit', cost: 0, hp: 3,  passive: '+10 to Leader Attack', active: "Deal 10 damage to opponent's Leader", activeCost: 1 },
+  { id: 'cream',    name: 'Cream',    type: 'Unit', cost: 0, hp: 2,  passive: '-10 to damage taken by Leader', active: 'Heal 10 HP from any friendly unit', activeCost: 1 },
   { id: 'big',      name: 'Big',      type: 'Unit', cost: 0, hp: 4,  passive: 'Start of turn: look at top deck card, may discard it', active: "Discard a random card from opponent's hand", activeCost: 3 },
   // ── Aggro Units ───────────────────────────────────────────────────────
   { id: 'silver',   name: 'Silver',   type: 'Unit', cost: 0, hp: 3,  passive: 'All friendly unit actives cost 1 less energy (minimum 1).', active: 'Return one of your bench units to your hand.', activeCost: 3 },
-  { id: 'shadow',   name: 'Shadow',   type: 'Unit', cost: 0, hp: 4,  passive: "Leader base damage is 2 instead of 1", active: "Deal 30 damage to opponent's Leader. Your Leader takes 10 unblockable damage.", activeCost: 3 },
-  { id: 'mighty',   name: 'Mighty',   type: 'Unit', cost: 0, hp: 3,  passive: 'After your Leader attacks for ≥300 damage, draw 1 card', active: 'Your Leader attacks a second time this turn. Mighty exhausts.', activeCost: 2 },
+  { id: 'shadow',   name: 'Shadow',   type: 'Unit', cost: 0, hp: 4,  passive: "Leader base damage doubles while Shadow is on bench (stacks)", active: "Deal 30 damage to opponent's Leader. Your Leader takes 10 unblockable damage.", activeCost: 3 },
+  { id: 'mighty',   name: 'Mighty',   type: 'Unit', cost: 0, hp: 3,  passive: 'After your Leader deals ≥30 damage, draw 1 card', active: 'Your Leader attacks a second time this turn. Mighty exhausts.', activeCost: 2 },
   // ── Setup Units ───────────────────────────────────────────────────────
-  { id: 'rouge',    name: 'Rouge',    type: 'Unit', cost: 0, hp: 2,  passive: 'When a card moves from your hand or deck into your discard, draw 1', active: 'Place the top card of your deck into your discard. Rouge does NOT exhaust.', activeCost: 1 },
-  { id: 'blaze',    name: 'Blaze',    type: 'Unit', cost: 0, hp: 3,  passive: 'End of turn: if discard has 5+ cards, heal Leader 1 HP', active: 'Shuffle entire discard into deck, draw 2. Blaze exhausts.', activeCost: 3 },
+  { id: 'rouge',    name: 'Rouge',    type: 'Unit', cost: 0, hp: 2,  passive: 'When a card is milled from your deck to your discard, draw 1', active: 'Place the top card of your deck into your discard. Rouge does NOT exhaust.', activeCost: 1 },
+  { id: 'blaze',    name: 'Blaze',    type: 'Unit', cost: 0, hp: 3,  passive: 'End of turn: if discard has 5+ cards, heal Leader 10 HP', active: 'Shuffle entire discard into deck, draw 2. Blaze exhausts.', activeCost: 3 },
   { id: 'ray',      name: 'Ray',      type: 'Unit', cost: 0, hp: 4,  passive: 'When you play a card from discard, draw 1', active: 'Look at top 3 deck cards — place 1 into discard, return rest in any order', activeCost: 2 },
   // ── Rings Units ───────────────────────────────────────────────────────
   { id: 'charmy',   name: 'Charmy',   type: 'Unit', cost: 0, hp: 4,  passive: 'Each equipment played this turn after the first costs 1 less (min 0)', active: 'Draw 1 card per equipment played this turn', activeCost: 2 },
   { id: 'espio',    name: 'Espio',    type: 'Unit', cost: 0, hp: 3,  passive: 'After Draw Phase: draw 1 extra per equipment in discard (max 2)', active: 'Shuffle up to 3 equipment from discard into deck, draw 1', activeCost: 2 },
-  { id: 'vector',   name: 'Vector',   type: 'Unit', cost: 0, hp: 2,  passive: 'Each time your Leader takes damage this turn, draw 1', active: "Deal damage equal to total energy spent this turn (including this cost)", activeCost: 3 },
+  { id: 'vector',   name: 'Vector',   type: 'Unit', cost: 0, hp: 2,  passive: 'Each time your Leader takes damage this turn, draw 1', active: 'Deal damage equal to total energy spent this turn (including this cost)', activeCost: 3 },
   // ── Original Equipment ────────────────────────────────────────────────
   { id: 'ring',              name: 'Ring',              type: 'Equipment', cost: 0, effect: 'Gain 1 Energy immediately.' },
   { id: 'chaos_emerald',     name: 'Chaos Emerald',     type: 'Equipment', cost: 2, effect: 'Leader gains +20 Damage until end of turn.' },
@@ -415,13 +403,10 @@ const POOL_CARDS = [
 
 const VALID_IDS = new Set(POOL_CARDS.map(c => c.id));
 
-// ---------------------------------------------------------------------------
-// PRECON DECKS
-// ---------------------------------------------------------------------------
 const PRECON_DECKS = {
   aggro: {
     name: 'Heavy Hitters',
-    desc: 'Knuckles and Amy stack attack passives. Silver cuts active costs so Mighty and Shadow fire cheaply. Shadow raises base damage to 2. Mighty closes games with a second attack.',
+    desc: 'Knuckles and Amy stack attack passives. Silver cuts active costs so Mighty and Shadow fire cheaply. Shadow doubles base damage. Mighty closes games with a second attack.',
     ids: [
       'knuckles','knuckles','knuckles',
       'amy','amy','amy',
@@ -440,7 +425,7 @@ const PRECON_DECKS = {
   },
   setup: {
     name: 'Discard Engine',
-    desc: 'Big and Silver scry the top of your deck each turn. Tails replays cards from discard cheaply. Rouge draws on every mill. Ray controls what goes where. Blaze resets the loop.',
+    desc: 'Big scries the top of your deck each turn. Tails replays cards from discard cheaply. Rouge draws on every mill. Ray controls what goes where. Blaze resets the loop.',
     ids: [
       'tails','tails','tails',
       'big','big','big',
@@ -479,27 +464,17 @@ const PRECON_DECKS = {
   },
 };
 
-// ---------------------------------------------------------------------------
-// Two-player state
-// ---------------------------------------------------------------------------
-let currentPlayer = 1; // 1 or 2
+let currentPlayer = 1;
 let deck          = [];
 let leaderId      = 'sonic';
 let activeFilter  = 'all';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 function countInDeck(id) { return deck.filter(x => x === id).length; }
 function maxCopies(card) { return card.isGenesis ? 1 : 3; }
-
 function cardTypeClass(type) {
   return { Unit: 'card-type-unit', Equipment: 'card-type-equipment', Stage: 'card-type-stage', Genesis: 'card-type-genesis' }[type] ?? 'card-type-equipment';
 }
 
-// ---------------------------------------------------------------------------
-// Validation
-// ---------------------------------------------------------------------------
 function validate() {
   const errors = [], ok = [];
   if (deck.length === 30) ok.push('Deck contains exactly 30 cards');
@@ -520,9 +495,6 @@ function validate() {
   return { errors, ok, valid: errors.length === 0 && deck.length === 30 };
 }
 
-// ---------------------------------------------------------------------------
-// Render
-// ---------------------------------------------------------------------------
 function updateHeader() {
   document.getElementById('player-label').textContent = `PLAYER ${currentPlayer}`;
   document.getElementById('player-subtitle').textContent =
@@ -533,12 +505,7 @@ function updateHeader() {
     currentPlayer === 1 ? 'Save & Pass to Player 2 →' : '▶ Launch Game';
 }
 
-function refreshUI() {
-  renderPool();
-  renderDeckList();
-  renderValidation();
-  renderCounter();
-}
+function refreshUI() { renderPool(); renderDeckList(); renderValidation(); renderCounter(); }
 
 function renderPool() {
   const container = document.getElementById('card-pool');
@@ -637,9 +604,6 @@ function renderLeaderPool() {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Precon buttons
-// ---------------------------------------------------------------------------
 function renderPrecons() {
   const container = document.getElementById('precon-buttons');
   container.innerHTML = '';
@@ -649,27 +613,17 @@ function renderPrecons() {
     btn.style.cssText = 'margin-bottom:4px;font-size:9px;';
     btn.textContent = `⚡ ${precon.name}`;
     btn.title = precon.desc;
-    btn.addEventListener('click', () => {
-      deck = [...precon.ids];
-      refreshUI();
-      showToast(`Loaded: ${precon.name}`);
-    });
+    btn.addEventListener('click', () => { deck = [...precon.ids]; refreshUI(); showToast(`Loaded: ${precon.name}`); });
     container.appendChild(btn);
   });
 }
 
-// ---------------------------------------------------------------------------
-// Save flow
-// ---------------------------------------------------------------------------
 function handleSave() {
   const { valid } = validate();
   if (!valid) return;
-
   const payload = JSON.stringify({ leaderId, deck, deckName: getDeckName() });
-
   if (currentPlayer === 1) {
     sessionStorage.setItem('deck_p1', payload);
-    // Show pass screen
     document.getElementById('pass-screen').style.display = 'flex';
   } else {
     sessionStorage.setItem('deck_p2', payload);
@@ -678,18 +632,12 @@ function handleSave() {
 }
 
 function getDeckName() {
-  // Auto-detect precon
   for (const [key, precon] of Object.entries(PRECON_DECKS)) {
-    if (JSON.stringify([...precon.ids].sort()) === JSON.stringify([...deck].sort())) {
-      return precon.name;
-    }
+    if (JSON.stringify([...precon.ids].sort()) === JSON.stringify([...deck].sort())) return precon.name;
   }
   return 'Custom Deck';
 }
 
-// ---------------------------------------------------------------------------
-// Tooltip
-// ---------------------------------------------------------------------------
 let _ttEl = null;
 function showTip(anchor, card) {
   hideTip();
@@ -713,9 +661,6 @@ function showTip(anchor, card) {
 }
 function hideTip() { if (_ttEl) { _ttEl.remove(); _ttEl = null; } }
 
-// ---------------------------------------------------------------------------
-// Toast
-// ---------------------------------------------------------------------------
 let _toastTimer;
 function showToast(msg) {
   const el = document.getElementById('toast');
@@ -725,9 +670,6 @@ function showToast(msg) {
   _toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
 }
 
-// ---------------------------------------------------------------------------
-// Random deck
-// ---------------------------------------------------------------------------
 function buildRandom() {
   deck = [];
   const nonGenesis = POOL_CARDS.filter(c => !c.isGenesis);
@@ -743,9 +685,6 @@ function buildRandom() {
   showToast('Random deck generated!');
 }
 
-// ---------------------------------------------------------------------------
-// Event bindings
-// ---------------------------------------------------------------------------
 document.getElementById('filter-bar').addEventListener('click', e => {
   const btn = e.target.closest('.filter-btn');
   if (!btn) return;
@@ -755,12 +694,7 @@ document.getElementById('filter-bar').addEventListener('click', e => {
   renderPool();
 });
 
-document.getElementById('btn-clear').addEventListener('click', () => {
-  deck = [];
-  refreshUI();
-  showToast('Deck cleared');
-});
-
+document.getElementById('btn-clear').addEventListener('click', () => { deck = []; refreshUI(); showToast('Deck cleared'); });
 document.getElementById('btn-random').addEventListener('click', buildRandom);
 document.getElementById('btn-save').addEventListener('click', handleSave);
 
@@ -778,9 +712,6 @@ document.getElementById('btn-pass-continue').addEventListener('click', () => {
   showToast('Player 2: build your deck!');
 });
 
-// ---------------------------------------------------------------------------
-// Init
-// ---------------------------------------------------------------------------
 // Clear any stale game decks so players always build fresh
 sessionStorage.removeItem('deck_p1');
 sessionStorage.removeItem('deck_p2');
