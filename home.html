@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sega Card Game TCG</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:        #060d1a;
+      --sonic-blue:  #0066CC;
+      --sonic-bright:#1a8eff;
+      --gold:        #FFD700;
+      --gold-dim:    #b89a00;
+      --green:       #00CC44;
+      --red:         #FF2244;
+      --white:       #e8f0ff;
+      --grey:        #6677aa;
+      --glow-blue:   0 0 20px #0066CC88, 0 0 40px #0066CC33;
+      --glow-gold:   0 0 20px #FFD70088, 0 0 40px #FFD70033;
+      --glow-green:  0 0 20px #00CC4488;
+      --font-display:'Orbitron', sans-serif;
+      --font-mono:   'Share Tech Mono', monospace;
+    }
+
+    html, body {
+      height: 100%;
+    }
+
+    body {
+      background: var(--navy);
+      color: var(--white);
+      font-family: var(--font-mono);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+      background-image:
+        radial-gradient(ellipse at 15% 85%, #001a3a88 0%, transparent 50%),
+        radial-gradient(ellipse at 85% 15%, #003a6655 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 50%, #001428aa 0%, transparent 70%);
+    }
+
+    /* ── Animated background rings ─────────────────────── */
+    .bg-ring {
+      position: fixed;
+      border-radius: 50%;
+      border: 1px solid #0066CC11;
+      pointer-events: none;
+      animation: ring-pulse 8s ease-in-out infinite;
+    }
+    .bg-ring:nth-child(1) { width: 400px; height: 400px; top: 50%; left: 50%; transform: translate(-50%,-50%); animation-delay: 0s; }
+    .bg-ring:nth-child(2) { width: 650px; height: 650px; top: 50%; left: 50%; transform: translate(-50%,-50%); animation-delay: 1.5s; }
+    .bg-ring:nth-child(3) { width: 900px; height: 900px; top: 50%; left: 50%; transform: translate(-50%,-50%); animation-delay: 3s; }
+    @keyframes ring-pulse {
+      0%, 100% { opacity: 0.3; }
+      50%       { opacity: 0.08; }
+    }
+
+    /* ── Nav ─────────────────────────────────────────────── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 14px 20px;
+      gap: 8px;
+      z-index: 10;
+    }
+    nav a {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--grey);
+      text-decoration: none;
+      border: 1px solid #1a2a40;
+      padding: 4px 10px;
+      border-radius: 4px;
+      letter-spacing: 1px;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    nav a:hover { color: var(--white); border-color: var(--sonic-blue); }
+
+    /* ── Main card ───────────────────────────────────────── */
+    .card {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 40px;
+      padding: 56px 64px 52px;
+      background: #08141fcc;
+      border: 1px solid #1a3a5e55;
+      border-radius: 20px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 0 80px #00000066, inset 0 1px 0 #ffffff08;
+      max-width: 480px;
+      width: calc(100% - 40px);
+    }
+
+    /* ── Logo / title ────────────────────────────────────── */
+    .logo {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo-sonic {
+      font-size: 56px;
+      line-height: 1;
+      filter: drop-shadow(0 0 16px #0066CC88);
+      animation: bob 3s ease-in-out infinite;
+    }
+    @keyframes bob {
+      0%, 100% { transform: translateY(0);   }
+      50%       { transform: translateY(-6px); }
+    }
+
+    .logo-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--sonic-bright);
+      letter-spacing: 5px;
+      text-transform: uppercase;
+    }
+
+    .logo-title {
+      font-family: var(--font-display);
+      font-size: clamp(22px, 5vw, 30px);
+      font-weight: 900;
+      color: var(--white);
+      letter-spacing: 3px;
+      text-align: center;
+      line-height: 1.15;
+      text-shadow: 0 0 30px #0066CC66;
+    }
+
+    .logo-title span {
+      color: var(--gold);
+      text-shadow: 0 0 20px #FFD70066;
+    }
+
+    .logo-sub {
+      font-size: 10px;
+      color: var(--grey);
+      letter-spacing: 2px;
+    }
+
+    /* ── Divider ─────────────────────────────────────────── */
+    .divider {
+      width: 100%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, #1a3a5e88, transparent);
+    }
+
+    /* ── Mode buttons ────────────────────────────────────── */
+    .mode-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 100%;
+    }
+
+    .mode-btn {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 18px 22px;
+      border-radius: 10px;
+      border: 1.5px solid;
+      background: transparent;
+      cursor: pointer;
+      text-align: left;
+      text-decoration: none;
+      transition: background 0.18s, box-shadow 0.18s, transform 0.12s, border-color 0.18s;
+      width: 100%;
+      position: relative;
+      overflow: hidden;
+    }
+    .mode-btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: currentColor;
+      opacity: 0;
+      transition: opacity 0.18s;
+    }
+    .mode-btn:hover { transform: translateY(-2px); }
+    .mode-btn:hover::before { opacity: 0.04; }
+    .mode-btn:active { transform: translateY(0); }
+
+    /* Local variant */
+    .mode-btn.local {
+      border-color: var(--sonic-blue);
+      color: var(--sonic-bright);
+    }
+    .mode-btn.local:hover {
+      background: #0d2a4a55;
+      box-shadow: var(--glow-blue);
+    }
+
+    /* Online variant */
+    .mode-btn.online {
+      border-color: var(--gold-dim);
+      color: var(--gold);
+    }
+    .mode-btn.online:hover {
+      background: #25200055;
+      box-shadow: var(--glow-gold);
+    }
+
+    .mode-icon {
+      font-size: 28px;
+      flex-shrink: 0;
+      filter: drop-shadow(0 0 8px currentColor);
+    }
+
+    .mode-text {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .mode-label {
+      font-family: var(--font-display);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: inherit;
+    }
+
+    .mode-desc {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--grey);
+      letter-spacing: 0.5px;
+      line-height: 1.4;
+    }
+
+    .mode-arrow {
+      margin-left: auto;
+      font-size: 18px;
+      color: inherit;
+      opacity: 0.5;
+      transition: opacity 0.15s, transform 0.15s;
+      flex-shrink: 0;
+    }
+    .mode-btn:hover .mode-arrow {
+      opacity: 1;
+      transform: translateX(3px);
+    }
+
+    /* ── Footer links ────────────────────────────────────── */
+    .footer-links {
+      display: flex;
+      gap: 20px;
+    }
+    .footer-links a {
+      font-size: 9px;
+      color: #334455;
+      text-decoration: none;
+      letter-spacing: 1px;
+      border-bottom: 1px solid #334455;
+      padding-bottom: 1px;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .footer-links a:hover { color: var(--grey); border-color: var(--grey); }
+
+    /* ── Responsive ──────────────────────────────────────── */
+    @media (max-width: 480px) {
+      .card { padding: 40px 24px 36px; gap: 28px; }
+      .logo-title { font-size: 22px; letter-spacing: 2px; }
+      .mode-btn { padding: 14px 16px; }
+      .mode-icon { font-size: 22px; }
+      .mode-label { font-size: 11px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Animated background -->
+<div class="bg-ring"></div>
+<div class="bg-ring"></div>
+<div class="bg-ring"></div>
+
+<!-- Top nav -->
+<nav>
+  <a href="how-to-play.html">How to Play</a>
+  <a href="deck-builder.html">Deck Builder</a>
+</nav>
+
+<!-- Main card -->
+<div class="card">
+
+  <!-- Logo -->
+  <div class="logo">
+    <div class="logo-sonic">🦔</div>
+    <div class="logo-eyebrow">A Trading Card Game</div>
+    <div class="logo-title">SEGA CARD<br><span>GAME TCG</span></div>
+    <div class="logo-sub">BUILD · BATTLE · WIN</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Mode selection -->
+  <div class="mode-buttons">
+
+    <!-- Local / Pass & Play -->
+    <a class="mode-btn local" href="deck-builder.html" id="btn-local">
+      <div class="mode-icon">🎮</div>
+      <div class="mode-text">
+        <div class="mode-label">LOCAL PLAY</div>
+        <div class="mode-desc">Pass &amp; play on one device.<br>Both players build decks together.</div>
+      </div>
+      <div class="mode-arrow">›</div>
+    </a>
+
+    <!-- Online -->
+    <a class="mode-btn online" href="deck-builder-online.html" id="btn-online">
+      <div class="mode-icon">🌐</div>
+      <div class="mode-text">
+        <div class="mode-label">ONLINE PLAY</div>
+        <div class="mode-desc">Play against a friend over the internet.<br>Each player builds their own deck.</div>
+      </div>
+      <div class="mode-arrow">›</div>
+    </a>
+
+  </div>
+
+  <!-- Footer -->
+  <div class="footer-links">
+    <a href="how-to-play.html">Rules</a>
+    <a href="deck-builder.html">Deck Builder</a>
+  </div>
+
+</div>
+
+<script>
+  // If the server URL isn't set yet (no Railway deploy), dim the online button
+  // and show a tooltip. Edit ONLINE_SERVER_URL to your Railway URL when ready.
+  const ONLINE_SERVER_URL = '';  // ← paste your Railway URL here when deployed
+
+  const onlineBtn = document.getElementById('btn-online');
+
+  if (!ONLINE_SERVER_URL) {
+    onlineBtn.style.opacity      = '0.45';
+    onlineBtn.style.cursor       = 'not-allowed';
+    onlineBtn.style.pointerEvents= 'none';
+    onlineBtn.querySelector('.mode-desc').textContent =
+      'Server not configured yet. See README for setup.';
+    onlineBtn.querySelector('.mode-arrow').textContent = '⚠';
+  } else {
+    // Store the server URL so main.online.js can pick it up
+    sessionStorage.setItem('online_server_url', ONLINE_SERVER_URL);
+  }
+</script>
+</body>
+</html>
