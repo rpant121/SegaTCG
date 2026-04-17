@@ -130,9 +130,10 @@ export class GameRoom {
     const log   = this.log;
 
     try {
-      // Actions that ANY player can take (async resolution prompts)
+      // Actions that ANY player can take (async resolution prompts or utility)
       const asyncActions = new Set([
         'RESOLVE_POLARIS_PACT',
+        'REQUEST_STATE',
       ]);
 
       // For most actions, enforce active-player turn ownership
@@ -362,6 +363,11 @@ export class GameRoom {
         advanceTurn(state, log, emit);
         break;
       }
+
+      // ── State resync request (sent by client after game_start) ─────────────
+      case 'REQUEST_STATE':
+        // Just re-broadcast — no state mutation needed
+        break;
 
       default:
         throw new Error(`Unknown action type: "${type}"`);

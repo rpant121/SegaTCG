@@ -195,15 +195,19 @@ socket.on('game_start', ({ playerIdx, firstPlayer, deckNames }) => {
   _playerIdx = playerIdx; // confirm assignment
   setStatus('Game starting!', '#00ff66');
 
+  // Remove lobby overlay immediately and init handlers BEFORE the timeout
+  // so state_update listeners are registered before the server broadcasts.
+  document.getElementById('lobby-overlay').remove();
+  addLog('=== SEGA CARD GAME TCG — ONLINE ===', 'phase');
+  addLog(`P1: ${deckNames[0]}  |  P2: ${deckNames[1]}`, 'phase');
+  addLog(`Coin flip → Player ${firstPlayer + 1} goes first!`, 'phase');
+  initOnlineHandlers(socket, _roomCode, _playerIdx);
+
+  // Ask the server to re-broadcast state now that our listeners are registered.
+  // Small delay to ensure initOnlineHandlers has fully run.
   setTimeout(() => {
-    // Remove lobby overlay
-    document.getElementById('lobby-overlay').remove();
-    // Boot the online handlers
-    addLog('=== SEGA CARD GAME TCG — ONLINE ===', 'phase');
-    addLog(`P1: ${deckNames[0]}  |  P2: ${deckNames[1]}`, 'phase');
-    addLog(`Coin flip → Player ${firstPlayer + 1} goes first!`, 'phase');
-    initOnlineHandlers(socket, _roomCode, _playerIdx);
-  }, 600);
+    socket.emit('action', { roomCode: _roomCode, type: 'REQUEST_STATE', payload: {} });
+  }, 100);
 });
 
 socket.on('error', ({ message }) => {
