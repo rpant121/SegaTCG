@@ -133,12 +133,14 @@ const $deckNotice  = () => document.getElementById('lobby-deck-notice');
 
 function setStatus(msg, color = '#ffd700') {
   const el = $status();
-  el.textContent  = msg;
-  el.style.color  = color;
+  if (!el) return; // lobby overlay may have been removed after game_start
+  el.textContent = msg;
+  el.style.color = color;
 }
 
 function lockButtons() {
-  $buttons().style.display = 'none';
+  const el = $buttons();
+  if (el) el.style.display = 'none';
 }
 
 document.getElementById('btn-create-room').addEventListener('click', () => {
@@ -206,9 +208,11 @@ socket.on('game_start', ({ playerIdx, firstPlayer, deckNames }) => {
 
 socket.on('error', ({ message }) => {
   setStatus(`Error: ${message}`, '#cc4444');
-  // Re-show buttons so player can retry
-  $buttons().style.display = 'flex';
-  $waiting().style.display = 'none';
+  // Re-show buttons so player can retry (elements may not exist if game already started)
+  const btns    = $buttons();
+  const waiting = $waiting();
+  if (btns)    btns.style.display    = 'flex';
+  if (waiting) waiting.style.display = 'none';
 });
 
 socket.on('disconnect', () => {
