@@ -3,7 +3,7 @@
  * All DOM reads and writes. Never mutates gameState.
  */
 
-import { calcEffectiveDamage, calcDamageBreakdown } from '../engine/combat.js';
+import { calcEffectiveDamage } from '../engine/combat.js';
 import { canAfford, getActiveCost, hasUsedActiveThisTurn } from '../engine/actions.js';
 import { opponent } from '../engine/state.js';
 
@@ -31,17 +31,21 @@ function cardEmoji(card) {
 
 function passiveIcon(unit) {
   const t = unit.passive?.type;
-  if (t === 'attack_boost')    return `+${unit.passive.amount}⚔`;
+  if (t === 'attack_boost')     return `+${unit.passive.amount}⚔`;
   if (t === 'damage_reduction') return `-${unit.passive.amount}🛡`;
-  if (t === 'draw_end')        return '📄end';
-  if (t === 'big_scry')        return '👁top';
+  if (t === 'draw_end')         return '📄end';
+  if (t === 'big_scry')         return '👁top';
   return '';
 }
 
 const PHASE_LABELS = {
-  setup: 'SETUP PHASE',
-  big_scry: 'BIG SCRY', draw: 'DRAW', energy: 'ENERGY',
-  main: 'MAIN PHASE', attack: 'ATTACK', end: 'END PHASE',
+  setup:    'SETUP PHASE',
+  big_scry: 'BIG SCRY',
+  draw:     'DRAW',
+  energy:   'ENERGY',
+  main:     'MAIN PHASE',
+  attack:   'ATTACK',
+  end:      'END PHASE',
 };
 
 // ---------------------------------------------------------------------------
@@ -53,10 +57,33 @@ export function render(state) {
   renderLeader('p2-leader-zone', state, 1);
   renderBench('p1-bench', state, 0);
   renderBench('p2-bench', state, 1);
-  // During setup, show setup player's hand face-up, other face-down
-  const sp = state.phase === 'setup' ? (state._setupPlayer ?? 0) : state.activePlayer;
-  renderHand('p1-hand', state, 0, sp);
-  renderHand('p2-hand', state, 1, sp);
+
+  // During setup: determine whose hand to show face-up.
+  // Local mode uses _setupPlayer (sequential). Online concurrent mode has no
+  // _setupPlayer — in that case pass the player's own index as owner so both
+  // players see their own hand. The caller (handlers.online.js) re-renders
+  // each player's hand with the correct ownerP via renderHand directly, but
+  // render() is also called generically, so we need a safe fallback.
+  if (state.phase === 'setup') {
+    if (state._setupPlayer !== undefined) {
+      // Local sequential setup: only the active setup player sees their hand
+      const sp = state._setupPlayer;
+      renderHand('p1-hand', state, 0, sp);
+      renderHand('p2-hand', state, 1, sp);
+    } else {
+      // Online concurrent setup: each player sees their own hand (face-up),
+      // opponent's hand is face-down. We pass ownerP = p for each so
+      // isOwner is true only for that player's own zone.
+      // Since render() doesn't know which side "we" are, we render both
+      // face-up here — handlers.online.js controls interactivity separately.
+      renderHand('p1-hand', state, 0, 0);
+      renderHand('p2-hand', state, 1, 1);
+    }
+  } else {
+    renderHand('p1-hand', state, 0, state.activePlayer);
+    renderHand('p2-hand', state, 1, state.activePlayer);
+  }
+
   renderInfoRow('p1-info', state, 0);
   renderInfoRow('p2-info', state, 1);
   renderPlayerLabels(state);
@@ -110,7 +137,9 @@ function renderHUD(state) {
 }
 
 function renderPlayerLabels(state) {
-  const p = state.phase === 'setup' ? (state._setupPlayer ?? 0) : state.activePlayer;
+  const p = (state.phase === 'setup' && state._setupPlayer !== undefined)
+    ? state._setupPlayer
+    : state.activePlayer;
   q('p1-label').className = 'player-label' + (p === 0 ? ' active' : '');
   q('p2-label').className = 'player-label' + (p === 1 ? ' active' : '');
 }
@@ -118,11 +147,16 @@ function renderPlayerLabels(state) {
 function renderInfoRow(containerId, state, p) {
   const el = q(containerId);
   const flags = [
-    state.shieldActive[p]                                        ? '<span title="Shielded">🛡</span>' : '',
-    state.masterEmeraldActive && p === state.activePlayer        ? '<span style="color:#e088dd;font-size:8px;" title="Master Emerald">ME★</span>' : '',
-    state.chaosEmeraldBuff[p] > 0 ? `<span style="color:var(--gold);font-size:8px;" title="Chaos Emerald">+${state.chaosEmeraldBuff[p]}⚔</span>` : '',
-    state.powerGloveBuff[p]   > 0 ? `<span style="color:var(--red);font-size:8px;" title="Power Glove">+${state.powerGloveBuff[p]}⚔</span>` : '',
-    (state.rougeUsedThisTurn ?? [false,false])[p] ? '<span style="color:#6677aa;font-size:8px;" title="Rouge used">🦇✓</span>' : '',
+    state.shieldActive[p]
+      ? '<span title="Shielded">🛡</span>' : '',
+    state.masterEmeraldActive && p === state.activePlayer
+      ? '<span style="color:#e088dd;font-size:8px;" title="Master Emerald">ME★</span>' : '',
+    state.chaosEmeraldBuff[p] > 0
+      ? `<span style="color:var(--gold);font-size:8px;" title="Chaos Emerald">+${state.chaosEmeraldBuff[p]}⚔</span>` : '',
+    state.powerGloveBuff[p] > 0
+      ? `<span style="color:var(--red);font-size:8px;" title="Power Glove">+${state.powerGloveBuff[p]}⚔</span>` : '',
+    (state.rougeUsedThisTurn ?? [false, false])[p]
+      ? '<span style="color:#6677aa;font-size:8px;" title="Rouge used">🦇✓</span>' : '',
   ].filter(Boolean).join(' ');
 
   el.innerHTML = `
@@ -131,15 +165,12 @@ function renderInfoRow(containerId, state, p) {
     ${flags}
   `;
 
-  // Wire click to open discard viewer — capture p in closure
   const discardBtn = el.querySelector('.info-discard');
-  if (discardBtn) {
-    discardBtn.onclick = () => openDiscardViewer(state, p);
-  }
+  if (discardBtn) discardBtn.onclick = () => openDiscardViewer(state, p);
 }
 
 // ---------------------------------------------------------------------------
-// Leader card — now horizontal layout
+// Leader card
 // ---------------------------------------------------------------------------
 export function renderLeader(containerId, state, p) {
   const el     = q(containerId);
@@ -147,21 +178,12 @@ export function renderLeader(containerId, state, p) {
   const ap     = state.activePlayer;
   const hpPct  = Math.max(0, (leader.currentHp / leader.hp) * 100);
   const effDmg = calcEffectiveDamage(state, p);
-  const bd     = calcDamageBreakdown(state, p);
-  const isBuffed = effDmg > bd.base;
-
-  // Build breakdown string for right-click tooltip
-  let breakdownParts = [];
-  if (bd.shadowCount > 0) breakdownParts.push(`${bd.base} × ${bd.multiplier} (Shadow)`);
-  else breakdownParts.push(`${bd.base} base`);
-  bd.boostSources.forEach(s => breakdownParts.push(s));
-  const breakdownStr = breakdownParts.join(' + ') + ` = ${effDmg}`;
 
   const isTarget = state.phase === 'attack' && p !== ap;
   const canUse   = state.phase === 'main' && p === ap
-                   && canAfford(state, leader.activeCost)
-                   && state.players[p].hand.length > 0
-                   && !(state.leaderUsedThisTurn ?? [false,false])[p];
+    && canAfford(state, leader.activeCost)
+    && state.players[p].hand.length > 0
+    && !(state.leaderUsedThisTurn ?? [false, false])[p];
 
   const div = mk('div', [
     'leader-card',
@@ -177,16 +199,14 @@ export function renderLeader(containerId, state, p) {
       <div class="leader-hp-bar"><div class="leader-hp-fill" style="width:${hpPct}%"></div></div>
       <div class="leader-stats">
         <span class="leader-hp-text">${leader.currentHp}/${leader.hp}</span>
-        <span class="leader-dmg-chip${isBuffed ? ' buffed' : ''}">⚔ ${effDmg}</span>
+        <span class="leader-dmg-text">⚔${effDmg}</span>
       </div>
     </div>
   `;
 
-  // Right-click shows damage breakdown in inspect modal
-  addContextMenu(div, leader, null, breakdownStr);
-
   addTooltip(div, leader.name,
     `HP: ${leader.currentHp}/${leader.hp} · Damage: ${effDmg}\nActive (${leader.activeCost}⚡): ${leader.activeDesc}`);
+  addContextMenu(div, leader);
 
   el.innerHTML = '';
   el.appendChild(div);
@@ -197,9 +217,9 @@ export function renderLeader(containerId, state, p) {
 // Bench
 // ---------------------------------------------------------------------------
 export function renderBench(containerId, state, p) {
-  const el       = q(containerId);
-  el.innerHTML   = '';
-  const ap       = state.activePlayer;
+  const el        = q(containerId);
+  el.innerHTML    = '';
+  const ap        = state.activePlayer;
   const isActiveP = p === ap;
   const isAttack  = state.phase === 'attack';
   const unitDivs  = [];
@@ -209,16 +229,16 @@ export function renderBench(containerId, state, p) {
     const cost        = getActiveCost(state, unit);
     const canActivate = state.phase === 'main' && isActiveP && !unit.exhausted
       && canAfford(state, cost)
-      && !(unit.id === 'rouge' && (state.rougeUsedThisTurn ?? [false,false])[p])
+      && !(unit.id === 'rouge' && (state.rougeUsedThisTurn ?? [false, false])[p])
       && !hasUsedActiveThisTurn(state, unit);
-    const isTarget    = isAttack && !isActiveP;
-    const icon        = passiveIcon(unit);
+    const isTarget = isAttack && !isActiveP;
+    const icon     = passiveIcon(unit);
 
     const div = mk('div', [
       'bench-unit', 'card-type-unit',
-      unit.exhausted                      ? 'exhausted'    : '',
-      canActivate                        ? 'can-activate' : '',
-      isTarget                           ? 'attack-target': '',
+      unit.exhausted ? 'exhausted'     : '',
+      canActivate    ? 'can-activate'  : '',
+      isTarget       ? 'attack-target' : '',
     ].filter(Boolean).join(' '));
 
     div.innerHTML = `
@@ -249,19 +269,28 @@ export function renderBench(containerId, state, p) {
 // Hand
 // ---------------------------------------------------------------------------
 export function renderHand(containerId, state, p, ownerP = null) {
-  const el      = q(containerId);
-  el.innerHTML  = '';
-  // ownerP=-1 means force face-down; ownerP=null means use activePlayer
+  const el    = q(containerId);
+  el.innerHTML = '';
+
+  // ownerP=-1 forces all cards face-down (used by local setup for non-active player)
+  // ownerP=null means use activePlayer as owner
   const activeOwner = ownerP === null ? state.activePlayer : ownerP;
-  const isOwner = ownerP !== -1 && p === activeOwner;
-  const cardEls = [];
+  const isOwner     = ownerP !== -1 && p === activeOwner;
+  const cardEls     = [];
 
   if (!isOwner) {
-    state.players[p].hand.forEach(() => el.appendChild(mk('div', 'card face-down')));
+    // Render face-down placeholders — use hand length if available, else 0
+    const count = Array.isArray(state.players[p].hand) ? state.players[p].hand.length : 0;
+    for (let i = 0; i < count; i++) el.appendChild(mk('div', 'card face-down'));
     return cardEls;
   }
 
   state.players[p].hand.forEach((card, idx) => {
+    // Guard: skip hidden cards (opponent's hand sanitized by server in online mode)
+    if (!card || card.hidden) {
+      el.appendChild(mk('div', 'card face-down'));
+      return;
+    }
     const cost     = card.cost ?? 0;
     const playable = state.phase === 'main' && canAfford(state, cost);
     const div      = buildCardEl(card, playable);
@@ -277,6 +306,11 @@ export function renderHand(containerId, state, p, ownerP = null) {
 // Card element builder
 // ---------------------------------------------------------------------------
 export function buildCardEl(card, playable = false) {
+  // Safety guard — should never be called with a hidden/null card but just in case
+  if (!card || card.hidden) {
+    return mk('div', 'card face-down');
+  }
+
   const typeKey = {
     Unit: 'unit', Stage: 'stage',
     Equipment: 'equipment', Genesis: 'genesis', Leader: 'leader',
@@ -287,7 +321,7 @@ export function buildCardEl(card, playable = false) {
     Equipment: 'type-equipment', Genesis: 'type-genesis', Leader: 'type-leader',
   }[card.type] ?? 'type-equipment';
 
-  const div = mk('div', ['card', `card-type-${typeKey}`, playable ? 'playable' : ''].filter(Boolean).join(' '));
+  const div  = mk('div', ['card', `card-type-${typeKey}`, playable ? 'playable' : ''].filter(Boolean).join(' '));
   const cost = card.cost ?? 0;
 
   div.innerHTML = `
@@ -307,18 +341,18 @@ export function buildCardEl(card, playable = false) {
 // ---------------------------------------------------------------------------
 // Card Inspect Modal (right-click)
 // ---------------------------------------------------------------------------
-function buildInspectModal(card, onActivate = null, extraInfo = null) {
+function buildInspectModal(card, onActivate = null) {
+  if (!card || card.hidden) return document.createElement('div');
+
   const typeKey = {
     Unit: 'unit', Stage: 'stage',
     Equipment: 'equipment', Genesis: 'genesis', Leader: 'leader',
   }[card.type] ?? 'equipment';
 
   const typePillClass = `type-${typeKey}`;
-
   const modal = document.createElement('div');
   modal.className = 'card-inspect-modal';
 
-  // ── Header ────────────────────────────────────────────────
   const cost = card.cost ?? 0;
   const hdr  = document.createElement('div');
   hdr.className = `cim-header type-${typeKey}`;
@@ -332,13 +366,11 @@ function buildInspectModal(card, onActivate = null, extraInfo = null) {
   `;
   modal.appendChild(hdr);
 
-  // ── Stats bar ─────────────────────────────────────────────
   const hasStats = card.hp !== undefined || card.damage !== undefined || card.activeCost !== undefined;
   if (hasStats) {
     const stats = document.createElement('div');
     stats.className = 'cim-stats';
     const parts = [];
-
     if (card.hp !== undefined) parts.push(
       `<div class="cim-stat"><div class="cim-stat-label">HP</div><div class="cim-stat-value hp">${card.hp}</div></div>`
     );
@@ -354,33 +386,13 @@ function buildInspectModal(card, onActivate = null, extraInfo = null) {
       `<div class="cim-divider"></div>
        <div class="cim-stat"><div class="cim-stat-label">Current HP</div><div class="cim-stat-value hp">${card.currentHp}</div></div>`
     );
-
     stats.innerHTML = parts.join('');
     modal.appendChild(stats);
   }
 
-  // ── Damage breakdown (right-click on leader when buffed) ───────────
-  if (extraInfo) {
-    const infoBox = document.createElement('div');
-    infoBox.style.cssText = `
-      margin: 8px 12px 0;
-      padding: 8px 12px;
-      background: #1a0808;
-      border: 1px solid #882222;
-      border-radius: 6px;
-    `;
-    infoBox.innerHTML = `
-      <div style="font-family:var(--font-display);font-size:8px;letter-spacing:2px;color:#aa4433;margin-bottom:4px;">DAMAGE BREAKDOWN</div>
-      <div style="font-family:var(--font-mono);font-size:12px;color:#ff8866;">${extraInfo}</div>
-    `;
-    modal.appendChild(infoBox);
-  }
-
-  // ── Body ──────────────────────────────────────────────────
   const body = document.createElement('div');
   body.className = 'cim-body';
 
-  // Passive
   if (card.passiveDesc && card.passiveDesc !== 'No passive.') {
     body.innerHTML += `
       <div>
@@ -391,7 +403,6 @@ function buildInspectModal(card, onActivate = null, extraInfo = null) {
       </div>`;
   }
 
-  // Active / Effect
   if (card.activeDesc) {
     const activeSection = document.createElement('div');
     activeSection.innerHTML = `
@@ -400,28 +411,15 @@ function buildInspectModal(card, onActivate = null, extraInfo = null) {
         <div class="cim-active-cost">${card.activeCost ?? 0}⚡ COST</div>
         <div class="cim-active-text">${card.activeDesc}</div>
       </div>`;
-
     if (onActivate) {
-      const isActive = !!card.activeDesc;
       const useBtn = document.createElement('button');
-      useBtn.style.cssText = `
-        margin-top: 8px; width: 100%; padding: 9px;
-        background: var(--gold); color: #000;
-        border: none; border-radius: 6px;
-        font-family: var(--font-display); font-size: 10px; font-weight: 900;
-        letter-spacing: 1px; cursor: pointer;
-        transition: opacity 0.15s;
-      `;
-      useBtn.textContent = isActive ? '⚡ USE ACTIVE' : '▶ PLAY CARD';
+      useBtn.style.cssText = `margin-top:8px;width:100%;padding:9px;background:var(--gold);color:#000;border:none;border-radius:6px;font-family:var(--font-display);font-size:10px;font-weight:900;letter-spacing:1px;cursor:pointer;transition:opacity 0.15s;`;
+      useBtn.textContent = '⚡ USE ACTIVE';
       useBtn.onmouseenter = () => useBtn.style.opacity = '0.8';
       useBtn.onmouseleave = () => useBtn.style.opacity = '1';
-      useBtn.onclick = () => {
-        closeOverlay('card-inspect-overlay');
-        onActivate();
-      };
+      useBtn.onclick = () => { closeOverlay('card-inspect-overlay'); onActivate(); };
       activeSection.appendChild(useBtn);
     }
-
     body.appendChild(activeSection);
   } else if (card.effectDesc) {
     const effectSection = document.createElement('div');
@@ -432,13 +430,7 @@ function buildInspectModal(card, onActivate = null, extraInfo = null) {
       </div>`;
     if (onActivate) {
       const playBtn = document.createElement('button');
-      playBtn.style.cssText = `
-        margin-top: 8px; width: 100%; padding: 9px;
-        background: var(--green); color: #000;
-        border: none; border-radius: 6px;
-        font-family: var(--font-display); font-size: 10px; font-weight: 900;
-        letter-spacing: 1px; cursor: pointer; transition: opacity 0.15s;
-      `;
+      playBtn.style.cssText = `margin-top:8px;width:100%;padding:9px;background:var(--green);color:#000;border:none;border-radius:6px;font-family:var(--font-display);font-size:10px;font-weight:900;letter-spacing:1px;cursor:pointer;transition:opacity 0.15s;`;
       playBtn.textContent = '▶ PLAY CARD';
       playBtn.onmouseenter = () => playBtn.style.opacity = '0.8';
       playBtn.onmouseleave = () => playBtn.style.opacity = '1';
@@ -450,7 +442,6 @@ function buildInspectModal(card, onActivate = null, extraInfo = null) {
 
   modal.appendChild(body);
 
-  // ── Close ─────────────────────────────────────────────────
   const close = document.createElement('div');
   close.className = 'cim-close';
   close.textContent = 'CLOSE';
@@ -460,20 +451,21 @@ function buildInspectModal(card, onActivate = null, extraInfo = null) {
   return modal;
 }
 
-export function openCardInspect(card, onActivate = null, extraInfo = null) {
+export function openCardInspect(card, onActivate = null) {
+  if (!card || card.hidden) return;
   const overlay = q('card-inspect-overlay');
   overlay.innerHTML = '';
-  overlay.appendChild(buildInspectModal(card, onActivate, extraInfo));
+  overlay.appendChild(buildInspectModal(card, onActivate));
   overlay.classList.add('active');
   overlay.onclick = (e) => {
     if (e.target === overlay) closeOverlay('card-inspect-overlay');
   };
 }
 
-export function addContextMenu(el, card, onActivate = null, extraInfo = null) {
+export function addContextMenu(el, card, onActivate = null) {
   el.addEventListener('contextmenu', (e) => {
     e.preventDefault();
-    openCardInspect(card, onActivate, extraInfo);
+    openCardInspect(card, onActivate);
   });
 }
 
@@ -487,16 +479,20 @@ function renderActionButtons(state) {
 
   if (state.phase === 'setup') {
     btnLeader.style.display = 'none';
-    btnEnd.textContent      = 'Done Setup →';
-    btnEnd.disabled         = false;
+    // In online concurrent mode the handler rewrites this button text/onclick.
+    // In local mode we just show a generic label.
+    if (state._setupPlayer !== undefined) {
+      btnEnd.textContent = 'Done Setup →';
+      btnEnd.disabled    = false;
+    }
     return;
   }
 
   if (state.phase === 'main') {
     btnLeader.style.display = '';
     btnLeader.disabled = !(canAfford(state, state.players[p].leader.activeCost)
-                           && state.players[p].hand.length > 0
-                           && !(state.leaderUsedThisTurn ?? [false,false])[p]);
+      && state.players[p].hand.length > 0
+      && !(state.leaderUsedThisTurn ?? [false, false])[p]);
     btnEnd.textContent = 'Start Attack →';
     btnEnd.disabled    = false;
   } else if (state.phase === 'attack') {
@@ -542,8 +538,7 @@ export function showWinModal(loserP, turn) {
 // ---------------------------------------------------------------------------
 export function openDiscardViewer(state, p) {
   const discard = state.players[p].discard;
-  document.getElementById('discard-title').textContent =
-    `PLAYER ${p + 1} DISCARD PILE`;
+  document.getElementById('discard-title').textContent = `PLAYER ${p + 1} DISCARD PILE`;
   document.getElementById('discard-subtitle').textContent =
     discard.length === 0
       ? 'The discard pile is empty.'
@@ -555,12 +550,11 @@ export function openDiscardViewer(state, p) {
   if (discard.length === 0) {
     container.innerHTML = '<div style="color:var(--grey);font-size:11px;padding:20px;">Empty</div>';
   } else {
-    // Show most-recently-discarded first
     [...discard].reverse().forEach(card => {
+      if (!card || card.hidden) return;
       const div = buildCardEl(card, false);
       div.style.cursor = 'pointer';
       addContextMenu(div, card, null);
-      // Left-click also opens inspect
       div.onclick = () => openCardInspect(card, null);
       container.appendChild(div);
     });
@@ -621,9 +615,9 @@ function setText(id, v){ const el = q(id); if (el) el.textContent = v; }
 
 function cardTooltip(card) {
   const lines = [];
-  if (card.cost    !== undefined) lines.push(`Cost: ${card.cost}⚡`);
-  if (card.hp      !== undefined) lines.push(`HP: ${card.hp}`);
-  if (card.damage  !== undefined) lines.push(`Damage: ${card.damage}`);
+  if (card.cost        !== undefined) lines.push(`Cost: ${card.cost}⚡`);
+  if (card.hp          !== undefined) lines.push(`HP: ${card.hp}`);
+  if (card.damage      !== undefined) lines.push(`Damage: ${card.damage}`);
   if (card.effectDesc)  lines.push(`Effect: ${card.effectDesc}`);
   if (card.passiveDesc) lines.push(`Passive: ${card.passiveDesc}`);
   if (card.activeDesc)  lines.push(`Active (${card.activeCost}⚡): ${card.activeDesc}`);
