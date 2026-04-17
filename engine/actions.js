@@ -54,19 +54,21 @@ export function drawCards(state, p, count, log) {
 // Returns true if consumed, false if it stays in hand.
 // ---------------------------------------------------------------------------
 export function playCardFromHand(state, handIdx, log) {
-  const p    = state.activePlayer;
-  const card = state.players[p].hand[handIdx];
-  if (!card) return false;
-
-  // During setup phase: units are free, no energy check
+  // During setup phase: units are free, deploy to setup player's bench
   if (state.phase === 'setup') {
-    const sp = state._setupPlayer ?? 0;
+    const sp   = state._setupPlayer ?? 0;
+    const card = state.players[sp].hand[handIdx];
+    if (!card) return false;
     if (card.type !== 'Unit') { log(`❌ Only units can be deployed during setup`, 'damage'); return false; }
     if (state.players[sp].bench.length >= 3) { log(`❌ Bench is full`, 'damage'); return false; }
     state.players[sp].hand.splice(handIdx, 1);
     deployUnit(state, sp, card, log);
     return true;
   }
+
+  const p    = state.activePlayer;
+  const card = state.players[p].hand[handIdx];
+  if (!card) return false;
 
   // Apply Charmy discount to cost
   const baseCost  = card.cost ?? 0;
