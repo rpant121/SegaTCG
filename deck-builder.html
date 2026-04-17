@@ -409,20 +409,20 @@ const POOL_CARDS = [
   // ── Original Equipment ────────────────────────────────────────────────
   { id: 'ring',              name: 'Ring',              type: 'Equipment', cost: 0, effect: 'Gain 1 Energy immediately.' },
   { id: 'chaos_emerald',     name: 'Chaos Emerald',     type: 'Equipment', cost: 2, effect: 'Leader gains +20 Damage until end of turn.' },
-  { id: 'elemental_shield',  name: 'Elemental Shield',  type: 'Equipment', cost: 1, effect: "Prevent ALL damage to yourself during opponent's next turn." },
+  { id: 'elemental_shield',  name: 'Elemental Shield',  type: 'Equipment', cost: 1, effect: '-20 to the next instance of damage you receive.' },
   { id: 'heat_barrier',      name: 'Heat Barrier',      type: 'Equipment', cost: 1, effect: 'Heal your Leader for 20 HP. Cannot exceed max HP.' },
   { id: 'dragons_eye',       name: "Dragon's Eye",      type: 'Equipment', cost: 2, effect: 'Look at top 3 deck cards. Put 1 into hand; return rest in any order.' },
   { id: 'power_glove',       name: 'Power Glove',       type: 'Equipment', cost: 3, effect: 'Your Leader deals +30 Damage this turn only.' },
   // ── Rings Equipment ───────────────────────────────────────────────────
   { id: 'speed_shoes',       name: 'Speed Shoes',       type: 'Equipment', cost: 1, effect: 'Gain 3 Energy immediately.' },
-  { id: 'extreme_gear',      name: 'Extreme Gear',      type: 'Equipment', cost: 0, effect: 'Discard any number of cards from hand — gain 1 Energy each.' },
+  { id: 'extreme_gear',      name: 'Extreme Gear',      type: 'Equipment', cost: 0, effect: 'Discard up to 3 cards from hand — gain 1 Energy each.' },
   // ── Stages ────────────────────────────────────────────────────────────
   { id: 'green_hill_zone',   name: 'Green Hill Zone',   type: 'Stage',     cost: 1, effect: 'While active: both players draw 1 extra card during Draw Phase.' },
   { id: 'midnight_carnival', name: 'Midnight Carnival', type: 'Stage',     cost: 2, effect: "While active: KO'd units deal 0 penalty damage to their controller." },
   { id: 'radical_highway',   name: 'Radical Highway',   type: 'Stage',     cost: 1, effect: 'While active: each player gains 1 extra energy at turn start.' },
   // ── Genesis ───────────────────────────────────────────────────────────
   { id: 'master_emerald',    name: 'Master Emerald',    type: 'Genesis',   cost: 4, effect: 'This turn: all bench unit actives cost 0 and do not exhaust.', isGenesis: true },
-  { id: 'polaris_pact',      name: 'Polaris Pact',      type: 'Genesis',   cost: 5, effect: 'Both players draw to 6 cards. Opponent discards 1.', isGenesis: true },
+  { id: 'polaris_pact',      name: 'Polaris Pact',      type: 'Genesis',   cost: 2, effect: 'If a friendly support died last turn: both shuffle hands into decks. You draw 5, opponent draws 2.', isGenesis: true },
   { id: 'super_form',        name: 'Super Form',        type: 'Genesis',   cost: 4, effect: 'Double your current energy.', isGenesis: true },
 ];
 

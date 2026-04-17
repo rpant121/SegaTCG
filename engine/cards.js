@@ -138,7 +138,7 @@ export const EQUIP_DATA = {
   elemental_shield: {
     id: 'elemental_shield', name: 'Elemental Shield', type: 'Equipment', cost: 1,
     isPersistent: false,
-    effectDesc: "Prevent ALL damage to yourself during your opponent's next turn (including KO penalty). Shield clears after absorbing.",
+    effectDesc: '-20 to the next instance of damage you receive (applies once, then clears).',
   },
   heat_barrier: {
     id: 'heat_barrier', name: 'Heat Barrier', type: 'Equipment', cost: 1,
@@ -161,9 +161,9 @@ export const EQUIP_DATA = {
     effectDesc: "While active: KO'd bench units deal 0 penalty damage to their controller.",
   },
   polaris_pact: {
-    id: 'polaris_pact', name: 'Polaris Pact', type: 'Genesis', cost: 5,
+    id: 'polaris_pact', name: 'Polaris Pact', type: 'Genesis', cost: 2,
     isGenesis: true, isPersistent: false,
-    effectDesc: 'Both players draw until they have 6 cards in hand. Then your opponent discards 1 card of their choice.',
+    effectDesc: 'If a friendly support died last turn: both players shuffle their hands into their decks. You draw 5, opponent draws 2.',
   },
   speed_shoes: {
     id: 'speed_shoes', name: 'Speed Shoes', type: 'Equipment', cost: 1,
@@ -173,7 +173,7 @@ export const EQUIP_DATA = {
   extreme_gear: {
     id: 'extreme_gear', name: 'Extreme Gear', type: 'Equipment', cost: 0,
     isPersistent: false,
-    effectDesc: 'Discard any number of cards from your hand — gain 1 Energy per card discarded.',
+    effectDesc: 'Discard up to 3 cards from your hand — gain 1 Energy per card discarded.',
   },
   radical_highway: {
     id: 'radical_highway', name: 'Radical Highway', type: 'Stage', cost: 1,

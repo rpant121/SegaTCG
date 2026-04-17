@@ -233,13 +233,16 @@
   </div>
 </div>
 
-<!-- Tails Modal -->
+<!-- Tails Modal — styled like the discard viewer -->
 <div class="overlay" id="tails-overlay">
-  <div class="modal">
-    <h2>TAILS ACTIVE</h2>
-    <p>Choose a card from your discard to play. It will be shuffled back into your deck after use.</p>
-    <div class="modal-cards" id="tails-discard-options"></div>
-    <button class="action-btn danger" id="btn-cancel-tails" style="margin-top:8px;">Cancel</button>
+  <div class="modal" style="max-width:580px;">
+    <h2>TAILS: PLAY FROM DISCARD</h2>
+    <p id="tails-discard-subtitle" style="margin-bottom:10px;">Choose a card to play — it shuffles back into your deck after use.</p>
+    <div id="tails-discard-options" style="
+      display:flex; flex-wrap:wrap; gap:8px; justify-content:center;
+      max-height:380px; overflow-y:auto; padding:4px;
+    "></div>
+    <button class="action-btn danger" id="btn-cancel-tails" style="margin-top:14px;">Cancel</button>
   </div>
 </div>
 
@@ -284,7 +287,7 @@
 <div class="overlay" id="extreme-gear-overlay">
   <div class="modal">
     <h2>EXTREME GEAR</h2>
-    <p>Select any number of cards from your hand to discard. Gain 1 Energy per card discarded.</p>
+    <p>Select up to 3 cards from your hand to discard. Gain 1 Energy per card discarded.</p>
     <div class="modal-cards" id="extreme-gear-options"></div>
     <div style="margin-top:10px;font-size:10px;color:var(--gold);" id="extreme-gear-count">0 selected → +0 Energy</div>
     <div class="modal-btn-row" style="margin-top:8px;">

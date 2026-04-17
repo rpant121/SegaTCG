@@ -29,6 +29,7 @@ import {
   render, addLog, showOverlay, closeOverlay,
   showScryModal, showPassModal, showWinModal,
   renderLeader, renderBench, renderHand, openCardInspect,
+  buildCardEl,
 } from './renderer.js';
 import { opponent } from '../engine/state.js';
 import { calcEffectiveDamage } from '../engine/combat.js';
@@ -203,24 +204,24 @@ function attachBoardHandlers() {
   // ── Not my turn — nothing interactive (except pending block handled separately) ──
   if (!isMyTurn() && state.phase !== 'setup') return;
 
-  // ── Setup phase ─────────────────────────────────────────────────────────
+  // ── Setup phase — concurrent: both players deploy simultaneously ─────────
   if (state.phase === 'setup') {
-    const sp = state._setupPlayer ?? 0;
-    if (sp !== myPlayerIdx) return; // not our setup turn
+    // _setupPlayer is only set in local sequential mode.
+    // Online concurrent mode: _setupPlayer is undefined — both players act freely.
+    if (state._setupPlayer !== undefined && state._setupPlayer !== myPlayerIdx) return;
 
-    // Unit cards in hand are drag-deployable (re-use same drag logic wired below)
+    // Wire drag-to-deploy for own unit cards
     const setupHandEls = renderHand(`p${p + 1}-hand`, state, p, p);
     setupHandEls.forEach(({ div, idx, card }) => {
       if (card && !card.hidden && card.type === 'Unit') attachDragToHandCard(div, idx, p);
     });
     attachBenchDropZoneOnce(`p${p + 1}-bench`, p);
 
-    document.getElementById('btn-end-phase').textContent = 'Done Setup →';
-    document.getElementById('btn-end-phase').disabled = false;
-    document.getElementById('btn-end-phase').onclick = () => {
-      document.getElementById('btn-end-phase').onclick = null;
-      act('SETUP_DONE');
-    };
+    // Done Setup button is wired by bindStaticButtons — just update display here
+    const btnEnd = document.getElementById('btn-end-phase');
+    const alreadyReady = btnEnd.dataset.setupReady === '1';
+    btnEnd.textContent = alreadyReady ? 'Waiting for opponent…' : 'Done Setup →';
+    btnEnd.disabled    = alreadyReady;
     return;
   }
 
@@ -390,10 +391,9 @@ function endDrag(p) {
 // ---------------------------------------------------------------------------
 function checkPendingEffects() {
   if (state.pendingDragonsEye)   { openDragonsEyeModal();   return; }
-  if (state.pendingPolarisPact)  { openPolarisPactModal();  return; }
+  // Polaris Pact: new effect is fully server-side, no client modal needed
   if (state.pendingRayActive)    { openRayActiveModal();    return; }
   if (state.pendingExtremeGear)  { openExtremeGearModal();  return; }
-  if (state.pendingMightyAttack) { openMightyAttackModal(myPlayerIdx); state.pendingMightyAttack = false; return; }
 }
 
 // ---------------------------------------------------------------------------
@@ -518,6 +518,26 @@ function mkBtn(label, onClick) {
   return btn;
 }
 
+// Card-picker button: shows the full card art + a click overlay
+function mkCardBtn(card, onClick, extra = '') {
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'position:relative;cursor:pointer;transition:transform 0.15s;';
+  wrapper.style.display = 'inline-block';
+  const cardEl = buildCardEl(card, false);
+  cardEl.style.pointerEvents = 'none';
+  wrapper.appendChild(cardEl);
+  if (extra) {
+    const badge = document.createElement('div');
+    badge.style.cssText = 'position:absolute;bottom:4px;left:0;right:0;text-align:center;font-size:8px;color:var(--gold);font-family:var(--font-display);background:#000000aa;padding:2px;';
+    badge.textContent = extra;
+    wrapper.appendChild(badge);
+  }
+  wrapper.addEventListener('mouseenter', () => wrapper.style.transform = 'translateY(-4px)');
+  wrapper.addEventListener('mouseleave', () => wrapper.style.transform = '');
+  wrapper.onclick = onClick;
+  return wrapper;
+}
+
 // ── Block ────────────────────────────────────────────────────────────────────
 function openBlockModal(attackerP, defenderP) {
   const dmg = calcEffectiveDamage(state, attackerP);
@@ -553,11 +573,11 @@ function openSonicModal() {
   if (state.players[p].hand.length === 0) { addLog('❌ Sonic: hand is empty', 'damage'); return; }
   const c = document.getElementById('sonic-discard-options');
   c.innerHTML = '';
-  state.players[p].hand.forEach((card, hi) => {
-    c.appendChild(mkBtn(`${card.name} (${card.type})`, () => {
+  state.players[p].hand.filter(card => card && !card.hidden).forEach((card, hi) => {
+    c.appendChild(mkCardBtn(card, () => {
       act('USE_LEADER_ACTIVE', { handIdx: hi });
       closeOverlay('sonic-overlay');
-    }));
+    }, 'Discard → Draw 2'));
   });
   showOverlay('sonic-overlay');
 }
@@ -567,14 +587,46 @@ function openTailsModal(p, benchIdx) {
   const discard = state.players[p].discard;
   const playable = discard.map((card, di) => ({ card, di })).filter(({ card }) => card.type !== 'Stage');
   if (playable.length === 0) { addLog('♻ Tails: No playable cards in discard', 'phase'); return; }
-  const c = document.getElementById('tails-discard-options');
-  c.innerHTML = '';
+
+  const container = document.getElementById('tails-discard-options');
+  container.innerHTML = '';
+  // Update subtitle
+  const sub = document.getElementById('tails-discard-subtitle');
+  if (sub) sub.textContent =
+    `${playable.length} card${playable.length !== 1 ? 's' : ''} available — click one to play it`;
+
+  // Render full card elements (same style as discard viewer)
   playable.forEach(({ card, di }) => {
-    c.appendChild(mkBtn(`${card.name} (${card.type})`, () => {
+    const div = buildCardEl(card, false);
+    div.style.cursor = 'pointer';
+    div.style.transition = 'transform 0.15s, box-shadow 0.15s, border-color 0.15s';
+    // Hover highlight
+    div.addEventListener('mouseenter', () => {
+      div.style.borderColor = 'var(--green)';
+      div.style.boxShadow   = 'var(--glow-green)';
+      div.style.transform   = 'translateY(-4px)';
+    });
+    div.addEventListener('mouseleave', () => {
+      div.style.borderColor = '';
+      div.style.boxShadow   = '';
+      div.style.transform   = '';
+    });
+    // Right-click to inspect without selecting
+    div.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      openCardInspect(card, () => {
+        act('USE_UNIT_ACTIVE', { benchIdx, discardIdx: di });
+        closeOverlay('tails-overlay');
+      });
+    });
+    // Left-click to play
+    div.addEventListener('click', () => {
       act('USE_UNIT_ACTIVE', { benchIdx, discardIdx: di });
       closeOverlay('tails-overlay');
-    }));
+    });
+    container.appendChild(div);
   });
+
   showOverlay('tails-overlay');
 }
 
@@ -660,86 +712,88 @@ function openDragonsEyeModal() {
   const c = document.getElementById('dragons-eye-options');
   c.innerHTML = '';
   cards.forEach((card, si) => {
-    c.appendChild(mkBtn(`${card.name} (${card.type})`, () => {
+    c.appendChild(mkCardBtn(card, () => {
       act('RESOLVE_DRAGONS_EYE', { deckIdx: si });
       closeOverlay('dragons-eye-overlay');
-    }));
+    }, 'Add to hand'));
   });
   showOverlay('dragons-eye-overlay');
 }
 
 // ── Polaris Pact ──────────────────────────────────────────────────────────────
 function openPolarisPactModal() {
-  const { opponentIdx } = state.pendingPolarisPact;
-  // Only the TARGET player fills this in
-  if (myPlayerIdx !== opponentIdx) return; // active player waits
-
-  const hand = state.players[opponentIdx].hand;
-  document.getElementById('polaris-pact-desc').textContent =
-    `You must discard 1 card (Polaris Pact).`;
-  const c = document.getElementById('polaris-pact-options');
-  c.innerHTML = '';
-  if (hand.length === 0) {
-    addLog('🌌 Polaris Pact: no cards to discard', 'phase');
-    act('RESOLVE_POLARIS_PACT', { targetHandIdx: -1 });
-    return;
-  }
-  hand.forEach((card, hi) => {
-    c.appendChild(mkBtn(`${card.name} (${card.type})`, () => {
-      act('RESOLVE_POLARIS_PACT', { targetHandIdx: hi });
-      closeOverlay('polaris-pact-overlay');
-    }));
-  });
-  showOverlay('polaris-pact-overlay');
+  // Polaris Pact now resolves fully in the engine (no opponent discard selection)
+  // Nothing to show — the effect already ran when the card was played
 }
-
 // ── Ray active ────────────────────────────────────────────────────────────────
 function openRayActiveModal() {
   const { cards } = state.pendingRayActive;
   const c = document.getElementById('ray-active-options');
   c.innerHTML = '';
   cards.forEach((card, si) => {
-    c.appendChild(mkBtn(`${card.name} (${card.type})`, () => {
+    c.appendChild(mkCardBtn(card, () => {
       act('RESOLVE_RAY', { deckIdx: si });
       closeOverlay('ray-active-overlay');
-    }));
+    }, 'Send to discard'));
   });
   showOverlay('ray-active-overlay');
 }
 
 // ── Extreme Gear ──────────────────────────────────────────────────────────────
 function openExtremeGearModal() {
-  const { playerIdx: pi } = state.pendingExtremeGear;
-  const hand = state.players[pi].hand;
+  const { playerIdx: pi, maxDiscards = 3 } = state.pendingExtremeGear;
+  const hand = state.players[pi].hand.filter(card => card && !card.hidden);
   _extremeGearSelected = new Set();
   const c = document.getElementById('extreme-gear-options');
   c.innerHTML = '';
 
   const updateCount = () => {
+    const n = _extremeGearSelected.size;
     document.getElementById('extreme-gear-count').textContent =
-      `${_extremeGearSelected.size} selected → +${_extremeGearSelected.size} Energy`;
+      `${n} / ${maxDiscards} selected → +${n} Energy`;
+    // Disable unselected cards once cap reached
+    c.querySelectorAll('.eg-card-wrap').forEach(wrap => {
+      const idx = parseInt(wrap.dataset.idx);
+      const atCap = n >= maxDiscards && !_extremeGearSelected.has(idx);
+      wrap.style.opacity = atCap ? '0.4' : '1';
+      wrap.style.pointerEvents = atCap ? 'none' : '';
+    });
   };
 
   hand.forEach((card, hi) => {
-    const btn = document.createElement('button');
-    btn.className   = 'modal-card-btn';
-    btn.textContent = `${card.name} (${card.type})`;
-    btn.dataset.idx = hi;
-    btn.onclick = () => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'eg-card-wrap';
+    wrapper.dataset.idx = hi;
+    wrapper.style.cssText = 'position:relative;cursor:pointer;display:inline-block;transition:opacity 0.15s;';
+    const cardEl = buildCardEl(card, false);
+    cardEl.style.pointerEvents = 'none';
+    wrapper.appendChild(cardEl);
+
+    // Selected indicator
+    const badge = document.createElement('div');
+    badge.style.cssText = 'position:absolute;top:4px;right:4px;width:18px;height:18px;border-radius:50%;background:var(--gold);color:#000;font-size:10px;font-weight:bold;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.15s;';
+    badge.textContent = '✓';
+    wrapper.appendChild(badge);
+
+    wrapper.addEventListener('mouseenter', () => { if (!_extremeGearSelected.has(hi)) cardEl.style.borderColor = 'var(--gold)'; });
+    wrapper.addEventListener('mouseleave', () => { if (!_extremeGearSelected.has(hi)) cardEl.style.borderColor = ''; });
+    wrapper.onclick = () => {
       if (_extremeGearSelected.has(hi)) {
         _extremeGearSelected.delete(hi);
-        btn.style.borderColor = '';
-        btn.style.color = '';
-      } else {
+        cardEl.style.borderColor = '';
+        cardEl.style.boxShadow   = '';
+        badge.style.opacity = '0';
+      } else if (_extremeGearSelected.size < maxDiscards) {
         _extremeGearSelected.add(hi);
-        btn.style.borderColor = 'var(--gold)';
-        btn.style.color = 'var(--gold)';
+        cardEl.style.borderColor = 'var(--gold)';
+        cardEl.style.boxShadow   = 'var(--glow-gold)';
+        badge.style.opacity = '1';
       }
       updateCount();
     };
-    c.appendChild(btn);
+    c.appendChild(wrapper);
   });
 
   updateCount();
   showOverlay('extreme-gear-overlay');
-} 
+}

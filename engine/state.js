@@ -19,9 +19,6 @@ export function shuffle(arr) {
 
 export const opponent = (p) => (p === 0 ? 1 : 0);
 
-/**
- * Build a full card object array from a list of card IDs.
- */
 function idsToCards(idList) {
   return idList.map(id => {
     const data = UNIT_DATA[id] ?? Object.values(EQUIP_DATA).find(c => c.id === id);
@@ -30,10 +27,6 @@ function idsToCards(idList) {
   });
 }
 
-/**
- * @param {string[]} deckIds0  - ordered card id list for Player 1 (30 cards)
- * @param {string[]} deckIds1  - ordered card id list for Player 2 (30 cards)
- */
 export function createInitialState(deckIds0, deckIds1) {
   const deck0 = shuffle(idsToCards(deckIds0));
   const deck1 = shuffle(idsToCards(deckIds1));
@@ -51,31 +44,29 @@ export function createInitialState(deckIds0, deckIds1) {
     energy:      [0, 0],
     energyMax:   [0, 0],
 
-    // Board-wide effects (all cleared in End Phase unless noted)
     activeStage:         null,
     chaosEmeraldBuff:    [0, 0],
     powerGloveBuff:      [0, 0],
-    shieldActive:        [false, false],  // cleared after absorbing 1 turn
+    shieldActive:        [false, false],
     masterEmeraldActive: false,
 
-    // ── Per-turn tracking (reset in End Phase) ────────────────────────────
-    activesUsedThisTurn:    0,      // Silver active: count actives fired this turn
-    usedActivesThisTurn:    [],     // Array of unit UIDs that have used their active this turn
-    equipmentPlayedThisTurn:[0, 0], // Charmy passive/active: equipment plays per player
-    energySpentThisTurn:    [0, 0], // Vector active: total energy spent this turn
-    leaderDamageTakenThisTurn: [false, false], // legacy; replaced by per-event draw
-    rougeUsedThisTurn:      [false, false], // Rouge active: once per turn despite no exhaust
-    leaderUsedThisTurn:     [false, false], // Leader active: once per turn
+    activesUsedThisTurn:       0,
+    usedActivesThisTurn:       [],
+    equipmentPlayedThisTurn:   [0, 0],
+    energySpentThisTurn:       [0, 0],
+    leaderDamageTakenThisTurn: [false, false],
+    rougeUsedThisTurn:         [false, false],
+    leaderUsedThisTurn:        [false, false],
+    shieldReduction:           [0, 0],
+    supportDiedLastTurn:       [false, false],
 
-
-    // ── Pending async UI prompts ──────────────────────────────────────────
-    pendingBigScry:      null,  // { playerIdx, card }
-    pendingDragonsEye:   null,  // { playerIdx, cards }
-    pendingPolarisPact:  null,  // { opponentIdx }
-    pendingRayActive:    null,  // { playerIdx, cards }  (Ray's top-3 discard choice)
-    pendingExtremeGear:  null,  // { playerIdx }         (choose cards to discard)
-    pendingMightyAttack: false, // true while second attack target selection is open
-    pendingBlock:        null,  // { attackerP, defenderP } — awaiting blocker choice
+    pendingBigScry:      null,
+    pendingDragonsEye:   null,
+    pendingPolarisPact:  null,
+    pendingRayActive:    null,
+    pendingExtremeGear:  null,
+    pendingMightyAttack: false,
+    pendingBlock:        null,
 
     firstTurn: true,
 

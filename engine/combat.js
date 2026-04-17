@@ -1,65 +1,66 @@
 /**
  * COMBAT
- * Damage calculation, attack resolution, win-condition check.
- * No DOM. All functions are pure state mutators.
+ * Damage application, attack resolution, blocking.
+ * No DOM. Pure state mutations.
  */
 
 import { opponent } from './state.js';
+import { drawCards } from './actions.js';
 
 // ---------------------------------------------------------------------------
-// Effective damage — recalculated fresh before every attack, never cached.
-// Shadow passive: base becomes 2 if he is on bench and not exhausted.
+// Win condition check
 // ---------------------------------------------------------------------------
-export function calcEffectiveDamage(state, p) {
-  const { total } = calcDamageBreakdown(state, p);
-  return total;
+export function checkWin(state) {
+  for (const [p, player] of state.players.entries()) {
+    if (player.leader.currentHp <= 0) return p; // p is the loser
+  }
+  return null;
 }
 
-// Returns a breakdown object for display purposes
-export function calcDamageBreakdown(state, p) {
-  const base = state.players[p].leader.damage;
-  const shadowCount = state.players[p].bench.filter(u => u.id === 'shadow' && !u.exhausted).length;
-  const multiplier  = Math.pow(2, shadowCount);
-  const baseAfterShadow = base * multiplier;
+// ---------------------------------------------------------------------------
+// Effective damage calculation (recalculated fresh before every attack)
+// ---------------------------------------------------------------------------
+export function calcEffectiveDamage(state, attackerP) {
+  const leader = state.players[attackerP].leader;
+  let base = leader.damage;
 
-  let boost = 0;
-  const boostSources = [];
-  for (const unit of state.players[p].bench) {
-    if (!unit.exhausted && unit.passive?.type === 'attack_boost') {
-      boost += unit.passive.amount;
-      boostSources.push(`${unit.name} +${unit.passive.amount}`);
+  // Shadow passive: doubles base damage per Shadow on bench
+  for (const unit of state.players[attackerP].bench) {
+    if (unit.id === 'shadow' && !unit.exhausted && unit.passive?.type === 'shadow_boost') {
+      base *= 2;
     }
   }
-  if (state.chaosEmeraldBuff[p] > 0) {
-    boost += state.chaosEmeraldBuff[p];
-    boostSources.push(`Chaos Emerald +${state.chaosEmeraldBuff[p]}`);
-  }
-  if (state.powerGloveBuff[p] > 0) {
-    boost += state.powerGloveBuff[p];
-    boostSources.push(`Power Glove +${state.powerGloveBuff[p]}`);
-  }
 
-  return { base, multiplier, shadowCount, baseAfterShadow, boost, boostSources, total: baseAfterShadow + boost };
+  const boosts = state.players[attackerP].bench.reduce((sum, unit) => {
+    if (!unit.exhausted && unit.passive?.type === 'attack_boost') sum += unit.passive.amount;
+    return sum;
+  }, 0);
+
+  return base
+    + boosts
+    + (state.chaosEmeraldBuff?.[attackerP] ?? 0)
+    + (state.powerGloveBuff?.[attackerP] ?? 0);
 }
 
 // ---------------------------------------------------------------------------
 // Apply damage to a Leader.
-// Shield absorbs ALL damage and clears. Cream-style reduction applies after.
-// triggerVectorPassive is called here so Vector fires on every damage event.
+// unblockable = true bypasses Elemental Shield reduction.
 // ---------------------------------------------------------------------------
 export function applyDamageToLeader(state, targetP, rawDamage, log, unblockable = false) {
-  if (!unblockable && state.shieldActive[targetP]) {
-    state.shieldActive[targetP] = false;
-    log(`🛡 Shield absorbed ${rawDamage} damage to Player ${targetP + 1}'s Leader!`, 'heal');
-    return;
-  }
-
   let reduction = 0;
   if (!unblockable) {
+    // Cream-style passive reduction
     for (const unit of state.players[targetP].bench) {
       if (!unit.exhausted && unit.passive?.type === 'damage_reduction') {
         reduction += unit.passive.amount;
       }
+    }
+    // Elemental Shield: flat reduction to next damage event
+    if (state.shieldReduction?.[targetP] > 0) {
+      const absorbed = Math.min(state.shieldReduction[targetP], rawDamage);
+      reduction += absorbed;
+      state.shieldReduction[targetP] = Math.max(0, state.shieldReduction[targetP] - rawDamage);
+      log(`Shield reduced ${absorbed} damage for Player ${targetP + 1}!`, 'heal');
     }
   }
 
@@ -67,17 +68,13 @@ export function applyDamageToLeader(state, targetP, rawDamage, log, unblockable 
   if (finalDmg <= 0) return;
 
   state.players[targetP].leader.currentHp -= finalDmg;
-  log(`💥 ${finalDmg} damage to Player ${targetP + 1}'s Leader!`, 'damage');
+  log(`${finalDmg} damage to Player ${targetP + 1}'s Leader!`, 'damage');
 
   // Vector passive: draw 1 per damage event on own Leader
   const vector = state.players[targetP].bench.find(u => u.id === 'vector' && !u.exhausted);
   if (vector) {
     _vectorDraw(state, targetP, log);
   }
-
-  // Mighty passive: after Leader is attacked, if damage ≥ 3 draw 1
-  // (handled in attackLeader / applyDamageToUnit callers, not here, to avoid
-  //  triggering on KO-penalty damage)
 }
 
 function _vectorDraw(state, p, log) {
@@ -85,7 +82,7 @@ function _vectorDraw(state, p, log) {
     const card = state.players[p].deck.shift();
     state.players[p].hand.push(card);
     state.missedDraws[p] = 0;
-    log(`🐊 Vector: draws ${card.name} (Leader took damage)`, 'draw');
+    log(`Vector: draws ${card.name} (Leader took damage)`, 'draw');
   }
 }
 
@@ -93,14 +90,8 @@ function _vectorDraw(state, p, log) {
 // Leader attacks opponent Leader directly.
 // ---------------------------------------------------------------------------
 export function attackLeader(state, attackerP, defenderP, log) {
-  if (state.shieldActive[defenderP]) {
-    state.shieldActive[defenderP] = false;
-    log(`🛡 Shield blocked Leader attack on Player ${defenderP + 1}!`, 'heal');
-    _triggerMightyPassive(state, attackerP, 0, log); // 0 dmg — no draw
-    return;
-  }
   const dmg = calcEffectiveDamage(state, attackerP);
-  log(`⚔ Player ${attackerP + 1} attacks Player ${defenderP + 1}'s Leader for ${dmg}!`, 'damage');
+  log(`Player ${attackerP + 1} attacks Player ${defenderP + 1}'s Leader for ${dmg}!`, 'damage');
   applyDamageToLeader(state, defenderP, dmg, log);
   _triggerMightyPassive(state, attackerP, dmg, log);
 }
@@ -112,32 +103,28 @@ export function applyDamageToUnit(state, attackerP, targetP, unitIdx, log) {
   const unit = state.players[targetP].bench[unitIdx];
   if (!unit) return;
 
-  if (state.shieldActive[targetP]) {
-    state.shieldActive[targetP] = false;
-    log(`🛡 Shield blocked attack on ${unit.name}!`, 'heal');
-    _triggerMightyPassive(state, attackerP, 0, log);
-    return;
-  }
-
   const dmg = calcEffectiveDamage(state, attackerP);
   unit.currentHp -= dmg;
-  log(`⚔ ${unit.name} took ${dmg} damage (${unit.currentHp}/${unit.hp} HP)`, 'damage');
+  log(`${unit.name} took ${dmg} damage (${unit.currentHp}/${unit.hp} HP)`, 'damage');
   _triggerMightyPassive(state, attackerP, dmg, log);
 
   if (unit.currentHp <= 0) {
     state.players[targetP].bench.splice(unitIdx, 1);
     state.players[targetP].discard.push(unit);
+    // Track for Polaris Pact condition
+    if (!state.supportDiedLastTurn) state.supportDiedLastTurn = [false, false];
+    state.supportDiedLastTurn[targetP] = true;
     const koPenalty = state.activeStage?.id === 'midnight_carnival' ? 0 : 20;
     if (koPenalty > 0) {
-      log(`💀 ${unit.name} KO'd! +${koPenalty} damage penalty to Player ${targetP + 1}`, 'damage');
+      log(`${unit.name} KO'd! +${koPenalty} damage penalty to Player ${targetP + 1}`, 'damage');
       applyDamageToLeader(state, targetP, koPenalty, log);
     } else {
-      log(`💀 ${unit.name} KO'd! (Midnight Carnival: no penalty)`, 'damage');
+      log(`${unit.name} KO'd! (Midnight Carnival: no penalty)`, 'damage');
     }
   }
 }
 
-// Mighty passive: if damage dealt ≥ 3 and Mighty is not exhausted, draw 1.
+// Mighty passive: if damage dealt >= 3 and Mighty is not exhausted, draw 1.
 function _triggerMightyPassive(state, p, dmg, log) {
   if (dmg < 3) return;
   const mighty = state.players[p].bench.find(u => u.id === 'mighty' && !u.exhausted);
@@ -146,15 +133,12 @@ function _triggerMightyPassive(state, p, dmg, log) {
     const card = state.players[p].deck.shift();
     state.players[p].hand.push(card);
     state.missedDraws[p] = 0;
-    log(`🦔 Mighty: draws ${card.name} (≥3 damage dealt)`, 'draw');
+    log(`Mighty: draws ${card.name} (damage dealt)`, 'draw');
   }
 }
 
 // ---------------------------------------------------------------------------
-// Blocking — called when defender chooses a bench unit to absorb a Leader attack.
-// Shield priority is handled upstream (no shield = block modal shown).
-// Cream reduction does NOT apply — Cream protects the Leader, not a blocker.
-// Mighty passive fires on attacker side based on damage dealt.
+// Blocking
 // ---------------------------------------------------------------------------
 export function resolveBlock(state, attackerP, defenderP, blockerIdx, log) {
   const unit = state.players[defenderP].bench[blockerIdx];
@@ -162,28 +146,20 @@ export function resolveBlock(state, attackerP, defenderP, blockerIdx, log) {
 
   const dmg = calcEffectiveDamage(state, attackerP);
   unit.currentHp -= dmg;
-  log(`🛡 ${unit.name} blocks for Player ${defenderP + 1}! Takes ${dmg} damage (${Math.max(0,unit.currentHp)}/${unit.hp} HP)`, 'damage');
+  log(`${unit.name} blocks for Player ${defenderP + 1}! Takes ${dmg} damage (${Math.max(0,unit.currentHp)}/${unit.hp} HP)`, 'damage');
   _triggerMightyPassive(state, attackerP, dmg, log);
 
   if (unit.currentHp <= 0) {
     state.players[defenderP].bench.splice(blockerIdx, 1);
     state.players[defenderP].discard.push(unit);
+    if (!state.supportDiedLastTurn) state.supportDiedLastTurn = [false, false];
+    state.supportDiedLastTurn[defenderP] = true;
     const koPenalty = state.activeStage?.id === 'midnight_carnival' ? 0 : 20;
     if (koPenalty > 0) {
-      log(`💀 ${unit.name} KO'd while blocking! +${koPenalty} penalty to Player ${defenderP + 1}`, 'damage');
-      applyDamageToLeader(state, defenderP, koPenalty, log, true); // unblockable KO penalty
+      log(`${unit.name} KO'd while blocking! +${koPenalty} damage to Player ${defenderP + 1}`, 'damage');
+      applyDamageToLeader(state, defenderP, koPenalty, log);
     } else {
-      log(`💀 ${unit.name} KO'd! (Midnight Carnival: no penalty)`, 'damage');
+      log(`${unit.name} KO'd while blocking! (Midnight Carnival: no penalty)`, 'damage');
     }
   }
-}
-
-// ---------------------------------------------------------------------------
-// Win condition — returns losing player index or null.
-// ---------------------------------------------------------------------------
-export function checkWin(state) {
-  for (let p = 0; p < 2; p++) {
-    if (state.players[p].leader.currentHp <= 0) return p;
-  }
-  return null;
 }

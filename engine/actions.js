@@ -149,10 +149,10 @@ function activateStage(state, p, card, log) {
   if (state.activeStage) {
     const originalOwner = state.activeStage._playedBy ?? p;
     state.players[originalOwner].discard.push(state.activeStage);
-    log(`🔄 ${state.activeStage.name} returned to P${originalOwner + 1}, replaced by ${card.name}`, 'phase');
+    log(`Stage replaced — returned to P${originalOwner + 1} discard`, 'phase');
   }
   state.activeStage = { ...card, _playedBy: p };
-  log(`🏔 Stage: ${card.name} is now active`, 'play');
+  log(`Stage: ${card.name} is now active`, 'play');
 }
 
 export function applyEquipmentEffect(state, p, card, log) {
@@ -171,8 +171,10 @@ export function applyEquipmentEffect(state, p, card, log) {
       log(`💚 Master Emerald: All bench actives free this turn!`, 'play');
       break;
     case 'elemental_shield':
-      state.shieldActive[p] = true;
-      log(`🛡 Elemental Shield: Player ${p + 1} shielded next opponent turn`, 'play');
+      // Adds 20 flat reduction to next incoming damage event
+      if (!state.shieldReduction) state.shieldReduction = [0, 0];
+      state.shieldReduction[p] += 20;
+      log(`🛡 Elemental Shield: -20 to next damage taken by Player ${p + 1}`, 'play');
       break;
     case 'heat_barrier': {
       const leader = state.players[p].leader;
@@ -196,23 +198,35 @@ export function applyEquipmentEffect(state, p, card, log) {
       state.powerGloveBuff[p] += 30;
       log(`🥊 Power Glove: Leader +30 Damage this turn`, 'play');
       break;
-    case 'polaris_pact':
-      _refillToSix(state, 0, log);
-      _refillToSix(state, 1, log);
-      log(`🌌 Polaris Pact: Both players refilled to 6. Opponent discards 1.`, 'play');
-      state.pendingPolarisPact = { opponentIdx: opp };
+    case 'polaris_pact': {
+      if (!state.supportDiedLastTurn?.[p]) {
+        log('Polaris Pact: no friendly support died last turn — no effect', 'phase');
+        break;
+      }
+      const _shuf = (arr) => { for (let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return arr; };
+      [...state.players[p].hand].forEach(c => state.players[p].deck.push(c));
+      state.players[p].hand = [];
+      _shuf(state.players[p].deck);
+      [...state.players[opp].hand].forEach(c => state.players[opp].deck.push(c));
+      state.players[opp].hand = [];
+      _shuf(state.players[opp].deck);
+      log('Polaris Pact: both hands shuffled into decks', 'play');
+      drawCards(state, p,   5, log);
+      drawCards(state, opp, 2, log);
+      log(`Polaris Pact: P${p+1} draws 5, P${opp+1} draws 2`, 'play');
       break;
+    }
     case 'speed_shoes':
       state.energy[p] += 3;
       log(`👟 Speed Shoes: +3 Energy (now ${state.energy[p]})`, 'play');
       break;
     case 'extreme_gear':
       if (state.players[p].hand.length === 0) {
-        log(`⚙ Extreme Gear: hand is empty — no effect`, 'phase');
+        log('⚙ Extreme Gear: hand is empty — no effect', 'phase');
         break;
       }
-      state.pendingExtremeGear = { playerIdx: p };
-      log(`⚙ Extreme Gear: Choose cards to discard for energy`, 'play');
+      state.pendingExtremeGear = { playerIdx: p, maxDiscards: 3 };
+      log('⚙ Extreme Gear: choose up to 3 cards to discard for energy', 'play');
       break;
     case 'super_form':
       state.energy[p] *= 2;
@@ -266,17 +280,19 @@ export function triggerRougePassive(state, p, log) {
 // ---------------------------------------------------------------------------
 export function tailsActive(state, p, benchIdx, discardIdx, log) {
   const cost = getActiveCost(state, state.players[p].bench[benchIdx]);
-  if (!canAfford(state, cost)) { log(`❌ Not enough energy`, 'damage'); return false; }
-  if (state.players[p].discard.length === 0) { log(`♻ Tails: Discard is empty`, 'phase'); return false; }
+  if (!canAfford(state, cost)) { log('❌ Not enough energy', 'damage'); return false; }
+  if (state.players[p].discard.length === 0) { log('♻ Tails: Discard is empty', 'phase'); return false; }
   spendEnergy(state, cost);
   exhaustUnit(state, p, benchIdx);
   state.activesUsedThisTurn++;
   const card = state.players[p].discard.splice(discardIdx, 1)[0];
-  // After the effect, card goes back into the deck at a random position
-  log(`♻ Tails: plays ${card.name} from discard, then shuffles it into deck`, 'play');
+  if (card.type === 'Stage') {
+    state.players[p].discard.splice(discardIdx, 0, card);
+    log('❌ Tails: cannot replay a Stage card', 'damage');
+    return false;
+  }
+  log(`♻ Tails: plays ${card.name} from discard, then shuffles back into deck`, 'play');
   playCardFromDiscard(state, p, card, log);
-  // Units land on bench; stages become active stage. Equipment/Genesis go to discard
-  // via playCardFromDiscard — pull them back out and put into deck instead.
   if (card.type === 'Equipment' || card.type === 'Genesis') {
     const di = state.players[p].discard.indexOf(card);
     if (di !== -1) state.players[p].discard.splice(di, 1);
@@ -286,7 +302,6 @@ export function tailsActive(state, p, benchIdx, discardIdx, log) {
   }
   return true;
 }
-
 export function knucklesActive(state, p, benchIdx, targetUnitIdx, log) {
   const cost = getActiveCost(state, state.players[p].bench[benchIdx]);
   if (!canAfford(state, cost)) { log(`❌ Not enough energy`, 'damage'); return false; }
@@ -364,8 +379,9 @@ export function silverActive(state, p, benchIdx, targetBenchIdx, log) {
 
   const bounced = state.players[p].bench.splice(targetBenchIdx, 1)[0];
   if (!bounced) return false;
+  state.usedActivesThisTurn = state.usedActivesThisTurn.filter(u => u !== bounced.uid);
   state.players[p].hand.push({ ...bounced, currentHp: bounced.hp, exhausted: false });
-  log(`⚡ Silver: ${bounced.name} returned to hand`, 'play');
+  log(`⚡ Silver: ${bounced.name} returned to hand (active reset)`, 'play');
   return true;
 }
 
@@ -376,11 +392,14 @@ export function shadowActive(state, p, benchIdx, log) {
   exhaustUnit(state, p, benchIdx);
   state.activesUsedThisTurn++;
   const opp = opponent(p);
-  log(`🌑 Shadow: both Leaders take 10 unblockable damage`, 'damage');
-  state.players[p].leader.currentHp   = Math.max(0, state.players[p].leader.currentHp - 10);
-  state.players[opp].leader.currentHp = Math.max(0, state.players[opp].leader.currentHp - 10);
+  log(`🌑 Shadow: 30 damage to Player ${opp + 1}'s Leader`, 'damage');
+  applyDamageToLeader(state, opp, 30, log);
+  log(`🌑 Shadow: Player ${p + 1}'s Leader takes 10 unblockable damage`, 'damage');
+  state.players[p].leader.currentHp -= 10;
+  if (state.players[p].leader.currentHp < 0) state.players[p].leader.currentHp = 0;
   return true;
 }
+
 export function mightyActive(state, p, benchIdx, log) {
   const cost = getActiveCost(state, state.players[p].bench[benchIdx]);
   if (!canAfford(state, cost)) { log(`❌ Not enough energy`, 'damage'); return false; }
@@ -523,4 +542,33 @@ export function resolveExtremeGear(state, handIndices, log) {
   state.energySpentThisTurn[p] -= gained;
   log(`⚙ Extreme Gear: discarded ${gained} card(s), gained ${gained} Energy (now ${state.energy[p]})`, 'play');
   state.pendingExtremeGear = null;
+}// Shadow active: both Leaders take 10 unblockable, unreducible damage
+export function shadowActive(state, p, benchIdx, log) {
+  const cost = getActiveCost(state, state.players[p].bench[benchIdx]);
+  if (!canAfford(state, cost)) { log('❌ Not enough energy', 'damage'); return false; }
+  spendEnergy(state, cost);
+  exhaustUnit(state, p, benchIdx);
+  state.activesUsedThisTurn++;
+  const opp = opponent(p);
+  log('Shadow: both Leaders take 10 unblockable damage', 'damage');
+  state.players[p].leader.currentHp   = Math.max(0, state.players[p].leader.currentHp - 10);
+  state.players[opp].leader.currentHp = Math.max(0, state.players[opp].leader.currentHp - 10);
+  return true;
+}// Mighty active: second leader attack, opponent may block
+export function mightyActive(state, p, benchIdx, log) {
+  const cost = getActiveCost(state, state.players[p].bench[benchIdx]);
+  if (!canAfford(state, cost)) { log('❌ Not enough energy', 'damage'); return false; }
+  spendEnergy(state, cost);
+  exhaustUnit(state, p, benchIdx);
+  state.activesUsedThisTurn++;
+  const opp = opponent(p);
+  log('Mighty: second attack incoming!', 'damage');
+  const canBlock = state.players[opp].bench.some(u => !u.exhausted);
+  if (state.shieldActive[opp] || !canBlock) {
+    attackLeader(state, p, opp, log);
+  } else {
+    state.pendingBlock = { attackerP: p, defenderP: opp, isMighty: true };
+  }
+  state.pendingMightyAttack = false;
+  return true;
 }
