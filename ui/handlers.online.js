@@ -151,10 +151,6 @@ function refreshBoard() {
   // After render, correct the hand visibility based on who we are.
   if (myPlayerIdx !== null) {
     const opp = opponent(myPlayerIdx);
-    console.log('[DEBUG] refreshBoard myPlayerIdx:', myPlayerIdx, 'opp:', opp,
-      'myHand:', state.players[myPlayerIdx]?.hand?.length,
-      'oppHand:', state.players[opp]?.hand?.length,
-      'oppHand[0]:', JSON.stringify(state.players[opp]?.hand?.[0]));
     renderHand(`p${myPlayerIdx + 1}-hand`, state, myPlayerIdx, myPlayerIdx);
     renderHand(`p${opp + 1}-hand`,         state, opp,         -1);
   }
@@ -191,11 +187,18 @@ function attachBoardHandlers() {
 
   // ── Setup phase — concurrent: both players deploy simultaneously ─────────
   if (state.phase === 'setup') {
-    // Show own hand, allow unit drag-to-deploy
-    const setupHandEls = renderHand(`p${p + 1}-hand`, state, p);
-    setupHandEls.forEach(({ div, idx, card }) => {
-      if (card && card.type === 'Unit') attachDragToHandCard(div, idx, p);
-    });
+    // Hand is already rendered correctly by refreshBoard() — just wire drag events
+    // by querying the existing card elements rather than re-rendering
+    const handEl = document.getElementById(`p${p + 1}-hand`);
+    if (handEl) {
+      const cards = handEl.querySelectorAll('.card:not(.face-down)');
+      cards.forEach((div, idx) => {
+        const card = state.players[p].hand[idx];
+        if (card && !card.hidden && card.type === 'Unit') {
+          attachDragToHandCard(div, idx, p);
+        }
+      });
+    }
     attachBenchDropZone(`p${p + 1}-bench`, p);
 
     const btnEnd = document.getElementById('btn-end-phase');

@@ -70,15 +70,9 @@ export function render(state) {
       const sp = state._setupPlayer;
       renderHand('p1-hand', state, 0, sp);
       renderHand('p2-hand', state, 1, sp);
-    } else {
-      // Online concurrent setup: each player sees their own hand (face-up),
-      // opponent's hand is face-down. We pass ownerP = p for each so
-      // isOwner is true only for that player's own zone.
-      // Since render() doesn't know which side "we" are, we render both
-      // face-up here — handlers.online.js controls interactivity separately.
-      renderHand('p1-hand', state, 0, 0);
-      renderHand('p2-hand', state, 1, 1);
     }
+    // Online concurrent setup: hands are rendered by handlers.online.js
+    // refreshBoard() which knows myPlayerIdx — skip here to avoid overwriting.
   } else {
     renderHand('p1-hand', state, 0, state.activePlayer);
     renderHand('p2-hand', state, 1, state.activePlayer);
