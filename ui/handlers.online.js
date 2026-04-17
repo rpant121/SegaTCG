@@ -75,6 +75,7 @@ function bindSocketListeners() {
 
   socket.on('state_update', ({ state: newState, logEntries, winner, pendingBlock }) => {
     state = newState;
+    console.log('[DEBUG] state_update received — phase:', state?.phase, 'myIdx:', myPlayerIdx, 'players:', state?.players?.map(p => ({ hand: p.hand?.length, bench: p.bench?.length })));
 
     // Replay log entries from server
     if (Array.isArray(logEntries)) {
