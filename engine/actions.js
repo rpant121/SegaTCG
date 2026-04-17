@@ -385,31 +385,7 @@ export function silverActive(state, p, benchIdx, targetBenchIdx, log) {
   return true;
 }
 
-export function shadowActive(state, p, benchIdx, log) {
-  const cost = getActiveCost(state, state.players[p].bench[benchIdx]);
-  if (!canAfford(state, cost)) { log(`❌ Not enough energy`, 'damage'); return false; }
-  spendEnergy(state, cost);
-  exhaustUnit(state, p, benchIdx);
-  state.activesUsedThisTurn++;
-  const opp = opponent(p);
-  log(`🌑 Shadow: 30 damage to Player ${opp + 1}'s Leader`, 'damage');
-  applyDamageToLeader(state, opp, 30, log);
-  log(`🌑 Shadow: Player ${p + 1}'s Leader takes 10 unblockable damage`, 'damage');
-  state.players[p].leader.currentHp -= 10;
-  if (state.players[p].leader.currentHp < 0) state.players[p].leader.currentHp = 0;
-  return true;
-}
 
-export function mightyActive(state, p, benchIdx, log) {
-  const cost = getActiveCost(state, state.players[p].bench[benchIdx]);
-  if (!canAfford(state, cost)) { log(`❌ Not enough energy`, 'damage'); return false; }
-  spendEnergy(state, cost);
-  state.players[p].bench[benchIdx].exhausted = true;
-  state.activesUsedThisTurn++;
-  state.pendingMightyAttack = true;
-  log(`🦔 Mighty: second attack — choose a target`, 'play');
-  return true;
-}
 
 export function rougeActive(state, p, benchIdx, log) {
   const cost = getActiveCost(state, state.players[p].bench[benchIdx]);
