@@ -25,6 +25,28 @@ import {
 // ---------------------------------------------------------------------------
 // Sanitize: hide opponent's hand and deck contents from each client
 // ---------------------------------------------------------------------------
+// Redact opponent card names from draw log entries so neither player
+// can see what the other drew.
+// Affected patterns:
+//   "📄 Player N draws CardName"  → "📄 Player N draws a card"  (for opponent)
+//   "📄 Player N draws CardName"  → unchanged                   (for self)
+function sanitizeLogForPlayer(logEntries, viewerIdx) {
+  return logEntries.map(entry => {
+    if (!entry.msg) return entry;
+    // Match draw entries: emoji + "Player N draws <name>"
+    const drawMatch = entry.msg.match(/^(📄 Player )(\d+)( draws )(.+)$/);
+    if (drawMatch) {
+      const playerNum = parseInt(drawMatch[2], 10); // 1-based
+      const playerIdx = playerNum - 1;              // 0-based
+      if (playerIdx !== viewerIdx) {
+        // Redact the card name for the opponent
+        return { ...entry, msg: `${drawMatch[1]}${drawMatch[2]}${drawMatch[3]}a card` };
+      }
+    }
+    return entry;
+  });
+}
+
 function sanitizeForPlayer(state, viewerIdx) {
   return {
     ...state,
@@ -97,21 +119,23 @@ export class GameRoom {
   _startGame() {
     this.state = createInitialState(this.decks[0], this.decks[1]);
 
-    // Emit game_start to each player with their playerIdx
-    this.sockets.forEach((socketId, idx) => {
-      this.io.to(socketId).emit('game_start', {
-        playerIdx: idx,
-        roomCode:  this.roomCode,
-        deckNames: this.deckNames,
-        firstPlayer: this.state.activePlayer,
-      });
-    });
-
     // Concurrent setup: both players deploy simultaneously
     this.state.phase = 'setup';
-    this.state._setupReady = [false, false]; // tracks which players are done
-    delete this.state._setupPlayer;          // not used in online concurrent mode
-    this._broadcast({ logEntries: [{ msg: '=== GAME START ===', type: 'phase' }] });
+    this.state._setupReady = [false, false];
+    delete this.state._setupPlayer;
+
+    // Emit game_start WITH the initial sanitized state embedded so the client
+    // doesn't need a separate REQUEST_STATE round-trip.
+    this.sockets.forEach((socketId, idx) => {
+      this.io.to(socketId).emit('game_start', {
+        playerIdx:   idx,
+        roomCode:    this.roomCode,
+        deckNames:   this.deckNames,
+        firstPlayer: this.state.activePlayer,
+        initialState: this._sanitizeForPlayer(this.state, idx),
+        logEntries:  [{ msg: '=== GAME START ===', type: 'phase' }],
+      });
+    });
   }
 
   // ── Action dispatch ───────────────────────────────────────────────────────
@@ -417,8 +441,8 @@ export class GameRoom {
     this.sockets.forEach((socketId, idx) => {
       if (!socketId) return;
       const payload = {
-        state:       sanitizeForPlayer(this.state, idx),
-        logEntries:  extra.logEntries ?? [],
+        state:        sanitizeForPlayer(this.state, idx),
+        logEntries:   sanitizeLogForPlayer(extra.logEntries ?? [], idx),
         pendingBlock: this.state.pendingBlock
           ? (idx === this.state.pendingBlock.defenderP
               ? this.state.pendingBlock
@@ -428,6 +452,10 @@ export class GameRoom {
       if (extra.winner !== undefined) payload.winner = extra.winner;
       this.io.to(socketId).emit('state_update', payload);
     });
+  }
+
+  _sanitizeForPlayer(state, viewerIdx) {
+    return sanitizeForPlayer(state, viewerIdx);
   }
 
   _broadcastToPlayer(idx, event, payload) {
