@@ -90,6 +90,15 @@ function bindSocketListeners() {
     // Dismiss waiting overlay — re-shown below if still needed
     hideWaitingOverlay();
 
+    // Once setup is over, reset the Done Setup button so it works normally
+    if (state.phase !== 'setup') {
+      const btn = document.getElementById('btn-end-phase');
+      if (btn && btn.dataset.setupReady) {
+        delete btn.dataset.setupReady;
+        btn.disabled = false;
+      }
+    }
+
     // Setup phase — concurrent: both players deploy at the same time
     if (state.phase === 'setup') {
       refreshBoard();
