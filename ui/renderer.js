@@ -186,10 +186,11 @@ export function renderLeader(containerId, state, p) {
     canUse                ? 'active-avail'  : '',
   ].filter(Boolean).join(' '));
 
+  const leaderEmoji = { sonic: '🦔', joker: '🃏', kiryu: '🐉' }[leader.id] ?? '👑';
   div.innerHTML = `
-    <div class="leader-emoji">🦔</div>
+    <div class="leader-emoji">${leaderEmoji}</div>
     <div class="leader-info">
-      <div class="leader-name">SONIC</div>
+      <div class="leader-name">${leader.name ?? leader.id?.toUpperCase() ?? 'LEADER'}</div>
       <div class="leader-hp-bar"><div class="leader-hp-fill" style="width:${hpPct}%"></div></div>
       <div class="leader-stats">
         <span class="leader-hp-text">${leader.currentHp}/${leader.hp}</span>
