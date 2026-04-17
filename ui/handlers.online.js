@@ -87,6 +87,9 @@ function bindSocketListeners() {
       return;
     }
 
+    // Dismiss waiting overlay — re-shown below if still needed
+    hideWaitingOverlay();
+
     // Setup phase — concurrent: both players deploy at the same time
     if (state.phase === 'setup') {
       refreshBoard();
@@ -95,16 +98,17 @@ function bindSocketListeners() {
 
     // If it's now the END phase, show the pass screen before advancing turn
     if (state.phase === 'end') {
-      const nextPlayerNum = opponent(state.activePlayer) + 1;
-      // Only the currently-active player triggers the pass screen
       if (state.activePlayer === myPlayerIdx) {
-        showPassModal(nextPlayerNum);
-      } else {
-        // Opponent is done — wait for them to click Continue (they'll send ADVANCE_TURN)
-        showWaitingOverlay(`Waiting for Player ${state.activePlayer + 1} to end their turn…`);
+        // Online: no pass modal needed — automatically advance the turn.
+        // A brief delay lets the end-phase log entries render first.
         refreshBoard();
-        return;
+        setTimeout(() => act('ADVANCE_TURN'), 800);
+      } else {
+        // Opponent's end phase — just show a waiting state
+        showWaitingOverlay(`Waiting for Player ${state.activePlayer + 1} to finish their turn…`);
+        refreshBoard();
       }
+      return;
     }
 
     // Pending block: if we are the defender, show block modal
