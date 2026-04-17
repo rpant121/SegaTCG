@@ -383,6 +383,7 @@ export function silverActive(state, p, benchIdx, targetBenchIdx, log) {
   return true;
 }
 
+// Shadow active: both Leaders take 10 unblockable, unreducible damage
 export function shadowActive(state, p, benchIdx, log) {
   const cost = getActiveCost(state, state.players[p].bench[benchIdx]);
   if (!canAfford(state, cost)) { log(`❌ Not enough energy`, 'damage'); return false; }
@@ -390,11 +391,9 @@ export function shadowActive(state, p, benchIdx, log) {
   exhaustUnit(state, p, benchIdx);
   state.activesUsedThisTurn++;
   const opp = opponent(p);
-  log(`🌑 Shadow: 30 damage to Player ${opp + 1}'s Leader`, 'damage');
-  applyDamageToLeader(state, opp, 30, log);
-  log(`🌑 Shadow: Player ${p + 1}'s Leader takes 10 unblockable damage`, 'damage');
-  state.players[p].leader.currentHp -= 10;
-  if (state.players[p].leader.currentHp < 0) state.players[p].leader.currentHp = 0;
+  log(`🌑 Shadow: both Leaders take 10 unblockable damage`, 'damage');
+  state.players[p].leader.currentHp = Math.max(0, state.players[p].leader.currentHp - 10);
+  state.players[opp].leader.currentHp = Math.max(0, state.players[opp].leader.currentHp - 10);
   return true;
 }
 

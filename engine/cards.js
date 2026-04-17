@@ -69,8 +69,8 @@ export const UNIT_DATA = {
     id: 'shadow', name: 'Shadow', type: 'Unit', cost: 0, hp: 40,
     passive: { type: 'shadow_boost', amount: 1 },
     passiveDesc: "While on bench: double your Leader's base damage. Stacks per Shadow.",
-    activeCost: 3,
-    activeDesc: "Deal 3 damage to the opponent's Leader. Your Leader takes 10 unblockable, unreducible damage.",
+    activeCost: 2,
+    activeDesc: "Both Leaders take 10 unblockable, unreducible damage.",
   },
   mighty: {
     id: 'mighty', name: 'Mighty', type: 'Unit', cost: 0, hp: 30,

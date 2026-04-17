@@ -371,7 +371,7 @@ const POOL_CARDS = [
   { id: 'big',      name: 'Big',      type: 'Unit', cost: 0, hp: 4,  passive: 'Start of turn: look at top deck card, may discard it', active: "Discard a random card from opponent's hand", activeCost: 3 },
   // ── Aggro Units ───────────────────────────────────────────────────────
   { id: 'silver',   name: 'Silver',   type: 'Unit', cost: 0, hp: 3,  passive: 'All friendly unit actives cost 1 less energy (minimum 1).', active: 'Return one of your bench units to your hand.', activeCost: 3 },
-  { id: 'shadow',   name: 'Shadow',   type: 'Unit', cost: 0, hp: 4,  passive: "Leader base damage doubles while Shadow is on bench (stacks)", active: "Deal 30 damage to opponent's Leader. Your Leader takes 10 unblockable damage.", activeCost: 3 },
+  { id: 'shadow',   name: 'Shadow',   type: 'Unit', cost: 0, hp: 4,  passive: "Leader base damage doubles while Shadow is on bench (stacks)", active: "Both Leaders take 10 unblockable, unreducible damage.", activeCost: 2 },
   { id: 'mighty',   name: 'Mighty',   type: 'Unit', cost: 0, hp: 3,  passive: 'After your Leader deals ≥30 damage, draw 1 card', active: 'Your Leader attacks a second time this turn. Mighty exhausts.', activeCost: 2 },
   // ── Setup Units ───────────────────────────────────────────────────────
   { id: 'rouge',    name: 'Rouge',    type: 'Unit', cost: 0, hp: 2,  passive: 'When a card is milled from your deck to your discard, draw 1', active: 'Place the top card of your deck into your discard. Rouge does NOT exhaust.', activeCost: 1 },
