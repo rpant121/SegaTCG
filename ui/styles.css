@@ -350,16 +350,6 @@ body {
   50%       { box-shadow: 0 0 14px #ff224488, 0 0 24px #ff224422; }
 }
 
-.leader-dmg-breakdown {
-  font-size: 7.5px;
-  color: #aa6655;
-  margin-top: 3px;
-  font-family: var(--font-mono);
-  letter-spacing: 0.2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 
 /* ── Bench Units ─────────────────────────────────────────── */
 .bench-slot {

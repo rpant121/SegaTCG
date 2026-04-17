@@ -150,17 +150,12 @@ export function renderLeader(containerId, state, p) {
   const bd     = calcDamageBreakdown(state, p);
   const isBuffed = effDmg > bd.base;
 
-  // Build breakdown tooltip string
+  // Build breakdown string for right-click tooltip
   let breakdownParts = [];
   if (bd.shadowCount > 0) breakdownParts.push(`${bd.base} × ${bd.multiplier} (Shadow)`);
   else breakdownParts.push(`${bd.base} base`);
   bd.boostSources.forEach(s => breakdownParts.push(s));
-  const breakdownStr = breakdownParts.join(' + ');
-
-  // Build breakdown bar HTML (shown in the hp-bar area as a sub-label)
-  const dmgBarHtml = isBuffed
-    ? `<div class="leader-dmg-breakdown">${breakdownStr} = ${effDmg}</div>`
-    : '';
+  const breakdownStr = breakdownParts.join(' + ') + ` = ${effDmg}`;
 
   const isTarget = state.phase === 'attack' && p !== ap;
   const canUse   = state.phase === 'main' && p === ap
@@ -182,15 +177,16 @@ export function renderLeader(containerId, state, p) {
       <div class="leader-hp-bar"><div class="leader-hp-fill" style="width:${hpPct}%"></div></div>
       <div class="leader-stats">
         <span class="leader-hp-text">${leader.currentHp}/${leader.hp}</span>
-        <span class="leader-dmg-chip${isBuffed ? ' buffed' : ''}" title="${breakdownStr}">⚔ ${effDmg}</span>
+        <span class="leader-dmg-chip${isBuffed ? ' buffed' : ''}">⚔ ${effDmg}</span>
       </div>
-      ${dmgBarHtml}
     </div>
   `;
 
+  // Right-click shows damage breakdown in inspect modal
+  addContextMenu(div, leader, null, breakdownStr);
+
   addTooltip(div, leader.name,
     `HP: ${leader.currentHp}/${leader.hp} · Damage: ${effDmg}\nActive (${leader.activeCost}⚡): ${leader.activeDesc}`);
-  addContextMenu(div, leader);
 
   el.innerHTML = '';
   el.appendChild(div);
@@ -311,7 +307,7 @@ export function buildCardEl(card, playable = false) {
 // ---------------------------------------------------------------------------
 // Card Inspect Modal (right-click)
 // ---------------------------------------------------------------------------
-function buildInspectModal(card, onActivate = null) {
+function buildInspectModal(card, onActivate = null, extraInfo = null) {
   const typeKey = {
     Unit: 'unit', Stage: 'stage',
     Equipment: 'equipment', Genesis: 'genesis', Leader: 'leader',
@@ -361,6 +357,23 @@ function buildInspectModal(card, onActivate = null) {
 
     stats.innerHTML = parts.join('');
     modal.appendChild(stats);
+  }
+
+  // ── Damage breakdown (right-click on leader when buffed) ───────────
+  if (extraInfo) {
+    const infoBox = document.createElement('div');
+    infoBox.style.cssText = `
+      margin: 8px 12px 0;
+      padding: 8px 12px;
+      background: #1a0808;
+      border: 1px solid #882222;
+      border-radius: 6px;
+    `;
+    infoBox.innerHTML = `
+      <div style="font-family:var(--font-display);font-size:8px;letter-spacing:2px;color:#aa4433;margin-bottom:4px;">DAMAGE BREAKDOWN</div>
+      <div style="font-family:var(--font-mono);font-size:12px;color:#ff8866;">${extraInfo}</div>
+    `;
+    modal.appendChild(infoBox);
   }
 
   // ── Body ──────────────────────────────────────────────────
@@ -447,20 +460,20 @@ function buildInspectModal(card, onActivate = null) {
   return modal;
 }
 
-export function openCardInspect(card, onActivate = null) {
+export function openCardInspect(card, onActivate = null, extraInfo = null) {
   const overlay = q('card-inspect-overlay');
   overlay.innerHTML = '';
-  overlay.appendChild(buildInspectModal(card, onActivate));
+  overlay.appendChild(buildInspectModal(card, onActivate, extraInfo));
   overlay.classList.add('active');
   overlay.onclick = (e) => {
     if (e.target === overlay) closeOverlay('card-inspect-overlay');
   };
 }
 
-export function addContextMenu(el, card, onActivate = null) {
+export function addContextMenu(el, card, onActivate = null, extraInfo = null) {
   el.addEventListener('contextmenu', (e) => {
     e.preventDefault();
-    openCardInspect(card, onActivate);
+    openCardInspect(card, onActivate, extraInfo);
   });
 }
 
