@@ -75,8 +75,6 @@ function bindSocketListeners() {
 
   socket.on('state_update', ({ state: newState, logEntries, winner, pendingBlock }) => {
     state = newState;
-    console.log('[DEBUG] state_update received — phase:', state?.phase, 'myIdx:', myPlayerIdx, 'players:', state?.players?.map(p => ({ hand: p.hand?.length, bench: p.bench?.length })));
-
     // Replay log entries from server
     if (Array.isArray(logEntries)) {
       logEntries.forEach(({ msg, type }) => addLog(msg, type));
@@ -150,6 +148,15 @@ function bindSocketListeners() {
 function refreshBoard() {
   if (!state) return;
   render(state);
+  // After render, correct the hand visibility based on who we are.
+  // render() doesn't know myPlayerIdx so it may show the wrong hands.
+  // We re-render each hand with the correct owner: our hand face-up,
+  // opponent's hand face-down (-1 = force face-down).
+  if (myPlayerIdx !== null) {
+    const opp = opponent(myPlayerIdx);
+    renderHand(`p${myPlayerIdx + 1}-hand`, state, myPlayerIdx, myPlayerIdx);
+    renderHand(`p${opp + 1}-hand`,         state, opp,         -1);
+  }
   attachBoardHandlers();
 }
 
