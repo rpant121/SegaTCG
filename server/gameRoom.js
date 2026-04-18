@@ -33,16 +33,27 @@ import {
 function sanitizeLogForPlayer(logEntries, viewerIdx) {
   return logEntries.map(entry => {
     if (!entry.msg) return entry;
-    // Match draw entries: emoji + "Player N draws <name>"
-    const drawMatch = entry.msg.match(/^(📄 Player )(\d+)( draws )(.+)$/);
+
+    // Redact draw card names for opponent
+    const drawMatch = entry.msg.match(/^(. Player )(\d+)( draws )(.+)$/);
     if (drawMatch) {
-      const playerNum = parseInt(drawMatch[2], 10); // 1-based
-      const playerIdx = playerNum - 1;              // 0-based
-      if (playerIdx !== viewerIdx) {
-        // Redact the card name for the opponent
-        return { ...entry, msg: `${drawMatch[1]}${drawMatch[2]}${drawMatch[3]}a card` };
+      const pIdx = parseInt(drawMatch[2], 10) - 1;
+      if (pIdx !== viewerIdx) {
+        return { ...entry, msg: drawMatch[1] + drawMatch[2] + drawMatch[3] + 'a card' };
       }
     }
+
+    // Redact setup deployment card names for opponent
+    const deployMatch = entry.msg.match(/^__setup_deploy__:(\d+):(.+)$/);
+    if (deployMatch) {
+      const pIdx = parseInt(deployMatch[1], 10);
+      if (pIdx === viewerIdx) {
+        return { ...entry, msg: 'You deployed ' + deployMatch[2], type: 'play' };
+      } else {
+        return { ...entry, msg: 'Opponent deployed a unit', type: 'play' };
+      }
+    }
+
     return entry;
   });
 }
@@ -176,7 +187,8 @@ export class GameRoom {
         if (state.players[playerIdx].bench.length >= 3) throw new Error('Bench is full.');
         state.players[playerIdx].hand.splice(payload.handIdx, 1);
         state.players[playerIdx].bench.push({ ...card, currentHp: card.hp, exhausted: false });
-        log(`📌 Player ${playerIdx + 1} deploys ${card.name}`, 'play');
+        // Log generically — each player gets a sanitized version via _broadcast
+        log(`__setup_deploy__:${playerIdx}:${card.name}`, 'play');
         this._broadcast({ logEntries: log.flush() });
         return;
       }
@@ -461,7 +473,7 @@ export class GameRoom {
       if (!socketId) return;
       const payload = {
         state:        sanitizeForPlayer(this.state, idx),
-        logEntries:   sanitizeLogForPlayer(extra.logEntries ?? [], idx),
+        logEntries:   sanitizeLogForPlayer(extra.logEntries ?? [], idx, this.state?.phase === 'setup'),
         pendingBlock: this.state.pendingBlock
           ? (idx === this.state.pendingBlock.defenderP
               ? this.state.pendingBlock
