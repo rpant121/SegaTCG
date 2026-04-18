@@ -101,8 +101,15 @@ function bindSocketListeners() {
     // Genesis glow
     if (state._genesisPlayedBy !== undefined) triggerGenesisGlow(state._genesisPlayedBy);
 
-    // Setup phase
-    if (state.phase === 'setup') { refreshBoard(); return; }
+    // Setup phase — reset drop zones so they can be re-wired each state update
+    if (state.phase === 'setup') {
+      // Clear dropWired flags so attachBenchDropZoneOnce re-wires on each render
+      document.querySelectorAll('[data-drop-wired]').forEach(el => {
+        delete el.dataset.dropWired;
+      });
+      refreshBoard();
+      return;
+    }
 
     // End phase - auto advance
     if (state.phase === 'end') {
@@ -201,23 +208,65 @@ function attachBoardHandlers() {
   const p   = myPlayerIdx;
   const opp = opponent(p);
 
-  // ── Not my turn — nothing interactive (except pending block handled separately) ──
-  if (!isMyTurn() && state.phase !== 'setup') return;
-
-  // ── Setup phase — concurrent: both players deploy simultaneously ─────────
+  // ── SETUP PHASE ──────────────────────────────────────────────────────────
   if (state.phase === 'setup') {
-    // _setupPlayer is only set in local sequential mode.
-    // Online concurrent mode: _setupPlayer is undefined — both players act freely.
     if (state._setupPlayer !== undefined && state._setupPlayer !== myPlayerIdx) return;
 
-    // Wire drag-to-deploy for own unit cards
+    // Own hand: wire drag for unit cards
     const setupHandEls = renderHand(`p${p + 1}-hand`, state, p, p);
     setupHandEls.forEach(({ div, idx, card }) => {
-      if (card && !card.hidden && card.type === 'Unit') attachDragToHandCard(div, idx, p);
+      if (card && !card.hidden && card.type === 'Unit') {
+        attachDragToHandCard(div, idx, p);
+      }
+      // Right-click inspect always available
+      if (card && !card.hidden) {
+        div.addEventListener('contextmenu', e => { e.preventDefault(); openCardInspect(card, null); });
+      }
     });
-    attachBenchDropZoneOnce(`p${p + 1}-bench`, p);
 
-    // Done Setup button is wired by bindStaticButtons — just update display here
+    // Own bench: render face-up (player sees their own deployments) + re-wire drop zone
+    const ownBenchEl = document.getElementById(`p${p + 1}-bench`);
+    if (ownBenchEl) {
+      renderBench(`p${p + 1}-bench`, state, p);
+      // Always re-wire drop zone after renderBench re-creates DOM
+      delete ownBenchEl.dataset.dropWired;
+      attachBenchDropZoneOnce(`p${p + 1}-bench`, p);
+      // Right-click on own bench cards
+      ownBenchEl.querySelectorAll('.bench-unit').forEach((div, idx) => {
+        const unit = state.players[p].bench[idx];
+        if (unit) div.addEventListener('contextmenu', e => { e.preventDefault(); openCardInspect(unit, null); });
+      });
+    }
+
+    // Opponent bench: show face-down card-back for each deployed unit
+    const oppBenchEl = document.getElementById(`p${opp + 1}-bench`);
+    if (oppBenchEl) {
+      oppBenchEl.innerHTML = '';
+      const oppBench = state.players[opp].bench ?? [];
+      if (oppBench.length === 0) {
+        const placeholder = document.createElement('div');
+        placeholder.style.cssText = 'opacity:0.25;font-size:9px;color:#6677aa;text-align:center;padding:20px 10px;font-family:var(--font-mono);letter-spacing:1px;';
+        placeholder.textContent = 'Opponent is setting up…';
+        oppBenchEl.appendChild(placeholder);
+      } else {
+        oppBench.forEach(() => {
+          const faceDown = document.createElement('div');
+          faceDown.className = 'bench-unit';
+          faceDown.style.cssText = 'background:repeating-linear-gradient(45deg,#0a1a2e,#0a1a2e 4px,#0d2040 4px,#0d2040 8px);cursor:default;opacity:0.7;';
+          faceDown.innerHTML = '<div style="font-size:9px;color:#445566;text-align:center;padding:10px;font-family:var(--font-mono);">?</div>';
+          oppBenchEl.appendChild(faceDown);
+        });
+      }
+    }
+
+    // Own leader: right-click inspect
+    const ownLeaderEl = renderLeader(`p${p + 1}-leader-zone`, state, p);
+    ownLeaderEl.addEventListener('contextmenu', e => { e.preventDefault(); openCardInspect(state.players[p].leader, null); });
+
+    // Opponent leader: right-click inspect
+    const oppLeaderEl = renderLeader(`p${opp + 1}-leader-zone`, state, opp);
+    oppLeaderEl.addEventListener('contextmenu', e => { e.preventDefault(); openCardInspect(state.players[opp].leader, null); });
+
     const btnEnd = document.getElementById('btn-end-phase');
     const alreadyReady = btnEnd.dataset.setupReady === '1';
     btnEnd.textContent = alreadyReady ? 'Waiting for opponent…' : 'Done Setup →';
@@ -225,7 +274,79 @@ function attachBoardHandlers() {
     return;
   }
 
-  // ── Hand cards: click to play (non-unit), drag to deploy (unit) ──────────
+  // ── ALL OTHER PHASES: wire inspect for EVERYONE regardless of turn ────────
+  // Right-click on opponent hand cards (face-down, but right-click shows card back)
+  const oppHandEl = document.getElementById(`p${opp + 1}-hand`);
+  if (oppHandEl) {
+    oppHandEl.querySelectorAll('.card').forEach(div => {
+      div.addEventListener('contextmenu', e => { e.preventDefault(); });
+    });
+  }
+
+  // Opponent bench: inspect always available
+  const oppBenchEls = renderBench(`p${opp + 1}-bench`, state, opp);
+  oppBenchEls.forEach(({ div, idx }) => {
+    const unit = state.players[opp].bench[idx];
+    if (unit) {
+      div.addEventListener('contextmenu', e => {
+        e.preventDefault();
+        openCardInspect(unit, null);
+      });
+      if (isMyTurn() && state.phase === 'attack') {
+        div.onclick = () => act('ATTACK', { targetType: 'unit', targetBenchIdx: idx });
+      }
+    }
+  });
+
+  // Opponent leader: inspect always available + attack target
+  const oppLeaderDiv = renderLeader(`p${opp + 1}-leader-zone`, state, opp);
+  oppLeaderDiv.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    openCardInspect(state.players[opp].leader, null);
+  });
+  if (isMyTurn() && state.phase === 'attack') {
+    oppLeaderDiv.onclick = () => act('ATTACK', { targetType: 'leader' });
+  }
+
+  // Own bench: inspect always available
+  const ownBenchEls = renderBench(`p${p + 1}-bench`, state, p);
+  ownBenchEls.forEach(({ div, idx }) => {
+    const unit = state.players[p].bench[idx];
+    if (!unit) return;
+    const cost = getActiveCost(state, unit);
+    const canActivate = isMyTurn()
+      && state.phase === 'main'
+      && !unit.exhausted
+      && canAfford(state, cost)
+      && !(unit.id === 'rouge' && (state.rougeUsedThisTurn ?? [false, false])[p])
+      && !hasUsedActiveThisTurn(state, unit);
+    if (canActivate) div.onclick = () => handleUnitActive(p, idx);
+    div.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      openCardInspect(unit, canActivate ? () => handleUnitActive(p, idx) : null);
+    });
+  });
+
+  // Own leader: inspect always available + active on your turn
+  const ownLeaderDiv = renderLeader(`p${p + 1}-leader-zone`, state, p);
+  ownLeaderDiv.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    const canUse = isMyTurn() && canAfford(state, state.players[p].leader.activeCost)
+      && state.players[p].hand.length > 0
+      && !(state.leaderUsedThisTurn ?? [false, false])[p];
+    openCardInspect(state.players[p].leader, canUse ? openSonicModal : null);
+  });
+  if (isMyTurn() && state.phase === 'main') {
+    const canUse = canAfford(state, state.players[p].leader.activeCost)
+      && state.players[p].hand.length > 0
+      && !(state.leaderUsedThisTurn ?? [false, false])[p];
+    ownLeaderDiv.style.cursor = canUse ? 'pointer' : 'default';
+    if (canUse) ownLeaderDiv.onclick = () => openSonicModal();
+  }
+
+  // Own hand + bench drop zone: only interactive on your turn
+  if (!isMyTurn()) return;
+
   const handEls = renderHand(`p${p + 1}-hand`, state, p);
   handEls.forEach(({ div, idx, card }) => {
     if (card.type === 'Unit') {
@@ -241,64 +362,11 @@ function attachBoardHandlers() {
     });
   });
 
-  attachBenchDropZoneOnce(`p${p + 1}-bench`, p);
-
-  // ── Own bench: click for active ability ──────────────────────────────────
-  const ownBenchEls = renderBench(`p${p + 1}-bench`, state, p);
-  ownBenchEls.forEach(({ div, idx }) => {
-    const unit      = state.players[p].bench[idx];
-    const cost      = getActiveCost(state, unit);
-    const canActivate = state.phase === 'main'
-      && !unit.exhausted
-      && canAfford(state, cost)
-      && !(unit.id === 'rouge' && (state.rougeUsedThisTurn ?? [false, false])[p])
-      && !hasUsedActiveThisTurn(state, unit);
-
-    if (canActivate) div.onclick = () => handleUnitActive(p, idx);
-    div.addEventListener('contextmenu', e => {
-      e.preventDefault();
-      openCardInspect(unit, canActivate ? () => handleUnitActive(p, idx) : null);
-    });
-  });
-
-  // ── Opponent bench: attack targets ───────────────────────────────────────
-  const oppBenchEls = renderBench(`p${opp + 1}-bench`, state, opp);
-  oppBenchEls.forEach(({ div, idx }) => {
-    const unit = state.players[opp].bench[idx];
-    if (state.phase === 'attack') {
-      div.onclick = () => act('ATTACK', { targetType: 'unit', targetBenchIdx: idx });
-    }
-    if (unit) {
-      div.addEventListener('contextmenu', e => {
-        e.preventDefault();
-        openCardInspect(unit, null);
-      });
-    }
-  });
-
-  // ── Opponent leader: attack target ────────────────────────────────────────
-  const oppLeaderDiv = renderLeader(`p${opp + 1}-leader-zone`, state, opp);
-  if (state.phase === 'attack') {
-    oppLeaderDiv.onclick = () => act('ATTACK', { targetType: 'leader' });
-    // Block modal is shown when server responds with pendingBlock (see state_update handler)
-  }
-  oppLeaderDiv.addEventListener('contextmenu', e => {
-    e.preventDefault();
-    openCardInspect(state.players[opp].leader, null);
-  });
-
-  // ── Own leader: Sonic active ──────────────────────────────────────────────
-  const ownLeaderDiv = renderLeader(`p${p + 1}-leader-zone`, state, p);
-  if (state.phase === 'main') {
-    const canUse = canAfford(state, state.players[p].leader.activeCost)
-      && state.players[p].hand.length > 0
-      && !(state.leaderUsedThisTurn ?? [false, false])[p];
-    ownLeaderDiv.style.cursor = canUse ? 'pointer' : 'default';
-    if (canUse) ownLeaderDiv.onclick = () => openSonicModal();
-    ownLeaderDiv.addEventListener('contextmenu', e => {
-      e.preventDefault();
-      openCardInspect(state.players[p].leader, canUse ? openSonicModal : null);
-    });
+  // Always re-wire drop zone after renderBench re-creates DOM
+  const ownBenchElMain = document.getElementById(`p${p + 1}-bench`);
+  if (ownBenchElMain) {
+    delete ownBenchElMain.dataset.dropWired;
+    attachBenchDropZoneOnce(`p${p + 1}-bench`, p);
   }
 }
 

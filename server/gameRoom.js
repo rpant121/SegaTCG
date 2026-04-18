@@ -48,6 +48,7 @@ function sanitizeLogForPlayer(logEntries, viewerIdx) {
 }
 
 function sanitizeForPlayer(state, viewerIdx) {
+  const isSetup = state.phase === 'setup';
   return {
     ...state,
     players: state.players.map((p, i) => {
@@ -56,6 +57,9 @@ function sanitizeForPlayer(state, viewerIdx) {
           ...p,
           hand: p.hand.map(() => ({ hidden: true })),
           deck: p.deck.map(() => ({ hidden: true })),
+          // During setup: send bench count as face-down placeholders so client
+          // knows how many units opponent deployed without seeing which ones
+          bench: isSetup ? p.bench.map(() => ({ hidden: true, type: 'Unit' })) : p.bench,
         };
       }
       return p;
