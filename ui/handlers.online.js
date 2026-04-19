@@ -68,11 +68,13 @@ function bindSocketListeners() {
 
     if (state.phase === 'end') {
       if (state.activePlayer === myPlayerIdx) {
-        refreshBoard();
-        setTimeout(() => act('ADVANCE_TURN'), 800);
+        // Don't render the transient end-phase board; just advance the turn.
+        setTimeout(() => act('ADVANCE_TURN'), 400);
       } else {
-        showWaitingOverlay('Waiting for Player ' + (state.activePlayer + 1) + ' to finish their turn...');
+        // Render the board state, THEN place the waiting overlay on top.
+        // If overlay is shown first, refreshBoard would immediately clear it.
         refreshBoard();
+        showWaitingOverlay('Waiting for Player ' + (state.activePlayer + 1) + ' to finish their turn...');
       }
       return;
     }
@@ -81,8 +83,9 @@ function bindSocketListeners() {
       if (pendingBlock.defenderP === myPlayerIdx) {
         refreshBoard(); openBlockModal(pendingBlock.attackerP, pendingBlock.defenderP); return;
       } else {
+        refreshBoard();
         showWaitingOverlay('Opponent is choosing whether to block...');
-        refreshBoard(); return;
+        return;
       }
     }
 

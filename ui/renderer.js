@@ -87,7 +87,7 @@ export function render(state) {
 // ---------------------------------------------------------------------------
 // HUD
 // ---------------------------------------------------------------------------
-function renderHUD(state) {
+export function renderHUD(state) {
   const p = state.activePlayer;
 
   setText('phase-display', PHASE_LABELS[state.phase] ?? state.phase);
@@ -130,7 +130,7 @@ function renderHUD(state) {
   }
 }
 
-function renderPlayerLabels(state) {
+export function renderPlayerLabels(state) {
   const p = (state.phase === 'setup' && state._setupPlayer !== undefined)
     ? state._setupPlayer
     : state.activePlayer;
@@ -138,7 +138,7 @@ function renderPlayerLabels(state) {
   q('p2-label').className = 'player-label' + (p === 1 ? ' active' : '');
 }
 
-function renderInfoRow(containerId, state, p) {
+export function renderInfoRow(containerId, state, p) {
   const el = q(containerId);
   const flags = [
     state.shieldActive[p]
@@ -322,7 +322,7 @@ export function buildCardEl(card, playable = false) {
   div.innerHTML = `
     <div class="card-type-strip"></div>
     <div class="card-type-badge ${typeClass}">${card.type.toUpperCase()}</div>
-    ${cost > 0 ? `<div class="card-cost">${cost}</div>` : ''}
+    ${cost > 0 && card.type !== 'Unit' ? `<div class="card-cost">${cost}</div>` : ''}
     <div class="card-emoji">${cardEmoji(card)}</div>
     <div class="card-name">${card.name}</div>
     ${card.hp !== undefined ? `<div class="card-hp-small">HP ${card.hp}</div>` : ''}
@@ -467,7 +467,7 @@ export function addContextMenu(el, card, onActivate = null) {
 // ---------------------------------------------------------------------------
 // Action buttons
 // ---------------------------------------------------------------------------
-function renderActionButtons(state) {
+export function renderActionButtons(state) {
   const p         = state.activePlayer;
   const btnLeader = q('btn-leader-active');
   const btnEnd    = q('btn-end-phase');
@@ -485,9 +485,12 @@ function renderActionButtons(state) {
 
   if (state.phase === 'main') {
     btnLeader.style.display = '';
-    btnLeader.disabled = !(canAfford(state, state.players[p].leader.activeCost)
-      && state.players[p].hand.length > 0
-      && !(state.leaderUsedThisTurn ?? [false, false])[p]);
+    const leader = state.players[p].leader;
+    const canUseActive = canAfford(state, leader.activeCost)
+      && (leader.id === 'kiryu' || state.players[p].hand.length > 0)
+      && !(state.leaderUsedThisTurn ?? [false, false])[p];
+    btnLeader.disabled = !canUseActive;
+    btnLeader.textContent = `⚡ ${leader.name} Active (${leader.activeCost}⚡)`;
     btnEnd.textContent = 'Start Attack →';
     btnEnd.disabled    = false;
   } else if (state.phase === 'attack') {
@@ -610,7 +613,7 @@ function setText(id, v){ const el = q(id); if (el) el.textContent = v; }
 
 function cardTooltip(card) {
   const lines = [];
-  if (card.cost        !== undefined) lines.push(`Cost: ${card.cost}⚡`);
+  if (card.cost !== undefined && card.type !== 'Unit') lines.push(`Cost: ${card.cost}⚡`);
   if (card.hp          !== undefined) lines.push(`HP: ${card.hp}`);
   if (card.damage      !== undefined) lines.push(`Damage: ${card.damage}`);
   if (card.effectDesc)  lines.push(`Effect: ${card.effectDesc}`);
