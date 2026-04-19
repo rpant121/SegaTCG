@@ -209,8 +209,8 @@ export function applyEquipmentEffect(state, p, card, log) {
   const opp = opponent(p);
   switch (card.id) {
     case 'ring':
-      state.energy[p] += 10;
-      log(`💍 Ring: +10 Energy (now ${state.energy[p]})`, 'play');
+      state.energy[p] += 1;
+      log(`💍 Ring: +1 Energy (now ${state.energy[p]})`, 'play');
       break;
     case 'chaos_emerald':
       state.chaosEmeraldBuff[p] += 20;
@@ -269,8 +269,8 @@ export function applyEquipmentEffect(state, p, card, log) {
       break;
     }
     case 'speed_shoes':
-      state.energy[p] += 30;
-      log(`👟 Speed Shoes: +30 Energy (now ${state.energy[p]})`, 'play');
+      state.energy[p] += 3;
+      log(`👟 Speed Shoes: +3 Energy (now ${state.energy[p]})`, 'play');
       break;
     case 'extreme_gear':
       if (state.players[p].hand.length === 0) {
@@ -343,7 +343,7 @@ export function applyEquipmentEffect(state, p, card, log) {
     }
     case 'phantom_thief_tools': {
       const opp = opponent(p);
-      const gain = state.players[opp].hand.length > state.players[p].hand.length ? 30 : 20;
+      const gain = state.players[opp].hand.length > state.players[p].hand.length ? 3 : 2;
       state.energy[p] += gain;
       log(`Phantom Thief Tools: +${gain} Energy (now ${state.energy[p]})`, 'play');
       break;
@@ -1039,7 +1039,7 @@ export function resolveExtremeGear(state, handIndices, log) {
       gained++;
     }
   });
-  const energyGained = gained * 10;
+  const energyGained = gained;
   state.energy[p] += energyGained;
   state.energySpentThisTurn[p] -= energyGained;
   log(`⚙ Extreme Gear: discarded ${gained} card(s), gained ${energyGained} Energy (now ${state.energy[p]})`, 'play');

@@ -96,10 +96,10 @@ function runEnergyPhase(state, log, emit) {
   // Active player always gets their energyMax restored
   state.energy[p] = state.energyMax[p];
   if (state.activeStage?.id === 'radical_highway') {
-    // Both players gain +10 energy on the active player's turn
-    state.energy[0] += 10;
-    state.energy[1] += 10;
-    log(`Radical Highway: each player +10 energy`, 'phase');
+    // Both players gain +1 energy on the active player's turn
+    state.energy[0] += 1;
+    state.energy[1] += 1;
+    log(`Radical Highway: each player +1 energy`, 'phase');
   }
 
   if (state.activeStage?.id === 'palace_infiltration_route') {

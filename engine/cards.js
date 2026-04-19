@@ -12,7 +12,7 @@ export const LEADER_DATA = {
   joker: {
     id: 'joker', name: 'Joker', type: 'Leader', ip: 'Persona 5',
     hp: 150, damage: 10, activeCost: 1,
-    activeDesc: 'Gain and activate any 30-cost or below active from your bench. Pay 10 extra to copy 40-cost or above abilities.',
+    activeDesc: 'Gain and activate any 3-cost or below active from your bench. Pay 1 extra to copy 4-cost or above abilities.',
   },
   kiryu: {
     id: 'kiryu', name: 'Kazuma Kiryu', type: 'Leader', ip: 'Yakuza',
@@ -130,105 +130,105 @@ export const UNIT_DATA = {
   // ── Persona 5 IP ──────────────────────────────────────────────────────────
 
   caroline: {
-    id: 'caroline', name: 'Caroline', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 20,
+    id: 'caroline', name: 'Caroline', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 40,
     passive: { type: 'caroline_passive', amount: 0 },
-    passiveDesc: 'If Justine is on bench, gain: (3E) The opponent can only play 1 equipment card this turn.',
+    passiveDesc: 'If Justine is on bench: the opponent can only play 1 equipment card this turn.',
     activeCost: 2,
     activeDesc: 'If Justine was sent from the bench to the discard alone on your previous turn, revive her to your bench.',
   },
   justine: {
-    id: 'justine', name: 'Justine', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 20,
+    id: 'justine', name: 'Justine', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 40,
     passive: { type: 'justine_passive', amount: 0 },
-    passiveDesc: 'If Caroline is on bench, gain: (2E) Disable an enemy active until your next turn.',
+    passiveDesc: 'If Caroline is on bench: disable an enemy active ability until your next turn.',
     activeCost: 2,
     activeDesc: 'If Caroline was sent from the bench to the discard alone on your previous turn, revive her to your bench.',
   },
   tae_takumi: {
-    id: 'tae_takumi', name: 'Tae Takumi', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 30,
+    id: 'tae_takumi', name: 'Tae Takumi', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 50,
     passive: { type: 'damage_reduction', amount: 10 },
     passiveDesc: "Your leader gains -10 damage taken during your opponent's turn.",
     activeCost: 2,
     activeDesc: 'Heal your leader for 20 HP (cannot exceed max HP).',
   },
   sojiro_sakura: {
-    id: 'sojiro_sakura', name: 'Sojiro Sakura', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 40,
+    id: 'sojiro_sakura', name: 'Sojiro Sakura', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 60,
     passive: { type: 'damage_reduction', amount: 10 },
     passiveDesc: "Your leader gains -10 damage taken during your opponent's turn.",
     activeCost: 2,
     activeDesc: 'Gain taunt until your next turn (opponent must attack this unit first if able).',
   },
   sae_niijima: {
-    id: 'sae_niijima', name: 'Sae Niijima', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 40,
+    id: 'sae_niijima', name: 'Sae Niijima', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 60,
     passive: { type: 'sae_passive', amount: 0 },
     passiveDesc: "Opponent's damage reduction effects are reduced by 10.",
     activeCost: 4,
     activeDesc: 'Your next Leader attack this turn cannot be blocked.',
   },
   sadayo_kawakami: {
-    id: 'sadayo_kawakami', name: 'Sadayo Kawakami', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 10,
+    id: 'sadayo_kawakami', name: 'Sadayo Kawakami', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 40,
     passive: { type: 'attack_boost', amount: 10 },
     passiveDesc: '+10 to Leader Attack.',
     activeCost: 2,
     activeDesc: "Deal 10 damage to each support unit on the opponent's bench.",
   },
   suguru_kamoshida: {
-    id: 'suguru_kamoshida', name: 'Suguru Kamoshida', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 30,
+    id: 'suguru_kamoshida', name: 'Suguru Kamoshida', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 50,
     passive: { type: 'kamoshida_passive', amount: 0 },
     passiveDesc: 'When damage is dealt to the opposing leader this turn, they discard 1 card at random.',
     activeCost: 3,
     activeDesc: 'Your opponent discards 2 cards at random.',
   },
   ryuji_sakamoto: {
-    id: 'ryuji_sakamoto', name: 'Ryuji Sakamoto', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 40,
+    id: 'ryuji_sakamoto', name: 'Ryuji Sakamoto', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 60,
     passive: { type: 'ryuji_passive', amount: 0 },
     passiveDesc: 'After your Leader attacks, if damage dealt was 20 or higher, your leader heals 10 HP.',
     activeCost: 1,
     activeDesc: "Deal 10 damage to your opponent's leader.",
   },
   ann_takamaki: {
-    id: 'ann_takamaki', name: 'Ann Takamaki', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 10,
+    id: 'ann_takamaki', name: 'Ann Takamaki', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 40,
     passive: { type: 'ann_passive', amount: 0 },
     passiveDesc: 'Whenever the opponent discards a card, deal 10 damage to their leader.',
     activeCost: 2,
     activeDesc: "Exile a card from the opponent's discard for each card they discarded this turn.",
   },
   morgana: {
-    id: 'morgana', name: 'Morgana', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 20,
+    id: 'morgana', name: 'Morgana', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 40,
     passive: { type: 'none', amount: 0 },
     passiveDesc: 'No passive.',
     activeCost: 2,
     activeDesc: 'Morgana and one enemy benched support unit are both sent to the discard.',
   },
   yusuke_kitagawa: {
-    id: 'yusuke_kitagawa', name: 'Yusuke Kitagawa', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 20,
+    id: 'yusuke_kitagawa', name: 'Yusuke Kitagawa', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 40,
     passive: { type: 'yusuke_passive', amount: 0 },
     passiveDesc: 'When Yusuke is placed on the bench, copy a passive from any benched support unit.',
     activeCost: 2,
     activeDesc: "Copy and activate any friendly supporter's active ability.",
   },
   makoto_niijima: {
-    id: 'makoto_niijima', name: 'Makoto Niijima', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 20,
+    id: 'makoto_niijima', name: 'Makoto Niijima', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 40,
     passive: { type: 'makoto_passive', amount: 0 },
     passiveDesc: 'After your Leader attacks, if damage dealt was 20 or higher, your leader heals 10 HP.',
     activeCost: 2,
     activeDesc: 'Deal damage to the opposing leader equal to total HP healed this turn.',
   },
   futaba_sakura: {
-    id: 'futaba_sakura', name: 'Futaba Sakura', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 20,
+    id: 'futaba_sakura', name: 'Futaba Sakura', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 40,
     passive: { type: 'futaba_passive', amount: 0 },
     passiveDesc: 'You may scry 1 at the end of each turn.',
     activeCost: 2,
     activeDesc: 'Draw cards equal to total damage dealt to enemy units this turn.',
   },
   haru_okumura: {
-    id: 'haru_okumura', name: 'Haru Okumura', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 10,
+    id: 'haru_okumura', name: 'Haru Okumura', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 40,
     passive: { type: 'haru_passive', amount: 0 },
     passiveDesc: 'Haru cannot be targeted by opposing damage or abilities unless it is a direct Leader attack.',
     activeCost: 2,
     activeDesc: 'Prevent all damage to your leader until your next turn. Haru stays exhausted until the end of your next turn.',
   },
   sumire_yoshizawa: {
-    id: 'sumire_yoshizawa', name: 'Sumire Yoshizawa', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 20,
+    id: 'sumire_yoshizawa', name: 'Sumire Yoshizawa', type: 'Unit', ip: 'Persona 5', cost: 0, hp: 40,
     passive: { type: 'ann_passive', amount: 0 },
     passiveDesc: 'Whenever the opponent discards a card, deal 10 damage to their leader.',
     activeCost: 3,
@@ -243,7 +243,7 @@ export const EQUIP_DATA = {
   ring: {
     id: 'ring', name: 'Ring', type: 'Equipment', ip: 'Sonic', cost: 0,
     isPersistent: false,
-    effectDesc: 'Gain 10 Energy immediately.',
+    effectDesc: 'Gain 1 Energy immediately.',
   },
   chaos_emerald: {
     id: 'chaos_emerald', name: 'Chaos Emerald', type: 'Equipment', ip: 'Sonic', cost: 2,
@@ -273,12 +273,12 @@ export const EQUIP_DATA = {
   speed_shoes: {
     id: 'speed_shoes', name: 'Speed Shoes', type: 'Equipment', ip: 'Sonic', cost: 1,
     isPersistent: false,
-    effectDesc: 'Gain 30 Energy immediately.',
+    effectDesc: 'Gain 3 Energy immediately.',
   },
   extreme_gear: {
     id: 'extreme_gear', name: 'Extreme Gear', type: 'Equipment', ip: 'Sonic', cost: 0,
     isPersistent: false,
-    effectDesc: 'Discard up to 3 cards from your hand — gain 10 Energy per card discarded.',
+    effectDesc: 'Discard up to 3 cards from your hand — gain 1 Energy per card discarded.',
   },
 
   // ── Sonic IP — Stages ─────────────────────────────────────────────────────
@@ -296,7 +296,7 @@ export const EQUIP_DATA = {
   radical_highway: {
     id: 'radical_highway', name: 'Radical Highway', type: 'Stage', ip: 'Sonic', cost: 1,
     isPersistent: true,
-    effectDesc: 'While active: each player gains 10 extra energy at the start of their turn.',
+    effectDesc: 'While active: each player gains 1 extra energy at the start of their turn.',
   },
 
   // ── Sonic IP — Genesis ────────────────────────────────────────────────────
@@ -342,7 +342,7 @@ export const EQUIP_DATA = {
   phantom_thief_tools: {
     id: 'phantom_thief_tools', name: 'Phantom Thief Tools', type: 'Equipment', ip: 'Persona 5', cost: 1,
     isPersistent: false,
-    effectDesc: 'Gain 20 Energy for this turn. If your opponent has more cards than you, gain 30 instead.',
+    effectDesc: 'Gain 2 Energy for this turn. If your opponent has more cards than you, gain 3 instead.',
   },
   metaverse_navigator: {
     id: 'metaverse_navigator', name: 'Metaverse Navigator', type: 'Equipment', ip: 'Persona 5', cost: 2,
