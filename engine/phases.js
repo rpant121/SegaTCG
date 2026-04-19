@@ -28,6 +28,10 @@ export function startTurn(state, log, emit) {
     if (u.exhausted) { u.exhausted = false; log(`${u.name} recovered`, 'phase'); }
   }
 
+  // Activate Kamoshida passive flag for this turn (always, before any early return)
+  if (!state.kamoshidaPassive) state.kamoshidaPassive = [false, false];
+  state.kamoshidaPassive[p] = !!state.players[p].bench.find(u => u.id === 'suguru_kamoshida' && !u.exhausted);
+
   const hasBig = state.players[p].bench.some(u => u.id === 'big' && !u.exhausted);
   if (hasBig && state.players[p].deck.length > 0) {
     state.phase = 'big_scry';
@@ -35,6 +39,7 @@ export function startTurn(state, log, emit) {
     emit('scry_prompt', state.pendingBigScry);
     return;
   }
+
   runDrawPhase(state, log, emit);
 }
 
@@ -63,13 +68,13 @@ function runDrawPhase(state, log, emit) {
   const totalDraw = 1 + stageBonus + espioBonus;
 
   if (state.players[p].deck.length === 0) {
-    state.missedDraws[p]++;
-    const penalty = state.missedDraws[p];
-    log(`Player ${p + 1} has no cards! Takes ${penalty} damage.`, 'damage');
-    state.players[p].leader.currentHp -= penalty;
+    // drawCards handles the missed-draw penalty (scaled x10), call it for 1 draw
+    drawCards(state, p, 1, log, true);
     if (checkWin(state) !== null) { emit('phase_changed', state.phase); return; }
+    // Draw extra cards (stage/espio bonuses) from empty deck each trigger penalty too
+    for (let i = 1; i < totalDraw; i++) drawCards(state, p, 1, log, true);
   } else {
-    drawCards(state, p, totalDraw, log);
+    drawCards(state, p, totalDraw, log, true);
     state.missedDraws[p] = 0;
   }
   if (espioBonus > 0) log(`Espio: +${espioBonus} draw`, 'draw');
@@ -82,17 +87,20 @@ function runEnergyPhase(state, log, emit) {
   const p = state.activePlayer;
   state.energyMax[p] = (state.energyMax[p] ?? 0) + 1;
 
+  // Active player always gets their energyMax restored
+  state.energy[p] = state.energyMax[p];
   if (state.activeStage?.id === 'radical_highway') {
-    state.energy[0] = state.energyMax[0] + 1;
-    state.energy[1] = state.energyMax[1] + 1;
-    log(`Radical Highway: each player +1 energy`, 'phase');
-  } else {
-    state.energy[p] = state.energyMax[p];
+    // Both players gain +10 energy on the active player's turn
+    state.energy[0] += 10;
+    state.energy[1] += 10;
+    log(`Radical Highway: each player +10 energy`, 'phase');
   }
 
   if (state.activeStage?.id === 'palace_infiltration_route') {
+    // Both leaders take 10 damage at start of energy phase
     for (let pi = 0; pi <= 1; pi++) {
-      state.players[pi].leader.currentHp = Math.max(0, state.players[pi].leader.currentHp - 10);
+      const ldr = state.players[pi].leader;
+      ldr.currentHp = Math.max(0, ldr.currentHp - 10);
       log(`Palace Infiltration Route: 10 damage to Player ${pi + 1}`, 'damage');
     }
     if (checkWin(state) !== null) { emit('phase_changed', state.phase); return; }
@@ -127,8 +135,11 @@ export function enterEndPhase(state, log, emit) {
   if (blaze && state.players[p].discard.length >= 5) {
     const leader = state.players[p].leader;
     if (leader.currentHp < leader.hp) {
-      leader.currentHp = Math.min(leader.currentHp + 10, leader.hp);
-      log(`Blaze: heals Leader 10 HP (${leader.currentHp}/${leader.hp})`, 'heal');
+      const blazeHeal = Math.min(10, leader.hp - leader.currentHp);
+      leader.currentHp += blazeHeal;
+      if (!state.healedThisTurn) state.healedThisTurn = [0, 0];
+      state.healedThisTurn[p] = (state.healedThisTurn[p] ?? 0) + blazeHeal;
+      log(`Blaze: heals Leader ${blazeHeal} HP (${leader.currentHp}/${leader.hp})`, 'heal');
     }
   }
 
@@ -147,7 +158,19 @@ export function enterEndPhase(state, log, emit) {
   state.rougeUsedThisTurn[p]         = false;
   state.leaderUsedThisTurn[p]        = false;
   state.usedActivesThisTurn           = [];
-  if (state.shieldReduction)  state.shieldReduction[p]  = 0;
+  if (state.shieldReduction)         state.shieldReduction[p]         = 0;
+  // P5 per-turn resets
+  if (state.healedThisTurn)          state.healedThisTurn[p]          = 0;
+  if (state.dmgToEnemyUnitsThisTurn) state.dmgToEnemyUnitsThisTurn[p] = 0;
+  if (state.opponentDiscardsThisTurn)state.opponentDiscardsThisTurn[p]= 0;
+  if (state.unblockableAttack)       state.unblockableAttack[p]       = false;
+  if (state.tauntUnit)               state.tauntUnit[p]               = null;
+  if (state.haruShield)              state.haruShield[p]              = false;
+  if (state.kamoshidaPassive)        state.kamoshidaPassive[p]        = false;
+  // Haru: clear extended exhaust if she was protecting this turn
+  state.players[p].bench.forEach(u => { if (u.haruShield) { u.haruShield = false; u.exhausted = false; } });
+  // Caroline/Justine: track whether each died alone this turn for revival condition
+  _updateCarolineJustineLock(state, p);
   delete state._genesisPlayedBy;
 
   emit('phase_changed', state.phase);
@@ -159,4 +182,23 @@ export function advanceTurn(state, log, emit) {
   if (state.activePlayer === state._firstPlayer) state.turn++;
   state.phase = 'big_scry';
   startTurn(state, log, emit);
+}
+
+// Track Caroline/Justine revival conditions (died alone = other twin wasn't also KO'd this turn)
+function _updateCarolineJustineLock(state, p) {
+  if (!state.carolineLock) state.carolineLock = [false, false];
+  if (!state.justineLock)  state.justineLock  = [false, false];
+
+  const bench   = state.players[p].bench.map(u => u.id);
+  const discard = state.players[p].discard.map(u => u.id);
+
+  const carolineInDiscard = discard.includes('caroline');
+  const justineInDiscard  = discard.includes('justine');
+  const carolineOnBench   = bench.includes('caroline');
+  const justineOnBench    = bench.includes('justine');
+
+  // Caroline active unlocked if Justine is in discard but Caroline is still on bench
+  state.carolineLock[p] = justineInDiscard && carolineOnBench;
+  // Justine active unlocked if Caroline is in discard but Justine is still on bench
+  state.justineLock[p]  = carolineInDiscard && justineOnBench;
 }

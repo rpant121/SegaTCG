@@ -60,6 +60,23 @@ export function createInitialState(deckIds0, deckIds1, leaderId0 = 'sonic', lead
     shieldReduction:           [0, 0],
     supportDiedLastTurn:       [false, false],
 
+    // P5 passive/active tracking
+    haruShield:                [false, false],   // Haru: full damage prevention
+    tauntUnit:                 [null, null],      // Sojiro: taunt uid
+    unblockableAttack:         [false, false],    // Sae: next attack unblockable
+    healedThisTurn:            [0, 0],            // Tae/Makoto: HP healed tracking
+    dmgToEnemyUnitsThisTurn:   [0, 0],            // Futaba: damage dealt to units
+    opponentDiscardsThisTurn:  [0, 0],            // Ann/Sumire/Kamoshida: discard count
+    carolineLock:              [false, false],    // Caroline revival condition
+    justineLock:               [false, false],    // Justine revival condition
+    kamoshidaPassive:          [false, false],    // Kamoshida: damage triggers discard
+    contractNoDrawUntil:       [0, 0],            // Contract of Rebellion draw lock
+    pendingYusukeTarget:       null,
+    justineDisabledUid:        null,   // Justine passive: this unit uid cannot use active
+    pendingLeblanc:            null,
+    pendingGuardPersona:       null,
+    pendingArsene:             null,
+
     pendingBigScry:      null,
     pendingDragonsEye:   null,
     pendingPolarisPact:  null,

@@ -47,14 +47,28 @@ export function calcEffectiveDamage(state, attackerP) {
 // unblockable = true bypasses Elemental Shield reduction.
 // ---------------------------------------------------------------------------
 export function applyDamageToLeader(state, targetP, rawDamage, log, unblockable = false) {
+  // Haru Okumura shield: prevent all damage to leader
+  if (state.haruShield?.[targetP] && !unblockable) {
+    log(`Haru Okumura: damage to Player ${targetP + 1}'s leader prevented!`, 'heal');
+    return;
+  }
   let reduction = 0;
   if (!unblockable) {
-    // Cream-style passive reduction
+    // Damage reduction passives
     for (const unit of state.players[targetP].bench) {
       if (!unit.exhausted && unit.passive?.type === 'damage_reduction') {
-        reduction += unit.passive.amount;
+        // Cream always reduces. Tae Takumi and Sojiro only reduce during OPPONENT's attack.
+        const alwaysActive = unit.id === 'cream';
+        const opponentAttacking = state.activePlayer !== targetP;
+        if (alwaysActive || opponentAttacking) {
+          reduction += unit.passive.amount;
+        }
       }
     }
+    // Sae Niijima passive: attacker's Sae reduces opponent's damage reduction by 10
+    const attackerP = opponent(targetP);
+    const sae = state.players[attackerP]?.bench.find(u => u.id === 'sae_niijima' && !u.exhausted);
+    if (sae) reduction = Math.max(0, reduction - 10);
     // Elemental Shield: flat reduction to next damage event
     if (state.shieldReduction?.[targetP] > 0) {
       const absorbed = Math.min(state.shieldReduction[targetP], rawDamage);
@@ -75,6 +89,19 @@ export function applyDamageToLeader(state, targetP, rawDamage, log, unblockable 
   if (vector) {
     _vectorDraw(state, targetP, log);
   }
+
+  // Kamoshida passive: when the opposing leader takes damage, they discard 1
+  // Only triggers during the active player's turn (kamoshidaPassive flag is set per-turn)
+  const attackerP = opponent(targetP);
+  const kamoshida = state.players[attackerP]?.bench.find(u => u.id === 'suguru_kamoshida' && !u.exhausted);
+  if (kamoshida && state.kamoshidaPassive?.[attackerP] && attackerP !== targetP) {
+    if (state.players[targetP].hand.length > 0) {
+      const idx = Math.floor(Math.random() * state.players[targetP].hand.length);
+      const card = state.players[targetP].hand.splice(idx, 1)[0];
+      state.players[targetP].discard.push(card);
+      log(`Kamoshida: Player ${targetP + 1} discards ${card.name} (leader took damage)`, 'damage');
+    }
+  }
 }
 
 function _vectorDraw(state, p, log) {
@@ -94,6 +121,10 @@ export function attackLeader(state, attackerP, defenderP, log) {
   log(`Player ${attackerP + 1} attacks Player ${defenderP + 1}'s Leader for ${dmg}!`, 'damage');
   applyDamageToLeader(state, defenderP, dmg, log);
   _triggerMightyPassive(state, attackerP, dmg, log);
+  // Ryuji/Makoto passive: heal 10 if damage >= 20
+  if (dmg >= 20) {
+    _triggerHealOnDamagePassive(state, attackerP, log);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -108,6 +139,10 @@ export function applyDamageToUnit(state, attackerP, targetP, unitIdx, log) {
   log(`${unit.name} took ${dmg} damage (${unit.currentHp}/${unit.hp} HP)`, 'damage');
   _triggerMightyPassive(state, attackerP, dmg, log);
 
+  // Track damage to enemy units for Futaba passive
+  if (!state.dmgToEnemyUnitsThisTurn) state.dmgToEnemyUnitsThisTurn = [0, 0];
+  state.dmgToEnemyUnitsThisTurn[attackerP] += dmg;
+
   if (unit.currentHp <= 0) {
     state.players[targetP].bench.splice(unitIdx, 1);
     state.players[targetP].discard.push(unit);
@@ -121,12 +156,19 @@ export function applyDamageToUnit(state, attackerP, targetP, unitIdx, log) {
     } else {
       log(`${unit.name} KO'd! (Midnight Carnival: no penalty)`, 'damage');
     }
+    // Mementos Depths: KO triggers controller discard
+    if (state.activeStage?.id === 'mementos_depths' && state.players[targetP].hand.length > 0) {
+      const di = Math.floor(Math.random() * state.players[targetP].hand.length);
+      const disc = state.players[targetP].hand.splice(di, 1)[0];
+      state.players[targetP].discard.push(disc);
+      log(`Mementos Depths: Player ${targetP + 1} discards ${disc.name}`, 'damage');
+    }
   }
 }
 
 // Mighty passive: if damage dealt >= 3 and Mighty is not exhausted, draw 1.
 function _triggerMightyPassive(state, p, dmg, log) {
-  if (dmg < 3) return;
+  if (dmg < 30) return;
   const mighty = state.players[p].bench.find(u => u.id === 'mighty' && !u.exhausted);
   if (!mighty) return;
   if (state.players[p].deck.length > 0) {
@@ -161,5 +203,32 @@ export function resolveBlock(state, attackerP, defenderP, blockerIdx, log) {
     } else {
       log(`${unit.name} KO'd while blocking! (Midnight Carnival: no penalty)`, 'damage');
     }
+    if (state.activeStage?.id === 'mementos_depths' && state.players[defenderP].hand.length > 0) {
+      const di = Math.floor(Math.random() * state.players[defenderP].hand.length);
+      const disc = state.players[defenderP].hand.splice(di, 1)[0];
+      state.players[defenderP].discard.push(disc);
+      log(`Mementos Depths: Player ${defenderP + 1} discards ${disc.name}`, 'damage');
+    }
+  }
+}
+
+// Ryuji Sakamoto / Makoto Niijima: heal leader 10 HP when attack deals 20+
+function _triggerHealOnDamagePassive(state, p, log) {
+  const leader = state.players[p].leader;
+  if (!state.healedThisTurn) state.healedThisTurn = [0, 0];
+  // Each unit heals independently
+  const ryuji  = state.players[p].bench.find(u => u.id === 'ryuji_sakamoto' && !u.exhausted);
+  if (ryuji) {
+    const gain = Math.min(10, leader.hp - leader.currentHp);
+    leader.currentHp += gain;
+    state.healedThisTurn[p] = (state.healedThisTurn[p] ?? 0) + gain;
+    log(`Ryuji Sakamoto: Leader heals ${gain} HP (${leader.currentHp}/${leader.hp})`, 'heal');
+  }
+  const makoto = state.players[p].bench.find(u => u.id === 'makoto_niijima' && !u.exhausted);
+  if (makoto) {
+    const gain = Math.min(10, leader.hp - leader.currentHp);
+    leader.currentHp += gain;
+    state.healedThisTurn[p] = (state.healedThisTurn[p] ?? 0) + gain;
+    log(`Makoto Niijima: Leader heals ${gain} HP (${leader.currentHp}/${leader.hp})`, 'heal');
   }
 }

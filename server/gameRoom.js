@@ -16,10 +16,16 @@ import {
   tailsActive, knucklesActive, amyActive, creamActive, bigActive,
   silverActive, shadowActive, mightyActive, rougeActive, blazeActive,
   rayActive, charmyActive, espioActive, vectorActive, sonicActive,
+  carolineActive, justineActive, taeTakumiActive, sojiroSakuraActive,
+  saeNiijimaActive, sadayoKawakamiActive, suguruKamoshidaActive,
+  ryujiSakamotoActive, annTakamakiActive, morganaActive,
+  yusukeKitagawaActive, makotoNiijimaActive, futabaSakuraActive,
+  haruOkumuraActive, sumireYoshizawaActive,
 } from '../engine/actions.js';
 import {
   startTurn, resolveBigScry,
   enterAttackPhase, enterEndPhase, advanceTurn,
+  drawCards,
 } from '../engine/phases.js';
 
 // ---------------------------------------------------------------------------
@@ -176,7 +182,11 @@ export class GameRoom {
       const asyncActions = new Set([
         'RESOLVE_POLARIS_PACT',
         'REQUEST_STATE',
-        'SETUP_DONE',   // both players complete setup independently
+        'SETUP_DONE',
+        'RESOLVE_BLOCK',       // answered by defender (non-active player)
+        'RESOLVE_ARSENE',      // active player chooses target
+        'RESOLVE_LEBLANC',     // active player chooses card to discard
+        'RESOLVE_GUARD_PERSONA', // server-driven, but must be triggerable
       ]);
 
       // During setup, both players can deploy units freely
@@ -270,6 +280,7 @@ export class GameRoom {
         const { benchIdx, targetType, targetBenchIdx, discardIdx, handIndices } = payload;
         const unit = state.players[playerIdx].bench[benchIdx];
         if (!unit) throw new Error('No unit at that bench slot.');
+        if (state.justineDisabledUid === unit.uid) throw new Error(`${unit.name}'s active is disabled by Justine+Caroline until next turn.`);
 
         switch (unit.id) {
           case 'tails':    tailsActive(state, playerIdx, benchIdx, discardIdx, log);                          break;
@@ -293,7 +304,35 @@ export class GameRoom {
           case 'charmy':   charmyActive(state, playerIdx, benchIdx, log);                                     break;
           case 'espio':    espioActive(state, playerIdx, benchIdx, log);                                      break;
           case 'vector':   vectorActive(state, playerIdx, benchIdx, log);                                     break;
+
+          // ── Persona 5 Units ─────────────────────────────────────────────
+          case 'caroline':          carolineActive(state, playerIdx, benchIdx, log);                                break;
+          case 'justine':           justineActive(state, playerIdx, benchIdx, log);                                 break;
+          case 'tae_takumi':        taeTakumiActive(state, playerIdx, benchIdx, log);                               break;
+          case 'sojiro_sakura':     sojiroSakuraActive(state, playerIdx, benchIdx, log);                            break;
+          case 'sae_niijima':       saeNiijimaActive(state, playerIdx, benchIdx, log);                              break;
+          case 'sadayo_kawakami':   sadayoKawakamiActive(state, playerIdx, benchIdx, log);                          break;
+          case 'suguru_kamoshida':  suguruKamoshidaActive(state, playerIdx, benchIdx, log);                         break;
+          case 'ryuji_sakamoto':    ryujiSakamotoActive(state, playerIdx, benchIdx, log);                           break;
+          case 'ann_takamaki':      annTakamakiActive(state, playerIdx, benchIdx, log);                             break;
+          case 'morgana':           morganaActive(state, playerIdx, benchIdx, payload.targetBenchIdx, log);         break;
+          case 'yusuke_kitagawa':   yusukeKitagawaActive(state, playerIdx, benchIdx, payload.targetBenchIdx, log);  break;
+          case 'makoto_niijima':    makotoNiijimaActive(state, playerIdx, benchIdx, log);                           break;
+          case 'futaba_sakura':     futabaSakuraActive(state, playerIdx, benchIdx, log);                            break;
+          case 'haru_okumura':      haruOkumuraActive(state, playerIdx, benchIdx, log);                             break;
+          case 'sumire_yoshizawa':  sumireYoshizawaActive(state, playerIdx, benchIdx, payload.targetBenchIdx, log); break;
+
           default: throw new Error(`Unknown unit active: ${unit.id}`);
+        }
+        // Justine+Caroline passive: if opponent has both on bench, disable the unit just used
+        {
+          const oppIdx = opponent(playerIdx);
+          const hasCaroline = state.players[oppIdx].bench.some(u => u.id === 'caroline' && !u.exhausted);
+          const hasJustine  = state.players[oppIdx].bench.some(u => u.id === 'justine'  && !u.exhausted);
+          if (hasCaroline && hasJustine) {
+            state.justineDisabledUid = unit.uid;
+            log(`Justine+Caroline: ${unit.name}'s active is disabled until next turn`, 'phase');
+          }
         }
         break;
       }
@@ -419,9 +458,87 @@ export class GameRoom {
         break;
       }
 
+      // ── Async resolution: Yusuke — copy target unit's active ────────────────
+      case 'RESOLVE_YUSUKE': {
+        if (!state.pendingYusukeTarget) throw new Error('No pending Yusuke target.');
+        const { p: yp, targetIdx } = state.pendingYusukeTarget;
+        state.pendingYusukeTarget = null;
+        const targetUnit = state.players[yp].bench[targetIdx];
+        if (!targetUnit) throw new Error('Yusuke: target unit not found.');
+        // Fire the copied unit's active — use the same dispatch
+        log(`Yusuke: fires ${targetUnit.id}'s active`, 'play');
+        // Dispatch the copy as if that unit used its active
+        switch (targetUnit.id) {
+          case 'tails':    tailsActive(state, yp, targetIdx, payload.discardIdx, log);            break;
+          case 'knuckles': knucklesActive(state, yp, targetIdx, payload.targetBenchIdx, log);     break;
+          case 'amy':      amyActive(state, yp, targetIdx, log);                                  break;
+          case 'cream':    creamActive(state, yp, targetIdx, payload.targetType, payload.targetBenchIdx, log); break;
+          case 'big':      bigActive(state, yp, targetIdx, log);                                  break;
+          case 'rouge':    rougeActive(state, yp, targetIdx, log);                                break;
+          case 'blaze':    blazeActive(state, yp, targetIdx, log);                                break;
+          case 'ray':      rayActive(state, yp, targetIdx, log);                                  break;
+          case 'charmy':   charmyActive(state, yp, targetIdx, log);                               break;
+          case 'espio':    espioActive(state, yp, targetIdx, log);                                break;
+          case 'vector':   vectorActive(state, yp, targetIdx, log);                               break;
+          case 'tae_takumi':       taeTakumiActive(state, yp, targetIdx, log);                    break;
+          case 'sojiro_sakura':    sojiroSakuraActive(state, yp, targetIdx, log);                 break;
+          case 'sae_niijima':      saeNiijimaActive(state, yp, targetIdx, log);                   break;
+          case 'sadayo_kawakami':  sadayoKawakamiActive(state, yp, targetIdx, log);               break;
+          case 'suguru_kamoshida': suguruKamoshidaActive(state, yp, targetIdx, log);              break;
+          case 'ryuji_sakamoto':   ryujiSakamotoActive(state, yp, targetIdx, log);               break;
+          case 'ann_takamaki':     annTakamakiActive(state, yp, targetIdx, log);                  break;
+          case 'morgana':          morganaActive(state, yp, targetIdx, payload.targetBenchIdx, log); break;
+          case 'makoto_niijima':   makotoNiijimaActive(state, yp, targetIdx, log);               break;
+          case 'futaba_sakura':    futabaSakuraActive(state, yp, targetIdx, log);                 break;
+          case 'haru_okumura':     haruOkumuraActive(state, yp, targetIdx, log);                  break;
+          case 'sumire_yoshizawa': sumireYoshizawaActive(state, yp, targetIdx, payload.targetBenchIdx, log); break;
+          default: log(`Yusuke: cannot copy ${targetUnit.id}`, 'damage');
+        }
+        break;
+      }
+
+      case 'RESOLVE_ARSENE': {
+        // playerIdx choosing which leader to halve
+        const { targetPlayerIdx } = payload;
+        if (!state.pendingArsene) throw new Error('No pending Arsène Unleashed.');
+        const targetLeader = state.players[targetPlayerIdx].leader;
+        targetLeader.currentHp = Math.max(1, Math.floor(targetLeader.hp / 2));
+        log(`Arsène Unleashed: Player ${targetPlayerIdx+1}'s leader set to ${targetLeader.currentHp} HP`, 'damage');
+        state.pendingArsene = null;
+        break;
+      }
+
+      case 'RESOLVE_LEBLANC': {
+        const { handIdx } = payload;
+        if (!state.pendingLeblanc) throw new Error('No pending LeBlanc.');
+        const pi = state.pendingLeblanc.playerIdx;
+        if (handIdx !== null && handIdx !== undefined && state.players[pi].hand[handIdx]) {
+          const card = state.players[pi].hand.splice(handIdx, 1)[0];
+          state.players[pi].discard.push(card);
+          drawCards(state, pi, 1, log);
+          log(`LeBlanc Coffee: discarded ${card.name}, drew 1`, 'play');
+        }
+        state.pendingLeblanc = null;
+        break;
+      }
+
+      case 'RESOLVE_GUARD_PERSONA': {
+        // Opponent discards 1 after Guard Persona turn ends
+        if (!state.pendingGuardPersona) throw new Error('No pending Guard Persona.');
+        const { targetIdx } = state.pendingGuardPersona;
+        if (state.players[targetIdx].hand.length > 0) {
+          const idx = Math.floor(Math.random() * state.players[targetIdx].hand.length);
+          const card = state.players[targetIdx].hand.splice(idx, 1)[0];
+          state.players[targetIdx].discard.push(card);
+          log(`Guard Persona aftermath: Player ${targetIdx+1} discards ${card.name}`, 'damage');
+        }
+        state.pendingGuardPersona = null;
+        break;
+      }
+
       case 'ADVANCE_TURN': {
-        // Sent after pass screen is acknowledged
         if (state.phase !== 'end') throw new Error('Not in End Phase.');
+        state.justineDisabledUid = null; // clear Justine disable on turn advance
         advanceTurn(state, log, emit);
         break;
       }
@@ -473,7 +590,7 @@ export class GameRoom {
       if (!socketId) return;
       const payload = {
         state:        sanitizeForPlayer(this.state, idx),
-        logEntries:   sanitizeLogForPlayer(extra.logEntries ?? [], idx, this.state?.phase === 'setup'),
+        logEntries:   sanitizeLogForPlayer(extra.logEntries ?? [], idx),
         pendingBlock: this.state.pendingBlock
           ? (idx === this.state.pendingBlock.defenderP
               ? this.state.pendingBlock
