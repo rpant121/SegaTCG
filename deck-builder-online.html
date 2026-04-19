@@ -885,5 +885,19 @@ refreshUI();
 
 document.getElementById('precon-modal-overlay').addEventListener('click', e => { if (e.target === document.getElementById('precon-modal-overlay')) closePreconModal(); });
 </script>
+<!-- Precon detail modal -->
+<div id="precon-modal-overlay">
+  <div id="precon-modal">
+    <h2 id="precon-modal-title"></h2>
+    <div id="precon-modal-count"></div>
+    <p id="precon-modal-desc"></p>
+    <div id="precon-modal-combos"></div>
+    <div class="precon-modal-btns">
+      <button class="action-btn gold" id="btn-precon-select">Select Deck</button>
+      <button class="action-btn danger" onclick="closePreconModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
