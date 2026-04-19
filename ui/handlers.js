@@ -12,6 +12,11 @@ import {
   silverActive, shadowActive, mightyActive, rougeActive, blazeActive,
   rayActive, charmyActive, espioActive, vectorActive,
   sonicActive, kiryuActive, jokerActiveValidate,
+  carolineActive, justineActive, taeTakumiActive, sojiroSakuraActive,
+  saeNiijimaActive, sadayoKawakamiActive, suguruKamoshidaActive,
+  ryujiSakamotoActive, annTakamakiActive, morganaActive,
+  yusukeKitagawaActive, makotoNiijimaActive, futabaSakuraActive,
+  haruOkumuraActive, sumireYoshizawaActive,
 } from '../engine/actions.js';
 import {
   startTurn, resolveBigScry as engineResolveBigScry,
@@ -239,6 +244,22 @@ function handleUnitActive(p, benchIdx) {
     case 'charmy':   if (charmyActive(state, p, benchIdx, log)) { refreshBoard(); winGuard(); } break;
     case 'espio':    if (espioActive(state, p, benchIdx, log))  { refreshBoard(); winGuard(); } break;
     case 'vector':   if (vectorActive(state, p, benchIdx, log)) { refreshBoard(); winGuard(); } break;
+    // ── Persona 5 units ────────────────────────────────────────────────
+    case 'caroline':          if (carolineActive(state, p, benchIdx, log))         { refreshBoard(); winGuard(); } break;
+    case 'justine':           if (justineActive(state, p, benchIdx, log))          { refreshBoard(); winGuard(); } break;
+    case 'tae_takumi':        if (taeTakumiActive(state, p, benchIdx, log))        { refreshBoard(); winGuard(); } break;
+    case 'sojiro_sakura':     if (sojiroSakuraActive(state, p, benchIdx, log))     { refreshBoard(); winGuard(); } break;
+    case 'sae_niijima':       if (saeNiijimaActive(state, p, benchIdx, log))       { refreshBoard(); winGuard(); } break;
+    case 'sadayo_kawakami':   if (sadayoKawakamiActive(state, p, benchIdx, log))   { refreshBoard(); winGuard(); } break;
+    case 'suguru_kamoshida':  if (suguruKamoshidaActive(state, p, benchIdx, log))  { refreshBoard(); winGuard(); } break;
+    case 'ryuji_sakamoto':    if (ryujiSakamotoActive(state, p, benchIdx, log))    { refreshBoard(); winGuard(); } break;
+    case 'ann_takamaki':      if (annTakamakiActive(state, p, benchIdx, log))      { refreshBoard(); winGuard(); } break;
+    case 'morgana':           openMorganaModal(p, benchIdx); break;
+    case 'yusuke_kitagawa':   openYusukeModal(p, benchIdx);  break;
+    case 'makoto_niijima':    if (makotoNiijimaActive(state, p, benchIdx, log))    { refreshBoard(); winGuard(); } break;
+    case 'futaba_sakura':     if (futabaSakuraActive(state, p, benchIdx, log))     { refreshBoard(); winGuard(); } break;
+    case 'haru_okumura':      if (haruOkumuraActive(state, p, benchIdx, log))      { refreshBoard(); winGuard(); } break;
+    case 'sumire_yoshizawa':  openSumireModal(p, benchIdx);  break;
   }
 }
 
@@ -415,8 +436,86 @@ function handleUnitActiveByUnit(p, benchIdx, unit) {
     case 'charmy':   if (charmyActive(state, p, benchIdx, log)) { refreshBoard(); winGuard(); } break;
     case 'espio':    if (espioActive(state, p, benchIdx, log))  { refreshBoard(); winGuard(); } break;
     case 'vector':   if (vectorActive(state, p, benchIdx, log)) { refreshBoard(); winGuard(); } break;
+    // ── Persona 5 units ──────────────────────────────────────────────────
+    case 'caroline':          if (carolineActive(state, p, benchIdx, log))         { refreshBoard(); winGuard(); } break;
+    case 'justine':           if (justineActive(state, p, benchIdx, log))          { refreshBoard(); winGuard(); } break;
+    case 'tae_takumi':        if (taeTakumiActive(state, p, benchIdx, log))        { refreshBoard(); winGuard(); } break;
+    case 'sojiro_sakura':     if (sojiroSakuraActive(state, p, benchIdx, log))     { refreshBoard(); winGuard(); } break;
+    case 'sae_niijima':       if (saeNiijimaActive(state, p, benchIdx, log))       { refreshBoard(); winGuard(); } break;
+    case 'sadayo_kawakami':   if (sadayoKawakamiActive(state, p, benchIdx, log))   { refreshBoard(); winGuard(); } break;
+    case 'suguru_kamoshida':  if (suguruKamoshidaActive(state, p, benchIdx, log))  { refreshBoard(); winGuard(); } break;
+    case 'ryuji_sakamoto':    if (ryujiSakamotoActive(state, p, benchIdx, log))    { refreshBoard(); winGuard(); } break;
+    case 'ann_takamaki':      if (annTakamakiActive(state, p, benchIdx, log))      { refreshBoard(); winGuard(); } break;
+    case 'morgana':           openMorganaModal(p, benchIdx); break;
+    case 'yusuke_kitagawa':   openYusukeModal(p, benchIdx);  break;
+    case 'makoto_niijima':    if (makotoNiijimaActive(state, p, benchIdx, log))    { refreshBoard(); winGuard(); } break;
+    case 'futaba_sakura':     if (futabaSakuraActive(state, p, benchIdx, log))     { refreshBoard(); winGuard(); } break;
+    case 'haru_okumura':      if (haruOkumuraActive(state, p, benchIdx, log))      { refreshBoard(); winGuard(); } break;
+    case 'sumire_yoshizawa':  openSumireModal(p, benchIdx);  break;
     default: addLog(`\ud83c\udca1 Joker: cannot copy ${unit.id} in local mode`, 'damage');
   }
+}
+
+// ── Morgana: trade itself for an opponent bench unit ─────────────────────
+function openMorganaModal(p, benchIdx) {
+  const opp = opponent(p);
+  if (state.players[opp].bench.length === 0) {
+    addLog('🚌 Morgana: no opponent bench units to target', 'phase'); return;
+  }
+  const c = document.getElementById('target-options');
+  c.innerHTML = '';
+  document.getElementById('target-title').textContent = 'MORGANA: SELECT TARGET';
+  document.getElementById('target-desc').textContent  = 'Morgana and the chosen unit both go to discard:';
+  state.players[opp].bench.forEach((unit, ui) => {
+    c.appendChild(mkBtn(`${unit.name} (${unit.currentHp}/${unit.hp} HP)`, () => {
+      morganaActive(state, p, benchIdx, ui, log);
+      closeOverlay('target-overlay');
+      refreshBoard(); winGuard();
+    }));
+  });
+  showOverlay('target-overlay');
+}
+
+// ── Yusuke: copy a passive from any bench unit ────────────────────────────
+function openYusukeModal(p, benchIdx) {
+  const bench = state.players[p].bench.filter((_, i) => i !== benchIdx);
+  if (bench.length === 0) {
+    addLog('🎨 Yusuke: no other bench units to copy from', 'phase'); return;
+  }
+  const c = document.getElementById('target-options');
+  c.innerHTML = '';
+  document.getElementById('target-title').textContent = 'YUSUKE: COPY ACTIVE FROM';
+  document.getElementById('target-desc').textContent  = 'Yusuke copies and fires this unit\'s active:';
+  // Yusuke copies AND fires another unit's active
+  state.players[p].bench.forEach((unit, ui) => {
+    if (ui === benchIdx) return; // skip Yusuke himself
+    c.appendChild(mkBtn(`${unit.name} (${unit.currentHp}/${unit.hp} HP)`, () => {
+      yusukeKitagawaActive(state, p, benchIdx, ui, log);
+      closeOverlay('target-overlay');
+      refreshBoard(); winGuard();
+    }));
+  });
+  showOverlay('target-overlay');
+}
+
+// ── Sumire: 20 unblockable damage to one opponent bench unit ─────────────
+function openSumireModal(p, benchIdx) {
+  const opp = opponent(p);
+  if (state.players[opp].bench.length === 0) {
+    addLog('🌸 Sumire: no opponent bench units to target', 'phase'); return;
+  }
+  const c = document.getElementById('target-options');
+  c.innerHTML = '';
+  document.getElementById('target-title').textContent = 'SUMIRE: SELECT TARGET';
+  document.getElementById('target-desc').textContent  = 'Deal 20 unblockable damage to a bench unit:';
+  state.players[opp].bench.forEach((unit, ui) => {
+    c.appendChild(mkBtn(`${unit.name} (${unit.currentHp}/${unit.hp} HP)`, () => {
+      sumireYoshizawaActive(state, p, benchIdx, ui, log);
+      closeOverlay('target-overlay');
+      refreshBoard(); winGuard();
+    }));
+  });
+  showOverlay('target-overlay');
 }
 
 function openSonicModal() {
