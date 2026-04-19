@@ -58,6 +58,80 @@
 
     #pool-section { display: flex; flex-direction: column; gap: 12px; }
 
+    /* ── Precon deck cards ──────────────────────────────────── */
+    #precon-buttons { display: flex; flex-direction: column; gap: 10px; }
+
+    .precon-card {
+      background: linear-gradient(135deg, #0a1828 0%, #060e1a 100%);
+      border: 1px solid #1a3a5a;
+      border-radius: 10px;
+      padding: 12px 14px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .precon-card:hover {
+      border-color: var(--sonic-blue);
+      box-shadow: 0 0 16px rgba(0,102,204,0.2);
+    }
+
+    .precon-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .precon-name {
+      font-family: var(--font-display);
+      font-size: 11px;
+      color: var(--sonic-bright);
+      letter-spacing: 1.5px;
+    }
+    .precon-count {
+      font-family: var(--font-mono);
+      font-size: 8px;
+      color: var(--grey);
+    }
+
+    .precon-desc {
+      font-size: 9px;
+      color: #8aabcc;
+      line-height: 1.5;
+      margin: 0 0 8px 0;
+    }
+
+    .precon-combos {
+      background: rgba(0,40,80,0.4);
+      border-left: 2px solid var(--gold);
+      border-radius: 0 6px 6px 0;
+      padding: 6px 10px;
+      margin-bottom: 10px;
+    }
+    .precon-combos-title {
+      font-family: var(--font-display);
+      font-size: 8px;
+      color: var(--gold);
+      letter-spacing: 1px;
+      margin-bottom: 4px;
+    }
+    .precon-combos ul {
+      margin: 0;
+      padding-left: 14px;
+      list-style: disc;
+    }
+    .precon-combos li {
+      font-family: var(--font-mono);
+      font-size: 8px;
+      color: #c8d8e8;
+      line-height: 1.5;
+      margin-bottom: 2px;
+    }
+
+    .precon-load-btn {
+      width: 100%;
+      padding: 7px 12px !important;
+      font-size: 9px !important;
+      margin-top: 2px;
+    }
+
     .section-title {
       font-family: var(--font-display);
       font-size: 11px;
@@ -329,115 +403,168 @@ const POOL_CARDS = [
 const VALID_IDS = new Set(POOL_CARDS.map(c => c.id));
 
 const PRECON_DECKS = {
+
+  // ── Sonic Decks ─────────────────────────────────────────────────────────────
+
   aggro: {
     name: 'Heavy Hitters', ip: 'Sonic',
-    desc: 'Knuckles and Amy stack attack passives. Silver cuts active costs so Mighty and Shadow fire cheaply. Shadow doubles base damage. Mighty closes games with a second attack.',
+    desc: 'A burst damage deck built to kill in a single attack phase. Knuckles and Amy stack +10 Leader damage each as passive bonuses. Shadow doubles your Leader\'s base damage while on bench. Chaos Emerald and Power Glove push the total into lethal range. Cream and Elemental Shield buy the setup turns you need. Mighty adds a second attack once the damage math works out.',
+    combos: [
+      'Knuckles + Amy passives (+20 total) + Shadow passive (×2 base) + Chaos Emerald (+20) + Power Glove (+30) → single-turn kill on any leader',
+      'Midnight Carnival + Mighty active → second attack with zero overflow risk if Mighty is KO\'d intercepting',
+      'Master Emerald → Knuckles active (10 damage to unit) + Cream active (heal 10) + Mighty active (second attack) all for 0 energy in one turn',
+    ],
     ids: [
-      'knuckles','knuckles','knuckles',
-      'amy','amy','amy',
+      // Units — thin line, each chosen for a specific passive or combo role
+      'knuckles','knuckles',
+      'amy','amy',
       'shadow','shadow',
-      'mighty','mighty','mighty',
-      'silver','silver',
-      'cream','cream',
-      'chaos_emerald','chaos_emerald','chaos_emerald',
-      'power_glove','power_glove','power_glove',
-      'ring','ring','ring',
-      'elemental_shield','elemental_shield',
-      'chili_dog','chili_dog',
+      'cream',
+      'mighty',
+      'silver',
+      // Equipment — thick lines on the damage and protection pieces
+      'chaos_emerald','chaos_emerald','chaos_emerald','chaos_emerald',
+      'power_glove','power_glove','power_glove','power_glove',
+      'ring','ring','ring','ring',
+      'elemental_shield','elemental_shield','elemental_shield','elemental_shield',
+      'chili_dog','chili_dog','chili_dog',
       'midnight_carnival',
+      // Genesis
       'master_emerald',
     ],
   },
+
   setup: {
     name: 'Discard Engine', ip: 'Sonic',
-    desc: 'Big scries the top of your deck each turn. Tails replays cards from discard cheaply. Rouge draws on every mill. Ray controls what goes where. Blaze resets the loop.',
-    ids: [
-      'tails','tails','tails',
-      'big','big','big',
-      'rouge','rouge','rouge',
-      'ray','ray','ray',
-      'blaze','blaze',
-      'silver',
-      'ring','ring','ring',
-      'dragons_eye','dragons_eye','dragons_eye',
-      'green_hill_zone','green_hill_zone','green_hill_zone',
-      'elemental_shield','elemental_shield',
-      'chili_dog','chili_dog',
-      'chaos_emerald',
-      'master_emerald',
+    desc: 'A grind deck that turns the discard pile into a resource. Rouge draws a card every time something is milled. Tails recycles the best card from discard back into play. Ray controls the top of your deck, setting up your next draw or triggering Rouge. Blaze resets the whole loop when the discard pile is full. Dragon\'s Eye provides consistent card selection. Polaris Pact reloads your hand when a unit dies.',
+    combos: [
+      'Rouge passive + Ray active → mill the best card, Rouge draws immediately to replace it',
+      'Blaze passive (discard ≥5 cards → heal 10) + Blaze active (shuffle discard, draw 2) → heal then reset the engine',
+      'Tails active → replay Dragon\'s Eye from discard to scry 3 cards again for free',
     ],
-  },
-  rings: {
-    name: 'Chaotix Burst', ip: 'Sonic',
-    desc: 'Charmy discounts chained equipment and draws off it. Espio recovers the hand. Vector converts total energy spent into direct damage. Super Form is the nova button.',
     ids: [
-      'charmy','charmy','charmy',
-      'espio','espio','espio',
-      'vector','vector','vector',
-      'cream','cream',
+      // Units — only the four that directly power the discard engine
       'tails','tails',
       'rouge','rouge',
-      'ring','ring','ring',
-      'speed_shoes','speed_shoes','speed_shoes',
-      'extreme_gear','extreme_gear','extreme_gear',
-      'chaos_emerald','chaos_emerald',
-      'power_glove',
-      'radical_highway',
-      'super_form',
-      'chili_dog',
+      'ray','ray',
+      'blaze',
+      // Equipment — card selection and protection
+      'dragons_eye','dragons_eye','dragons_eye','dragons_eye',
+      'green_hill_zone','green_hill_zone','green_hill_zone','green_hill_zone',
+      'ring','ring','ring','ring',
+      'chili_dog','chili_dog','chili_dog','chili_dog',
+      'elemental_shield','elemental_shield','elemental_shield','elemental_shield',
+      'extreme_gear','extreme_gear',
+      // Genesis
+      'polaris_pact',
     ],
   },
+
+  rings: {
+    name: 'Chaotix Burst', ip: 'Sonic',
+    desc: 'A combo deck that converts energy into direct damage. Charmy discounts every equipment after the first and draws a card for each one played. Espio recovers spent equipment from the discard so the chain never runs dry. Vector\'s active deals damage equal to 10× the total energy spent that turn — making a high-energy turn lethal. Radical Highway accelerates the energy count each turn. Super Form doubles your energy on the kill turn.',
+    combos: [
+      'Charmy passive + Ring ×4 + Speed Shoes ×2 in one turn → each equipment after the first costs 1 less, drawing 4+ cards',
+      'Espio active → recover 3 Rings or Speed Shoes from discard, then replay them next turn',
+      'Radical Highway + Super Form + Vector active on a 10+ energy turn → 100+ unblockable direct damage',
+    ],
+    ids: [
+      // Units — the three Chaotix members only
+      'charmy','charmy',
+      'espio','espio',
+      'vector','vector',
+      // Equipment — maximum copies of every energy piece
+      'ring','ring','ring','ring',
+      'speed_shoes','speed_shoes','speed_shoes','speed_shoes',
+      'extreme_gear','extreme_gear','extreme_gear','extreme_gear',
+      'chaos_emerald','chaos_emerald','chaos_emerald','chaos_emerald',
+      'power_glove','power_glove','power_glove','power_glove',
+      'radical_highway','radical_highway',
+      'chili_dog',
+      // Genesis
+      'super_form',
+    ],
+  },
+
+  // ── Persona 5 Decks ──────────────────────────────────────────────────────────
+
   p5_control: {
     name: 'Phantom Thieves Control', ip: 'Persona 5',
-    desc: 'Caroline and Justine lock down enemy actives and revive each other. Morgana trades favorably. Ann and Sumire punish every discard. Contract of Rebellion is the game-winning reset.',
+    desc: 'A disruption deck that dismantles the opponent\'s hand and options. Caroline and Justine form a self-reviving lock pair — Caroline limits the opponent to 1 equipment per turn while Justine disables an active ability. Ann and Morgana punish and remove threats. Guard Persona buys a full turn of immunity. Third Eye strips hand cards while filtering your own deck. Contract of Rebellion is the game-winning reset.',
+    combos: [
+      'Caroline + Justine together → opponent limited to 1 equipment AND one active is disabled each turn',
+      'Mementos Depths + Calling Card + Ann passive → Calling Card forces a discard, Ann deals 10 damage, Mementos Depths forces another discard on any KO',
+      'Contract of Rebellion → refill hand to 6, opponent discards 2 and loses draw access — then swing for game',
+    ],
     ids: [
-      'caroline','caroline','caroline',
-      'justine','justine','justine',
-      'morgana','morgana','morgana',
-      'ann_takamaki','ann_takamaki','ann_takamaki',
-      'sumire_yoshizawa','sumire_yoshizawa',
-      'haru_okumura','haru_okumura',
-      'calling_card','calling_card','calling_card',
-      'guard_persona','guard_persona','guard_persona',
-      'metaverse_navigator','metaverse_navigator',
-      'mementos_depths',
-      'shibuya_crossing',
-      'third_eye','third_eye','third_eye',
+      // Units — the lock pair plus two punish pieces
+      'caroline','caroline',
+      'justine','justine',
+      'ann_takamaki','ann_takamaki',
+      'haru_okumura',
+      'morgana',
+      // Equipment — disruption and protection at 4 copies each
+      'calling_card','calling_card','calling_card','calling_card',
+      'guard_persona','guard_persona','guard_persona','guard_persona',
+      'third_eye','third_eye','third_eye','third_eye',
+      'metaverse_navigator','metaverse_navigator','metaverse_navigator','metaverse_navigator',
+      'mementos_depths','mementos_depths','mementos_depths',
+      'shibuya_crossing','shibuya_crossing',
+      // Genesis
       'contract_of_rebellion',
     ],
   },
+
   p5_aggro: {
     name: 'All-Out Assault', ip: 'Persona 5',
-    desc: 'Sadayo and Kamoshida stack attack and hand disruption. Ryuji and Makoto heal on damage. Sae Niijima strips blocks. Treasure and All-Out Attack close games fast.',
+    desc: 'A hyper-aggressive deck that attacks hand size and HP at the same time. Sadayo and Kamoshida both raise Leader damage and force discards on every hit. Sae Niijima removes the opponent\'s ability to intercept for a critical turn. Ryuji heals after every hard hit to keep your Leader alive. Treasure and All-Out Attack stack onto a lethal strike. Calling Card strips the hand before the finishing blow. Palace Infiltration Route accelerates the energy curve at the cost of chip damage to both leaders.',
+    combos: [
+      'Kamoshida passive + Calling Card ×2 in one turn → 3 forced discards, Ann deals 30 damage if in bench',
+      'Sadayo passive (+10 atk) + Treasure (+20 atk) + All-Out Attack (+30 atk) + Sae active (unblockable) → 70+ unblockable damage in one swing',
+      'Palace Infiltration Route + Ryuji passive → the 10 chip damage each turn triggers Ryuji heal if your swing deals ≥20',
+    ],
     ids: [
-      'sadayo_kawakami','sadayo_kawakami','sadayo_kawakami',
-      'suguru_kamoshida','suguru_kamoshida','suguru_kamoshida',
-      'ryuji_sakamoto','ryuji_sakamoto','ryuji_sakamoto',
-      'makoto_niijima','makoto_niijima','makoto_niijima',
-      'sae_niijima','sae_niijima','sae_niijima',
-      'ann_takamaki','ann_takamaki',
-      'treasure_distorted_desire','treasure_distorted_desire','treasure_distorted_desire',
-      'all_out_attack','all_out_attack','all_out_attack',
-      'calling_card','calling_card',
-      'leblanc_coffee','leblanc_coffee','leblanc_coffee',
-      'palace_infiltration_route',
+      // Units — lean aggro line
+      'sadayo_kawakami','sadayo_kawakami',
+      'suguru_kamoshida','suguru_kamoshida',
+      'sae_niijima',
+      'ryuji_sakamoto',
+      'makoto_niijima',
+      // Equipment — maximum copies of damage and disruption spells
+      'treasure_distorted_desire','treasure_distorted_desire','treasure_distorted_desire','treasure_distorted_desire',
+      'all_out_attack','all_out_attack','all_out_attack','all_out_attack',
+      'calling_card','calling_card','calling_card','calling_card',
+      'leblanc_coffee','leblanc_coffee','leblanc_coffee','leblanc_coffee',
+      'phantom_thief_tools','phantom_thief_tools','phantom_thief_tools','phantom_thief_tools',
+      'palace_infiltration_route','palace_infiltration_route',
+      // Genesis
       'holy_grail',
     ],
   },
+
   p5_setup: {
     name: 'Metaverse Engine', ip: 'Persona 5',
-    desc: 'Futaba scrys every end phase and draws off damage. Yusuke copies the best passive. Tae and Sojiro stack damage reduction. Phantom Thief Tools chains into big energy turns. Arsene Unleashed halves the enemy leader.',
+    desc: 'A value engine that makes your Leader nearly unkillable while drawing cards off damage. Tae Takumi and Sojiro Sakura each reduce incoming damage by 10 — stack both for -20 per hit. Yusuke copies either passive on deployment for a third layer of reduction. Futaba scrys every end phase and draws cards equal to damage dealt to enemy units. Ryuji closes games by healing on every big hit. Arsène Unleashed halves the enemy leader\'s HP, then Makoto converts all the healing done that turn into direct damage for the finishing blow.',
+    combos: [
+      'Tae + Sojiro passives (-10 each) + Yusuke copies Tae on entry → Leader takes -30 damage per hit, effectively immune to most attacks',
+      'Futaba passive + Sumire-style unit damage → draw cards at end of turn equal to damage dealt',
+      'Phantom Thief Tools (gain 2 energy) + LeBlanc Coffee (heal 20, cycle a card) → efficient resource loop every turn; Makoto active converts that 20 heal into 20 direct damage',
+    ],
     ids: [
-      'futaba_sakura','futaba_sakura','futaba_sakura',
-      'yusuke_kitagawa','yusuke_kitagawa','yusuke_kitagawa',
-      'tae_takumi','tae_takumi','tae_takumi',
-      'sojiro_sakura','sojiro_sakura','sojiro_sakura',
-      'ryuji_sakamoto','ryuji_sakamoto',
-      'phantom_thief_tools','phantom_thief_tools','phantom_thief_tools',
-      'third_eye','third_eye','third_eye',
-      'leblanc_coffee','leblanc_coffee','leblanc_coffee',
+      // Units — tank core plus value generators
+      'tae_takumi','tae_takumi',
+      'sojiro_sakura','sojiro_sakura',
+      'futaba_sakura','futaba_sakura',
+      'yusuke_kitagawa',
+      'ryuji_sakamoto',
+      // Equipment — energy acceleration and sustain at 4 copies each
+      'phantom_thief_tools','phantom_thief_tools','phantom_thief_tools','phantom_thief_tools',
+      'leblanc_coffee','leblanc_coffee','leblanc_coffee','leblanc_coffee',
+      'third_eye','third_eye','third_eye','third_eye',
+      'calling_card','calling_card','calling_card','calling_card',
       'metaverse_navigator','metaverse_navigator','metaverse_navigator',
-      'calling_card','calling_card','calling_card',
+      'palace_infiltration_route','palace_infiltration_route',
+      // Genesis
       'arsene_unleashed',
     ],
   },
@@ -456,7 +583,7 @@ function poolForLeader() {
 }
 
 function countInDeck(id) { return deck.filter(x => x === id).length; }
-function maxCopies(card) { return card.isGenesis ? 1 : 3; }
+function maxCopies(card) { return card.isGenesis ? 1 : (card.type === 'Unit' ? 3 : 4); }
 function cardTypeClass(type) {
   return { Unit:'card-type-unit', Equipment:'card-type-equipment', Stage:'card-type-stage', Genesis:'card-type-genesis' }[type] ?? 'card-type-equipment';
 }
@@ -585,13 +712,35 @@ function renderPrecons() {
   container.innerHTML = '';
   const ip = getLeaderIp();
   Object.entries(PRECON_DECKS).filter(([,p]) => !p.ip || p.ip === ip).forEach(([key, precon]) => {
-    const btn = document.createElement('button');
-    btn.className = 'action-btn';
-    btn.style.cssText = 'margin-bottom:4px;font-size:9px;';
-    btn.textContent = '⚡ ' + precon.name;
-    btn.title = precon.desc;
-    btn.addEventListener('click', () => { deck = [...precon.ids]; refreshUI(); showToast('Loaded: ' + precon.name); });
-    container.appendChild(btn);
+    const card = document.createElement('div');
+    card.className = 'precon-card';
+
+    const combosHtml = (precon.combos ?? []).map(c =>
+      `<li>${c}</li>`
+    ).join('');
+
+    card.innerHTML = `
+      <div class="precon-header">
+        <span class="precon-name">⚡ ${precon.name}</span>
+        <span class="precon-count">${precon.ids.length} cards</span>
+      </div>
+      <p class="precon-desc">${precon.desc}</p>
+      ${combosHtml ? `
+        <div class="precon-combos">
+          <div class="precon-combos-title">⚙ KEY COMBOS</div>
+          <ul>${combosHtml}</ul>
+        </div>
+      ` : ''}
+      <button class="action-btn precon-load-btn">Load Deck →</button>
+    `;
+
+    card.querySelector('.precon-load-btn').addEventListener('click', () => {
+      deck = [...precon.ids];
+      refreshUI();
+      showToast('Loaded: ' + precon.name);
+    });
+
+    container.appendChild(card);
   });
 }
 
@@ -666,7 +815,7 @@ function importDeck(text) {
     const card  = poolForLeader().find(c => c.id === id) ?? POOL_CARDS.find(c => c.id === id);
     if (!card) { errors.push(`Unknown: "${id}"`); continue; }
     if (card.ip && card.ip !== 'General' && card.ip !== getLeaderIp()) { errors.push(`${card.name}: wrong IP`); continue; }
-    const max = card.isGenesis ? 1 : 3;
+    const max = card.isGenesis ? 1 : (card.type === 'Unit' ? 3 : 4);
     if (count > max) { errors.push(`${card.name}: max ${max}`); continue; }
     for (let i = 0; i < count; i++) newDeck.push(id);
   }

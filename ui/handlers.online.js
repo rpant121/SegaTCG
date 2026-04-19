@@ -45,7 +45,7 @@ function act(type, payload = {}) {
 // ---------------------------------------------------------------------------
 function bindSocketListeners() {
 
-  socket.on('state_update', ({ state: newState, logEntries, winner, pendingBlock }) => {
+  socket.on('state_update', ({ state: newState, logEntries, winner, pendingIntercept }) => {
     state = newState;
 
     // Always dismiss any waiting/pass overlay when fresh state arrives.
@@ -84,26 +84,24 @@ function bindSocketListeners() {
       return;
     }
 
-    if (pendingBlock) {
-      if (pendingBlock.defenderP === myPlayerIdx) {
-        refreshBoard(); openBlockModal(pendingBlock.attackerP, pendingBlock.defenderP); return;
+    if (pendingIntercept) {
+      if (pendingIntercept.defenderP === myPlayerIdx) {
+        refreshBoard(); openInterceptModal(pendingIntercept.attackerP, pendingIntercept.defenderP); return;
       } else {
         refreshBoard();
-        showWaitingOverlay('Opponent is choosing whether to block...');
+        showWaitingOverlay('Opponent is choosing whether to intercept...');
         return;
       }
     }
 
     if (state.pendingBigScry && state.pendingBigScry.playerIdx === myPlayerIdx) {
       showScryModal(state.pendingBigScry.card);
-      // Update modal title based on who triggered the scry
       const scryTitle = document.querySelector('#scry-overlay h2');
       if (scryTitle) scryTitle.textContent = state.pendingBigScry.isFutaba ? "FUTABA'S SCRY" : "BIG'S SCRY";
     }
 
-    if (myPlayerIdx === state.activePlayer) checkPendingEffects();
-
     refreshBoard();
+    if (myPlayerIdx === state.activePlayer) checkPendingEffects();
   });
 
   socket.on('action_error',         ({ message }) => addLog('! ' + message, 'damage'));
@@ -447,7 +445,7 @@ function bindStaticButtons() {
   document.getElementById('btn-cancel-sonic') .addEventListener('click', () => closeOverlay('sonic-overlay'));
   document.getElementById('btn-cancel-mighty').addEventListener('click', () => closeOverlay('mighty-attack-overlay'));
 
-  document.getElementById('btn-take-hit').addEventListener('click', () => { closeOverlay('block-overlay'); act('RESOLVE_BLOCK', { blockBenchIdx: null }); });
+  document.getElementById('btn-take-hit').addEventListener('click', () => { closeOverlay('intercept-overlay'); act('RESOLVE_INTERCEPT', { interceptBenchIdx: null }); });
 
   document.getElementById('btn-extreme-gear-cancel') .addEventListener('click', () => { _extremeGearSelected = new Set(); act('RESOLVE_EXTREME_GEAR', { handIndices: [] }); closeOverlay('extreme-gear-overlay'); });
   document.getElementById('btn-extreme-gear-confirm').addEventListener('click', () => { act('RESOLVE_EXTREME_GEAR', { handIndices: [..._extremeGearSelected] }); _extremeGearSelected = new Set(); closeOverlay('extreme-gear-overlay'); });
@@ -481,18 +479,22 @@ function mkCardBtn(card, onClick, extra) {
 // ---------------------------------------------------------------------------
 // Modals
 // ---------------------------------------------------------------------------
-function openBlockModal(attackerP, defenderP) {
+function openInterceptModal(attackerP, defenderP) {
   const dmg = calcEffectiveDamage(state, attackerP);
-  document.getElementById('block-desc').innerHTML =
-    'Player ' + (attackerP+1) + "'s Leader attacks for <strong style='color:var(--red)'>" + dmg + '</strong>.<br>Choose a unit to block, or take the hit.';
-  const c = document.getElementById('block-options'); c.innerHTML = '';
+  // Calculate overflow for each potential interceptor so the player can make an informed choice
+  document.getElementById('intercept-desc').innerHTML =
+    `Player ${attackerP + 1}'s Leader attacks for <strong style="color:var(--red)">${dmg}</strong>.<br>Intercept to protect your Leader — overflow damage applies if the interceptor is KO'd.`;
+  const c = document.getElementById('intercept-options'); c.innerHTML = '';
   state.players[defenderP].bench.map((u,i) => ({ u, i })).filter(({ u }) => !u.exhausted).forEach(({ u, i }) => {
     const willKO = u.currentHp - dmg <= 0;
-    const btn = mkBtn(u.name + ' (' + u.currentHp + '/' + u.hp + ' HP)' + (willKO ? ' will KO' : ''), () => { closeOverlay('block-overlay'); act('RESOLVE_BLOCK', { blockBenchIdx: i }); });
+    const overflow = willKO ? Math.max(20, dmg - u.currentHp) : 0;
+    const label = u.name + ' (' + u.currentHp + '/' + u.hp + ' HP)' +
+      (willKO ? ' ⚠ KO → ' + overflow + ' overflow' : '');
+    const btn = mkBtn(label, () => { closeOverlay('intercept-overlay'); act('RESOLVE_INTERCEPT', { interceptBenchIdx: i }); });
     if (willKO) btn.style.borderColor = 'var(--red)';
     c.appendChild(btn);
   });
-  showOverlay('block-overlay');
+  showOverlay('intercept-overlay');
 }
 
 function openLeaderActiveModal() {

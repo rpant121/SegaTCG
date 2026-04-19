@@ -10,7 +10,7 @@
 
 import { createInitialState, opponent } from '../engine/state.js';
 import { checkWin }                     from '../engine/combat.js';
-import { attackLeader, applyDamageToUnit, resolveBlock } from '../engine/combat.js';
+import { attackLeader, applyDamageToUnit, resolveIntercept } from '../engine/combat.js';
 import {
   playCardFromHand, resolveExtremeGear,
   canAfford, spendEnergy,
@@ -192,7 +192,7 @@ export class GameRoom {
         'RESOLVE_POLARIS_PACT',
         'REQUEST_STATE',
         'SETUP_DONE',
-        'RESOLVE_BLOCK',       // answered by defender (non-active player)
+        'RESOLVE_INTERCEPT',       // answered by defender (non-active player)
         'RESOLVE_ARSENE',      // active player chooses target
         'RESOLVE_LEBLANC',     // active player chooses card to discard
         'RESOLVE_GUARD_PERSONA', // server-driven, but must be triggerable
@@ -214,13 +214,13 @@ export class GameRoom {
 
       // For most actions, enforce active-player turn ownership
       if (!asyncActions.has(type) && playerIdx !== state.activePlayer) {
-        // Special: pendingBlock is answered by the DEFENDING player
-        if (type !== 'RESOLVE_BLOCK' || !state.pendingBlock) {
+        // Special: pendingIntercept is answered by the DEFENDING player
+        if (type !== 'RESOLVE_INTERCEPT' || !state.pendingIntercept) {
           socket.emit('action_error', { message: "It's not your turn." });
           return;
         }
         // Validate defending player owns the block response
-        const defenderIdx = state.pendingBlock.defenderP;
+        const defenderIdx = state.pendingIntercept.defenderP;
         if (playerIdx !== defenderIdx) {
           socket.emit('action_error', { message: "You are not the defending player." });
           return;
@@ -290,17 +290,19 @@ export class GameRoom {
           // Note: leaderUsedThisTurn NOT set so Kiryu can activate multiple times
           log('Kazuma Kiryu: +10 attack this turn!', 'play');
         } else if (leaderId === 'joker') {
-          // Joker: activate any bench unit's active — client sends which benchIdx to copy
+          // Joker: activate any bench unit's active
+          // Cost: 1 energy for unit actives with base cost ≤3, 2 energy for cost ≥4
           const { benchIdx } = payload;
           if (benchIdx === undefined || benchIdx === null) throw new Error('Joker: no bench unit selected.');
           const unit = state.players[playerIdx].bench[benchIdx];
           if (!unit) throw new Error('Joker: no unit at that bench slot.');
-          const leader = state.players[playerIdx].leader;
-          if (!canAfford(state, leader.activeCost)) throw new Error('Not enough energy for Joker active.');
           if (state.leaderUsedThisTurn[playerIdx]) throw new Error('Joker active already used this turn.');
-          spendEnergy(state, leader.activeCost);
+          const unitBaseCost = unit.activeCost ?? 0;
+          const jokerCost = unitBaseCost >= 4 ? 2 : 1;
+          if (!canAfford(state, jokerCost)) throw new Error(`Not enough energy. Joker needs ${jokerCost} energy to copy a cost-${unitBaseCost} active.`);
+          spendEnergy(state, jokerCost);
           state.leaderUsedThisTurn[playerIdx] = true;
-          log('Joker: activating ' + unit.name + "'s ability!", 'play');
+          log(`Joker: copies ${unit.name}'s active (cost ${unitBaseCost} → paid ${jokerCost}⚡)`, 'play');
           // Fire the copied unit's active via RESOLVE_YUSUKE-style dispatch
           switch (unit.id) {
             case 'tails':    tailsActive(state, playerIdx, benchIdx, payload.discardIdx, log);            break;
@@ -358,11 +360,9 @@ export class GameRoom {
           case 'shadow':   shadowActive(state, playerIdx, benchIdx, log);                                     break;
           case 'mighty':
             mightyActive(state, playerIdx, benchIdx, log);
-            // Mighty's effect: grant a second attack phase this turn
-            if (state.pendingMightyAttack) {
-              state.pendingMightyAttack = false;
-              enterAttackPhase(state, log, emit);
-            }
+            // pendingMightyAttack = true: client will show target selection modal.
+            // The attack resolves via the ATTACK action below (isMightyAttack flag).
+            // We stay in main phase — do NOT call enterAttackPhase here.
             break;
           case 'rouge':    rougeActive(state, playerIdx, benchIdx, log);                                      break;
           case 'blaze':    blazeActive(state, playerIdx, benchIdx, log);                                      break;
@@ -411,16 +411,22 @@ export class GameRoom {
       }
 
       // ── Async resolution: block modal ─────────────────────────────────────
-      case 'RESOLVE_BLOCK': {
-        const { blockBenchIdx } = payload; // null = take the hit
-        const { attackerP, defenderP } = state.pendingBlock;
-        state.pendingBlock = null;
+      case 'RESOLVE_INTERCEPT': {
+        const { interceptBenchIdx: blockBenchIdx } = payload; // null = take the hit
+        const { attackerP, defenderP, isMighty } = state.pendingIntercept;
+        state.pendingIntercept = null;
         if (blockBenchIdx === null || blockBenchIdx === undefined) {
           attackLeader(state, attackerP, defenderP, log);
         } else {
-          resolveBlock(state, attackerP, defenderP, blockBenchIdx, log);
+          resolveIntercept(state, attackerP, defenderP, blockBenchIdx, log);
         }
-        if (checkWin(state) === null) enterEndPhase(state, log, emit);
+        if (checkWin(state) !== null) break;
+        // Mighty second attack: return to main phase, not end phase
+        if (isMighty) {
+          state.phase = 'main';
+        } else {
+          enterEndPhase(state, log, emit);
+        }
         break;
       }
 
@@ -492,6 +498,34 @@ export class GameRoom {
       }
 
       case 'ATTACK': {
+        if (state.phase !== 'attack' && !state.pendingMightyAttack) throw new Error('Not in Attack Phase.');
+
+        // ── Mighty second attack (fires from main phase) ──────────────────
+        if (state.pendingMightyAttack) {
+          state.pendingMightyAttack = false;
+          const { targetType, targetBenchIdx } = payload;
+          const opp = opponent(playerIdx);
+          if (targetType === 'leader') {
+            const canBlock = state.players[opp].bench.some(u => !u.exhausted);
+            if (canBlock) {
+              state.pendingIntercept = { attackerP: playerIdx, defenderP: opp, isMighty: true };
+            } else {
+              attackLeader(state, playerIdx, opp, log);
+              // Win check — if game continues, return to main phase (don't enter end phase)
+              if (checkWin(state) !== null) break;
+            }
+          } else if (targetType === 'unit') {
+            applyDamageToUnit(state, playerIdx, opp, targetBenchIdx, log);
+            if (checkWin(state) !== null) break;
+          } else {
+            throw new Error(`Unknown attack target type: ${targetType}`);
+          }
+          // Stay in main phase after Mighty second attack
+          state.phase = 'main';
+          break;
+        }
+
+        // ── Normal attack phase ───────────────────────────────────────────
         if (state.phase !== 'attack') throw new Error('Not in Attack Phase.');
         const { targetType, targetBenchIdx } = payload;
         const opp = opponent(playerIdx);
@@ -499,12 +533,11 @@ export class GameRoom {
           const isUnblockable = !!(state.unblockableAttack?.[playerIdx]);
           const canBlock = !isUnblockable && state.players[opp].bench.some(u => !u.exhausted);
           if (isUnblockable) {
-            state.unblockableAttack[playerIdx] = false; // consume
-            log('Sae Niijima: attack is unblockable!', 'play');
+            state.unblockableAttack[playerIdx] = false;
+            log('Sae Niijima: attack cannot be intercepted!', 'play');
           }
           if (canBlock) {
-            // Store pending block — defender must respond
-            state.pendingBlock = { attackerP: playerIdx, defenderP: opp };
+            state.pendingIntercept = { attackerP: playerIdx, defenderP: opp };
           } else {
             attackLeader(state, playerIdx, opp, log);
             if (checkWin(state) === null) enterEndPhase(state, log, emit);
@@ -662,9 +695,9 @@ export class GameRoom {
       const payload = {
         state:        sanitizeForPlayer(this.state, idx),
         logEntries:   sanitizeLogForPlayer(extra.logEntries ?? [], idx, this.state.activePlayer),
-        pendingBlock: this.state.pendingBlock
-          ? (idx === this.state.pendingBlock.defenderP
-              ? this.state.pendingBlock
+        pendingIntercept: this.state.pendingIntercept
+          ? (idx === this.state.pendingIntercept.defenderP
+              ? this.state.pendingIntercept
               : null)
           : null,
       };

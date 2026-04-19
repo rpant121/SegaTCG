@@ -1063,14 +1063,9 @@ export function mightyActive(state, p, benchIdx, log) {
   spendEnergy(state, cost);
   exhaustUnit(state, p, benchIdx);
   state.activesUsedThisTurn++;
-  const opp = opponent(p);
-  log('Mighty: second attack incoming!', 'damage');
-  const canBlock = state.players[opp].bench.some(u => !u.exhausted);
-  if (!canBlock) {
-    attackLeader(state, p, opp, log);
-  } else {
-    state.pendingBlock = { attackerP: p, defenderP: opp, isMighty: true };
-  }
-  state.pendingMightyAttack = false;
+  log('Mighty: second attack granted — choose a target!', 'play');
+  // Signal the client to open the target selection modal.
+  // The actual attack resolves when the player picks a target via ATTACK.
+  state.pendingMightyAttack = true;
   return true;
 }

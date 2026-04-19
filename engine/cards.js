@@ -375,7 +375,7 @@ export const EQUIP_DATA = {
   palace_infiltration_route: {
     id: 'palace_infiltration_route', name: 'Palace Infiltration Route', type: 'Stage', ip: 'Persona 5', cost: 1,
     isPersistent: true,
-    effectDesc: "While active: each player gains 10 extra energy at the start of their turn and takes 10 damage to their leader.",
+    effectDesc: "While active: each player gains 1 extra energy at the start of their turn and takes 10 damage to their leader.",
   },
 
   // ── Persona 5 IP — Genesis ────────────────────────────────────────────────

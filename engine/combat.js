@@ -138,6 +138,8 @@ export function applyDamageToUnit(state, attackerP, targetP, unitIdx, log) {
   unit.currentHp -= dmg;
   log(`${unit.name} took ${dmg} damage (${unit.currentHp}/${unit.hp} HP)`, 'damage');
   _triggerMightyPassive(state, attackerP, dmg, log);
+  // Ryuji/Makoto passive: heal 10 if damage >= 20 (mirrors attackLeader behaviour)
+  if (dmg >= 20) _triggerHealOnDamagePassive(state, attackerP, log);
 
   // Track damage to enemy units for Futaba passive
   if (!state.dmgToEnemyUnitsThisTurn) state.dmgToEnemyUnitsThisTurn = [0, 0];
@@ -180,29 +182,36 @@ function _triggerMightyPassive(state, p, dmg, log) {
 }
 
 // ---------------------------------------------------------------------------
-// Blocking
+// Intercepting
 // ---------------------------------------------------------------------------
-export function resolveBlock(state, attackerP, defenderP, blockerIdx, log) {
-  const unit = state.players[defenderP].bench[blockerIdx];
+export function resolveIntercept(state, attackerP, defenderP, interceptorIdx, log) {
+  const unit = state.players[defenderP].bench[interceptorIdx];
   if (!unit) return;
 
   const dmg = calcEffectiveDamage(state, attackerP);
+  const unitHpBefore = unit.currentHp;
   unit.currentHp -= dmg;
-  log(`${unit.name} blocks for Player ${defenderP + 1}! Takes ${dmg} damage (${Math.max(0,unit.currentHp)}/${unit.hp} HP)`, 'damage');
+  log(`${unit.name} intercepts for Player ${defenderP + 1}! Takes ${dmg} damage (${Math.max(0, unit.currentHp)}/${unit.hp} HP)`, 'damage');
   _triggerMightyPassive(state, attackerP, dmg, log);
+  // Ryuji/Makoto passive: heal if damage >= 20
+  if (dmg >= 20) _triggerHealOnDamagePassive(state, attackerP, log);
 
   if (unit.currentHp <= 0) {
-    state.players[defenderP].bench.splice(blockerIdx, 1);
+    state.players[defenderP].bench.splice(interceptorIdx, 1);
     state.players[defenderP].discard.push(unit);
     if (!state.supportDiedLastTurn) state.supportDiedLastTurn = [false, false];
     state.supportDiedLastTurn[defenderP] = true;
-    const koPenalty = state.activeStage?.id === 'midnight_carnival' ? 0 : 20;
-    if (koPenalty > 0) {
-      log(`${unit.name} KO'd while blocking! +${koPenalty} damage to Player ${defenderP + 1}`, 'damage');
-      applyDamageToLeader(state, defenderP, koPenalty, log);
+
+    if (state.activeStage?.id === 'midnight_carnival') {
+      log(`${unit.name} KO'd while intercepting! (Midnight Carnival: no overflow damage)`, 'damage');
     } else {
-      log(`${unit.name} KO'd while blocking! (Midnight Carnival: no penalty)`, 'damage');
+      // Overflow: excess damage beyond the interceptor's remaining HP spills to the Leader.
+      // Overflow is at least 20 (the normal KO penalty), or more if the attack overshot.
+      const overflow = Math.max(20, dmg - unitHpBefore);
+      log(`${unit.name} KO'd while intercepting! ${overflow} overflow damage to Player ${defenderP + 1}'s Leader`, 'damage');
+      applyDamageToLeader(state, defenderP, overflow, log);
     }
+
     if (state.activeStage?.id === 'mementos_depths' && state.players[defenderP].hand.length > 0) {
       const di = Math.floor(Math.random() * state.players[defenderP].hand.length);
       const disc = state.players[defenderP].hand.splice(di, 1)[0];

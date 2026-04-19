@@ -4,529 +4,414 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>How to Play — Sega Card Game TCG</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="ui/styles.css">
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { max-width: 820px; margin: 0 auto; padding: 24px 20px 60px; }
 
-    :root {
-      --navy:   #060d1a;
-      --mid:    #0d1f35;
-      --blue:   #0066CC;
-      --bright: #1a8eff;
-      --gold:   #FFD700;
-      --green:  #00CC44;
-      --red:    #FF2244;
-      --white:  #e8f0ff;
-      --muted:  #6677aa;
-      --dim:    #8899bb;
+    .back-link {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--grey);
+      text-decoration: none;
+      border: 1px solid #1a2a40;
+      padding: 4px 10px;
+      border-radius: 4px;
+      margin-bottom: 28px;
+      transition: color 0.15s, border-color 0.15s;
     }
+    .back-link:hover { color: var(--white); border-color: var(--sonic-blue); }
 
-    html { scroll-behavior: smooth; }
-
-    body {
-      background: var(--navy);
-      color: var(--white);
-      font-family: 'DM Sans', sans-serif;
-      font-weight: 300;
-      font-size: 16px;
-      line-height: 1.75;
-      background-image:
-        radial-gradient(ellipse at 10% 0%, #001a3a55 0%, transparent 50%),
-        radial-gradient(ellipse at 90% 100%, #003a6633 0%, transparent 50%);
+    h1 {
+      font-family: var(--font-display);
+      font-size: 28px;
+      color: var(--sonic-bright);
+      letter-spacing: 4px;
+      margin: 0 0 4px;
     }
-
-    /* ── NAV ── */
-    nav {
-      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 14px 48px;
-      background: #060d1af0;
-      border-bottom: 1px solid #1a3a5e33;
-      backdrop-filter: blur(10px);
-    }
-    .nav-brand {
-      font-family: 'Orbitron', sans-serif; font-size: 11px; font-weight: 700;
-      color: var(--gold); letter-spacing: 3px; text-decoration: none;
-    }
-    .nav-links { display: flex; gap: 28px; list-style: none; }
-    .nav-links a {
-      font-family: 'Orbitron', sans-serif; font-size: 10px;
-      color: var(--muted); text-decoration: none; letter-spacing: 1px;
-      transition: color 0.2s;
-    }
-    .nav-links a:hover { color: var(--white); }
-
-    /* ── LAYOUT ── */
-    .page {
-      max-width: 740px;
-      margin: 0 auto;
-      padding: 120px 32px 100px;
+    .subtitle {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--grey);
+      letter-spacing: 2px;
+      margin-bottom: 36px;
     }
 
-    /* ── HERO ── */
-    .hero { margin-bottom: 64px; padding-bottom: 48px; border-bottom: 1px solid #1a3a5e33; }
-    .eyebrow {
-      font-family: 'Orbitron', sans-serif; font-size: 9px;
-      color: var(--bright); letter-spacing: 4px; text-transform: uppercase;
-      margin-bottom: 20px;
+    h2 {
+      font-family: var(--font-display);
+      font-size: 14px;
+      color: var(--sonic-bright);
+      letter-spacing: 3px;
+      border-bottom: 1px solid #1a3a5a;
+      padding-bottom: 6px;
+      margin: 36px 0 14px;
     }
-    .hero h1 {
-      font-family: 'DM Serif Display', serif; font-size: clamp(36px, 5vw, 58px);
-      font-weight: 400; line-height: 1.1; color: var(--white); margin-bottom: 20px;
-    }
-    .hero h1 em { font-style: italic; color: var(--gold); }
-    .hero p { font-size: 17px; color: var(--dim); max-width: 560px; }
-
-    /* ── SECTIONS ── */
-    .section { margin-bottom: 56px; }
-
-    .section-label {
-      font-family: 'Orbitron', sans-serif; font-size: 8px;
-      color: var(--bright); letter-spacing: 4px; text-transform: uppercase;
-      margin-bottom: 12px; display: flex; align-items: center; gap: 12px;
-    }
-    .section-label::after {
-      content: ''; flex: 1; height: 1px;
-      background: linear-gradient(90deg, #1a3a5e88, transparent);
+    h3 {
+      font-family: var(--font-display);
+      font-size: 11px;
+      color: var(--gold);
+      letter-spacing: 2px;
+      margin: 20px 0 8px;
     }
 
-    .section h2 {
-      font-family: 'DM Serif Display', serif; font-size: clamp(22px, 3vw, 30px);
-      font-weight: 400; color: var(--white); margin-bottom: 16px; line-height: 1.2;
+    p, li {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: #8aabcc;
+      line-height: 1.7;
+    }
+    ul, ol { padding-left: 18px; margin: 8px 0; }
+    li { margin-bottom: 4px; }
+    strong { color: var(--white); }
+    em { color: var(--gold); font-style: normal; }
+
+    .rule-card {
+      background: linear-gradient(135deg, #0a1828, #060e1a);
+      border: 1px solid #1a3a5a;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+    }
+    .rule-card h3 { margin-top: 0; }
+
+    .highlight {
+      background: rgba(0,102,204,0.1);
+      border-left: 3px solid var(--sonic-blue);
+      border-radius: 0 6px 6px 0;
+      padding: 10px 14px;
+      margin: 12px 0;
+    }
+    .highlight.gold {
+      background: rgba(255,193,7,0.07);
+      border-left-color: var(--gold);
+    }
+    .highlight.red {
+      background: rgba(220,50,50,0.07);
+      border-left-color: var(--red);
     }
 
-    .section p { color: var(--dim); margin-bottom: 14px; }
-    .section p strong { color: var(--white); font-weight: 500; }
-    .section p:last-child { margin-bottom: 0; }
-
-    /* ── CALLOUT BOXES ── */
-    .callout {
-      background: #0d1f3566; border: 1px solid #1a3a5e44;
-      border-left: 3px solid var(--blue); border-radius: 0 6px 6px 0;
-      padding: 16px 20px; margin: 20px 0;
+    .phase-list { counter-reset: phase; list-style: none; padding: 0; }
+    .phase-list li {
+      counter-increment: phase;
+      display: flex;
+      gap: 12px;
+      align-items: baseline;
+      padding: 8px 0;
+      border-bottom: 1px solid #0d2040;
     }
-    .callout.gold  { border-left-color: var(--gold); }
-    .callout.green { border-left-color: var(--green); }
-    .callout.red   { border-left-color: var(--red); }
-
-    .callout-label {
-      font-family: 'Orbitron', sans-serif; font-size: 8px;
-      letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px;
+    .phase-list li:last-child { border-bottom: none; }
+    .phase-list li::before {
+      content: counter(phase);
+      font-family: var(--font-display);
+      font-size: 14px;
+      color: var(--sonic-blue);
+      flex: 0 0 20px;
+      text-align: center;
     }
-    .callout.gold  .callout-label { color: var(--gold); }
-    .callout.green .callout-label { color: var(--green); }
-    .callout.red   .callout-label { color: var(--red); }
-    .callout       .callout-label { color: var(--bright); }
-
-    .callout p { color: var(--dim); font-size: 14px; margin-bottom: 0; }
-    .callout p strong { color: var(--white); font-weight: 500; }
-
-    /* ── PHASE LIST ── */
-    .phase-list { list-style: none; margin: 20px 0; }
-    .phase-item {
-      display: flex; gap: 20px; padding: 20px 0;
-      border-bottom: 1px solid #1a3a5e22;
+    .phase-label {
+      font-family: var(--font-display);
+      font-size: 10px;
+      color: var(--sonic-bright);
+      letter-spacing: 2px;
+      flex: 0 0 130px;
     }
-    .phase-item:last-child { border-bottom: none; }
-    .phase-num {
-      font-family: 'Orbitron', sans-serif; font-size: 11px; font-weight: 700;
-      color: var(--blue); min-width: 28px; padding-top: 1px;
-    }
-    .phase-content h3 {
-      font-family: 'Orbitron', sans-serif; font-size: 10px;
-      color: var(--white); letter-spacing: 1.5px; margin-bottom: 6px;
-    }
-    .phase-content p { font-size: 14px; color: var(--dim); margin-bottom: 0; }
-    .phase-content p strong { color: var(--white); font-weight: 500; }
 
-    /* ── CARD TABLES ── */
-    .card-table { width: 100%; margin: 20px 0; border-collapse: collapse; }
+    .card-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
     .card-table th {
-      font-family: 'Orbitron', sans-serif; font-size: 8px; color: var(--muted);
-      letter-spacing: 2px; text-transform: uppercase; text-align: left;
-      padding: 8px 12px; border-bottom: 1px solid #1a3a5e;
+      font-family: var(--font-display);
+      font-size: 8px;
+      color: var(--sonic-bright);
+      letter-spacing: 1.5px;
+      text-align: left;
+      padding: 6px 8px;
+      border-bottom: 1px solid #1a3a5a;
+      background: #060e1a;
     }
     .card-table td {
-      padding: 12px; font-size: 13px; color: var(--dim);
-      border-bottom: 1px solid #1a3a5e18; vertical-align: top;
-      line-height: 1.5;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: #8aabcc;
+      padding: 5px 8px;
+      border-bottom: 1px solid #0a1828;
+      vertical-align: top;
     }
-    .card-table tr:last-child td { border-bottom: none; }
-    .card-table tr:nth-child(even) td { background: #0d1f3522; }
-    .card-name-cell { color: var(--white); font-weight: 500; white-space: nowrap; }
-    .hp-cell { color: var(--green); font-family: 'Orbitron', sans-serif; font-size: 11px; white-space: nowrap; }
-    .cost-cell { color: var(--gold); font-family: 'Orbitron', sans-serif; font-size: 11px; white-space: nowrap; }
-    .type-stage   { color: #7affa0; }
-    .type-genesis { color: #e088dd; }
+    .card-table tr:hover td { background: rgba(0,102,204,0.04); }
 
-    /* ── BOTTOM LINK ── */
-    .bottom { text-align: center; padding: 48px 0; }
-    .play-link {
-      display: inline-block; font-family: 'Orbitron', sans-serif;
-      font-size: 10px; color: var(--bright); text-decoration: none;
-      letter-spacing: 3px; text-transform: uppercase;
-      border: 1px solid var(--blue); padding: 12px 28px; border-radius: 4px;
-      transition: background 0.2s, box-shadow 0.2s;
-    }
-    .play-link:hover { background: #0d2a4a; box-shadow: 0 0 20px #0066CC44; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 600px) { .two-col { grid-template-columns: 1fr; } }
 
-    @media (max-width: 600px) {
-      nav { padding: 12px 20px; }
-      .page { padding: 100px 20px 80px; }
-      .card-table { font-size: 12px; }
-      .card-table th, .card-table td { padding: 8px; }
+    .tag {
+      display: inline-block;
+      font-family: var(--font-display);
+      font-size: 7px;
+      letter-spacing: 1px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      margin-right: 4px;
     }
+    .tag-unit      { background: #0a2040; color: #4fc3f7; border: 1px solid #1a4060; }
+    .tag-equip     { background: #1a2a00; color: #a0d060; border: 1px solid #2a4a00; }
+    .tag-stage     { background: #1a0a30; color: #c080ff; border: 1px solid #3a1a60; }
+    .tag-genesis   { background: #300a30; color: #ff80e0; border: 1px solid #601a60; }
+    .tag-new       { background: #302000; color: var(--gold); border: 1px solid #604000; }
   </style>
 </head>
 <body>
 
-<nav>
-  <a class="nav-brand" href="deck-builder.html">Sega TCG</a>
-  <ul class="nav-links">
-    <li><a href="deck-builder.html">Play</a></li>
-    <li><a href="how-to-play.html">Rules</a></li>
-  </ul>
-</nav>
+<a href="javascript:history.back()" class="back-link">← Back</a>
 
-<div class="page">
+<h1>HOW TO PLAY</h1>
+<div class="subtitle">SEGA CARD GAME TCG — RULES REFERENCE</div>
 
-  <div class="hero">
-    <p class="eyebrow">Rules Reference</p>
-    <h1>How to Play<br><em>Sega Card Game</em></h1>
-    <p>A two-player card game. Each player builds a thirty-card deck, places their Leader, and tries to reduce the opponent's Leader to zero HP. Games are designed to last around 6–10 minutes.</p>
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>OVERVIEW</h2>
+<p>Each player builds a 30-card deck and selects a Leader. Players take turns playing cards, using abilities, and attacking until one Leader's HP reaches zero.</p>
+
+<div class="two-col">
+  <div class="rule-card">
+    <h3>DECK RULES</h3>
+    <ul>
+      <li>Exactly <strong>30 cards</strong> per deck</li>
+      <li>Max <strong>3 copies</strong> of any single Unit card</li>
+      <li>Max <strong>4 copies</strong> of any single Equipment or Stage card</li>
+      <li>Max <strong>1 Genesis</strong> card per deck (0 is legal)</li>
+      <li>Your Leader is NOT part of the 30 — it is placed separately</li>
+      <li>Cards are filtered by your chosen Leader's IP (Sonic, Persona 5, etc.)</li>
+    </ul>
   </div>
-
-  <!-- SETUP -->
-  <div class="section">
-    <p class="section-label">Before you start</p>
-    <h2>Setup</h2>
-    <p>Both players build their decks using the deck builder, then hand the device to each other in turn. Once both decks are saved, the game starts.</p>
-    <p><strong>Each player draws 5 cards</strong> as their opening hand. A coin flip decides who goes first. The first player <strong>skips their Draw Phase on turn one</strong> — that's their only disadvantage for going first.</p>
-    <p>Your Leader starts in the Leader zone with full HP. They are not part of your thirty-card deck.</p>
+  <div class="rule-card">
+    <h3>WIN CONDITION</h3>
+    <ul>
+      <li>Reduce your opponent's Leader HP to <strong>0 or below</strong></li>
+      <li>Check after <em>every damage event</em></li>
+      <li>If both Leaders reach 0 on the same action, the <em>active player wins</em></li>
+    </ul>
   </div>
+</div>
 
-  <!-- TURN STRUCTURE -->
-  <div class="section">
-    <p class="section-label">Each turn</p>
-    <h2>Turn Structure</h2>
-    <p>Every turn runs through these phases in order. Most happen automatically — you only need to make decisions during the Main Phase and Attack Phase.</p>
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>SETUP</h2>
+<ol>
+  <li>Each player <strong>shuffles</strong> their 30-card deck</li>
+  <li>Each player draws an <strong>opening hand of 6 cards</strong></li>
+  <li>During the Setup Phase, each player <strong>deploys up to 3 Support Units</strong> from their hand to their bench (free, no cost)</li>
+  <li>A coin flip determines who goes first</li>
+  <li>The <strong>first player does not draw</strong> on their very first turn</li>
+</ol>
 
-    <ol class="phase-list">
-      <li class="phase-item">
-        <span class="phase-num">1</span>
-        <div class="phase-content">
-          <h3>Recovery</h3>
-          <p>All exhausted support units on your bench recover and are ready to use again.</p>
-        </div>
-      </li>
-      <li class="phase-item">
-        <span class="phase-num">2</span>
-        <div class="phase-content">
-          <h3>Draw Phase</h3>
-          <p>Draw 1 card. Some units and stages may modify how many cards you draw. If your deck is empty, you take damage instead — 1 damage the first time, 2 the second, and so on. That counter resets when you successfully draw.</p>
-        </div>
-      </li>
-      <li class="phase-item">
-        <span class="phase-num">3</span>
-        <div class="phase-content">
-          <h3>Energy Phase</h3>
-          <p>Your maximum energy goes up by 1 permanently, then your energy refills to that maximum. You start with 1 energy on turn one, 2 on turn two, and so on. <strong>Unspent energy is lost at end of turn</strong> — it does not carry over.</p>
-        </div>
-      </li>
-      <li class="phase-item">
-        <span class="phase-num">4</span>
-        <div class="phase-content">
-          <h3>Main Phase</h3>
-          <p>Do anything in any order, as many times as you can afford: play cards from your hand, deploy support units to your bench (always free), use your Leader's active ability (once per turn), or trigger a bench unit's active ability. <strong>Using a unit's active exhausts it</strong>, disabling its passive until your next Recovery Phase.</p>
-        </div>
-      </li>
-      <li class="phase-item">
-        <span class="phase-num">5</span>
-        <div class="phase-content">
-          <h3>Attack Phase</h3>
-          <p>Your Leader attacks. Choose a target: the opponent's Leader, or one of their bench units. You can also skip the attack entirely.</p>
-        </div>
-      </li>
-      <li class="phase-item">
-        <span class="phase-num">6</span>
-        <div class="phase-content">
-          <h3>End Phase</h3>
-          <p>Some unit passives trigger here. Turn-based buffs are cleared. The screen passes to your opponent.</p>
-        </div>
-      </li>
-    </ol>
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>TURN STRUCTURE</h2>
+<p>Every turn follows these phases in order:</p>
+
+<ol class="phase-list">
+  <li>
+    <span class="phase-label">DRAW</span>
+    <span>Draw 1 card. Some Stage cards or unit passives grant additional draws. If your deck is empty, take escalating damage instead (10 on 1st miss, 20 on 2nd, etc.). A successful draw resets the miss counter. Note: certain bench unit passives trigger at the very start of your turn before you draw.</span>
+  </li>
+  <li>
+    <span class="phase-label">ENERGY</span>
+    <span>Your maximum Energy increases by 1, then your current Energy is fully restored to that new maximum. Some Stage cards grant a bonus +1 Energy on top of this. Unspent Energy does NOT carry over between turns.</span>
+  </li>
+  <li>
+    <span class="phase-label">MAIN</span>
+    <span>Play cards, use Leader actives, and use bench unit actives in any order and any number of times while you can afford them. See <em>Main Phase Actions</em> below.</span>
+  </li>
+  <li>
+    <span class="phase-label">ATTACK</span>
+    <span>Your Leader attacks. Choose a target: the opponent's Leader, or one of their bench Support Units. See <em>Combat</em> below.</span>
+  </li>
+  <li>
+    <span class="phase-label">END</span>
+    <span>Tails draws 1 card (if not exhausted). All your exhausted units recover. Temporary buffs (Chaos Emerald, Power Glove, Master Emerald) clear. Turn passes to your opponent.</span>
+  </li>
+</ol>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>MAIN PHASE ACTIONS</h2>
+
+<div class="rule-card">
+  <h3>PLAYING A CARD</h3>
+  <p>Click any card in your hand to play it. Pay its Energy cost. Support Units have <strong>no deployment cost</strong> — just click to place them on your bench (max 3 units).</p>
+</div>
+
+<div class="rule-card">
+  <h3>LEADER ACTIVE</h3>
+  <p>Each Leader has a unique active ability usable during the Main Phase. Cost varies by Leader.</p>
+  <table class="card-table">
+    <tr><th>LEADER</th><th>ACTIVE</th><th>COST</th></tr>
+    <tr><td><strong>Sonic</strong></td><td>Discard 1 card from hand → Draw 2 cards. Requires at least 1 card in hand.</td><td>1</td></tr>
+    <tr><td><strong>Joker</strong></td><td>Activate any bench unit's ability. Costs 1 energy for abilities with base cost ≤3, or 2 energy for cost ≥4. Usable once per turn.</td><td>1–2</td></tr>
+    <tr><td><strong>Kazuma Kiryu</strong></td><td>+10 Leader damage this turn. Can be activated multiple times in one turn.</td><td>2</td></tr>
+  </table>
+</div>
+
+<div class="rule-card">
+  <h3>UNIT ACTIVES</h3>
+  <p>Click a bench unit to use its active ability. The unit becomes <strong>exhausted</strong> and loses its passive until End Phase. While <em>Master Emerald</em> is active, all unit actives cost 0 and units do not exhaust.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>COMBAT</h2>
+
+<div class="rule-card">
+  <h3>EFFECTIVE DAMAGE</h3>
+  <p>Your Leader's damage is calculated fresh before every attack:</p>
+  <div class="highlight">
+    <p><strong>Effective Damage</strong> = Leader base damage + Chaos Emerald buff + Power Glove buff + sum of all non-exhausted <em>attack boost</em> passives on your bench</p>
   </div>
+</div>
 
-  <!-- COMBAT -->
-  <div class="section">
-    <p class="section-label">Fighting</p>
-    <h2>Combat</h2>
-    <p>Your Leader's damage is shown on their card. This can be increased by support unit passives and equipment cards during your turn.</p>
+<h3>ATTACKING THE OPPONENT'S LEADER</h3>
+<p>When you target the opponent's Leader, they may choose to <strong>intercept</strong> with one of their non-exhausted bench units.</p>
 
-    <p><strong>Attacking the opponent's Leader:</strong> deal your effective damage to their HP. Some support unit passives on the defending side can reduce this damage.</p>
+<div class="highlight gold">
+  <p><span class="tag tag-new">NEW</span> <strong>Intercepting</strong> — The opponent sends a bench unit to stand in front of the attack. The unit absorbs the full damage. If the interceptor is KO'd, <strong>overflow damage</strong> spills to the Leader. Overflow is at minimum 20, or more if the attack exceeded the unit's remaining HP.</p>
+  <p style="margin-top:8px;">Example: Sonic deals 40 damage. Knuckles (30 HP) intercepts. Knuckles is KO'd with 10 excess. Overflow = max(20, 40−30) = <strong>20 damage to the Leader</strong>.</p>
+  <p style="margin-top:8px;">Example: Sonic deals 60 damage. Knuckles (20 HP) intercepts. Knuckles is KO'd with 40 excess. Overflow = max(20, 60−20) = <strong>40 damage to the Leader</strong>.</p>
+</div>
 
-    <p><strong>Attacking a bench unit:</strong> deal your effective damage to that unit's HP. If it reaches zero, the unit is KO'd — it goes to the discard pile and its controller takes <strong>2 damage to their Leader</strong> as a penalty.</p>
+<div class="highlight red">
+  <p><strong>Targeting a Bench Unit directly</strong> does <em>not</em> overflow. If you choose to attack a unit and KO it, no damage reaches the Leader. The opponent cannot intercept a direct unit attack.</p>
+</div>
 
-    <div class="callout gold">
-      <div class="callout-label">Blocking</div>
-      <p>When your Leader is targeted, you may choose one of your non-exhausted bench units to block. The attack damage goes to the blocker instead of your Leader. If the blocker is KO'd, the 2-damage penalty still applies to you. The blocker does not exhaust from blocking. You cannot block if all your bench units are exhausted.</p>
-    </div>
+<h3>DAMAGE REDUCTION (Defending Leader)</h3>
+<p>Non-exhausted bench units with <em>damage reduction</em> passives (e.g. Cream, Tae Takumi, Sojiro Sakura) reduce incoming damage to the Leader. These stack additively. Reduction applies after intercept overflow is calculated.</p>
 
-    <div class="callout">
-      <div class="callout-label">Elemental Shield</div>
-      <p>Blocks the next damage event directed at your Leader — including KO penalty damage. The shield clears after absorbing one damage event. You play it on yourself; it protects you during your opponent's next turn.</p>
-    </div>
+<h3>UNBLOCKABLE ATTACKS</h3>
+<p>Certain effects (e.g. Sae Niijima's active) make the next Leader attack <strong>uninterceptable</strong>. The opponent cannot send a unit to intercept — the attack hits the Leader directly.</p>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>CARD TYPES</h2>
+
+<div class="two-col">
+  <div class="rule-card">
+    <span class="tag tag-unit">UNIT</span>
+    <h3>SUPPORT UNITS</h3>
+    <ul>
+      <li>Deploy to bench during Main Phase — <strong>no Energy cost</strong></li>
+      <li>Max 3 units on bench at once</li>
+      <li>Passives are always active while not exhausted</li>
+      <li>Actives cost Energy and exhaust the unit</li>
+      <li>Exhausted units recover at End Phase</li>
+      <li>KO'd units go to discard (and may trigger overflow if intercepting)</li>
+    </ul>
   </div>
-
-  <!-- BENCH -->
-  <div class="section">
-    <p class="section-label">Your bench</p>
-    <h2>Support Units</h2>
-    <p>You can have up to <strong>3 support units</strong> on your bench at once. They cost no energy to deploy — just play them from your hand. Each unit has a <strong>passive</strong> (always active while not exhausted) and an <strong>active ability</strong> (costs energy, exhausts the unit).</p>
-
-    <table class="card-table">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>HP</th>
-          <th>Passive</th>
-          <th>Active (cost)</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td class="card-name-cell">Tails</td>
-          <td class="hp-cell">2</td>
-          <td>Draw 1 card at end of your turn</td>
-          <td>Play 1 card from your discard pile (2)</td>
-        </tr>
-        <tr>
-          <td class="card-name-cell">Knuckles</td>
-          <td class="hp-cell">4</td>
-          <td>+10 to your Leader's attack</td>
-          <td>Deal 10 damage to 1 opponent bench unit (1)</td>
-        </tr>
-        <tr>
-          <td class="card-name-cell">Amy</td>
-          <td class="hp-cell">3</td>
-          <td>+10 to your Leader's attack</td>
-          <td>Deal 10 damage to the opponent's Leader (1)</td>
-        </tr>
-        <tr>
-          <td class="card-name-cell">Cream</td>
-          <td class="hp-cell">2</td>
-          <td>Your Leader takes 10 less damage</td>
-          <td>Heal 10 HP from any friendly unit (1)</td>
-        </tr>
-        <tr>
-          <td class="card-name-cell">Big</td>
-          <td class="hp-cell">4</td>
-          <td>Start of turn: look at top card of deck, may discard it</td>
-          <td>Discard a random card from opponent's hand (3)</td>
-        </tr>
-        <tr>
-          <td class="card-name-cell">Silver</td>
-          <td class="hp-cell">3</td>
-          <td>All friendly unit actives cost 1 less energy (minimum 1)</td>
-          <td>Return one of your bench units to your hand. Scry 2: put 1 in your hand and 1 on the bottom of your deck. (3)</td>
-        </tr>
-        <tr>
-          <td class="card-name-cell">Shadow</td>
-          <td class="hp-cell">4</td>
-          <td>Your Leader's base damage is 2 instead of 1</td>
-          <td>Deal 30 damage to opponent's Leader. Your Leader takes 10 unblockable damage. (3)</td>
-        </tr>
-        <tr>
-          <td class="card-name-cell">Mighty</td>
-          <td class="hp-cell">3</td>
-          <td>After your Leader deals 30 or more damage, draw 1 card</td>
-          <td>Your Leader attacks a second time this turn. Mighty exhausts. (2)</td>
-        </tr>
-        <tr>
-          <td class="card-name-cell">Rouge</td>
-          <td class="hp-cell">2</td>
-          <td>When a card is milled from the top of your deck to your discard, draw 1 card</td>
-          <td>Mill top deck card to your discard. Does not exhaust. Once per turn. (1)</td>
-        </tr>
-        <tr>
-          <td class="card-name-cell">Blaze</td>
-          <td class="hp-cell">3</td>
-          <td>End of turn: if your discard has 5+ cards, heal your Leader 1 HP</td>
-          <td>Shuffle entire discard into deck, draw 2. Blaze exhausts. (3)</td>
-        </tr>
-        <tr>
-          <td class="card-name-cell">Ray</td>
-          <td class="hp-cell">4</td>
-          <td>When you play a card from your discard, draw 1 card</td>
-          <td>Look at top 3 deck cards — send 1 to discard, return rest in any order (2)</td>
-        </tr>
-        <tr>
-          <td class="card-name-cell">Charmy</td>
-          <td class="hp-cell">4</td>
-          <td>Each equipment card after the first this turn costs 1 less energy</td>
-          <td>Draw 1 card per equipment played this turn (2)</td>
-        </tr>
-        <tr>
-          <td class="card-name-cell">Espio</td>
-          <td class="hp-cell">3</td>
-          <td>After Draw Phase: draw 1 extra per equipment in your discard (max 2)</td>
-          <td>Shuffle up to 3 equipment from discard back into deck, draw 1 (2)</td>
-        </tr>
-        <tr>
-          <td class="card-name-cell">Vector</td>
-          <td class="hp-cell">2</td>
-          <td>Each time your Leader takes damage this turn, draw 1 card</td>
-          <td>Deal damage equal to total energy spent this turn including this cost (3)</td>
-        </tr>
-      </tbody>
-    </table>
+  <div class="rule-card">
+    <span class="tag tag-equip">EQUIPMENT</span>
+    <h3>EQUIPMENT CARDS</h3>
+    <ul>
+      <li>Play from hand during Main Phase, pay Energy cost</li>
+      <li>Effect resolves immediately, then the card goes to discard</li>
+      <li>Examples: Ring (+1 Energy), Chaos Emerald (+20 damage), Chili Dog (heal 20 HP)</li>
+    </ul>
   </div>
+</div>
 
-  <!-- EQUIPMENT -->
-  <div class="section">
-    <p class="section-label">Cards you play</p>
-    <h2>Equipment, Stages, and Genesis Cards</h2>
-    <p>These cards all cost energy to play. Equipment and Genesis cards go to your discard after use. Stages stay on the board until replaced — only one Stage can be active at a time, and playing a new one sends the old one to your discard.</p>
-    <p>There is a maximum of <strong>one Genesis card per deck</strong>. You can have zero if you prefer.</p>
-
-    <table class="card-table">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Cost</th>
-          <th>Type</th>
-          <th>Effect</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td class="card-name-cell">Ring</td>
-          <td class="cost-cell">0</td>
-          <td>Equipment</td>
-          <td>Gain 1 Energy immediately.</td>
-        </tr>
-        <tr>
-          <td class="card-name-cell">Speed Shoes</td>
-          <td class="cost-cell">1</td>
-          <td>Equipment</td>
-          <td>Gain 3 Energy immediately.</td>
-        </tr>
-        <tr>
-          <td class="card-name-cell">Extreme Gear</td>
-          <td class="cost-cell">0</td>
-          <td>Equipment</td>
-          <td>Discard any number of cards from your hand — gain 1 Energy per card discarded.</td>
-        </tr>
-        <tr>
-          <td class="card-name-cell">Heat Barrier</td>
-          <td class="cost-cell">1</td>
-          <td>Equipment</td>
-          <td>Heal your Leader 20 HP. Cannot exceed max HP.</td>
-        </tr>
-        <tr>
-          <td class="card-name-cell">Elemental Shield</td>
-          <td class="cost-cell">1</td>
-          <td>Equipment</td>
-          <td>Block the next damage event directed at your Leader during your opponent's next turn, including KO penalty damage. Clears after absorbing.</td>
-        </tr>
-        <tr>
-          <td class="card-name-cell">Chaos Emerald</td>
-          <td class="cost-cell">2</td>
-          <td>Equipment</td>
-          <td>Your Leader gains +20 damage until end of this turn.</td>
-        </tr>
-        <tr>
-          <td class="card-name-cell">Dragon's Eye</td>
-          <td class="cost-cell">2</td>
-          <td>Equipment</td>
-          <td>Look at the top 3 cards of your deck. Put 1 into your hand; return the rest in any order.</td>
-        </tr>
-        <tr>
-          <td class="card-name-cell">Power Glove</td>
-          <td class="cost-cell">3</td>
-          <td>Equipment</td>
-          <td>Your Leader deals +30 damage this turn only.</td>
-        </tr>
-        <tr>
-          <td class="card-name-cell">Green Hill Zone</td>
-          <td class="cost-cell">1</td>
-          <td class="type-stage">Stage</td>
-          <td>While active: both players draw 1 extra card during their Draw Phase.</td>
-        </tr>
-        <tr>
-          <td class="card-name-cell">Radical Highway</td>
-          <td class="cost-cell">1</td>
-          <td class="type-stage">Stage</td>
-          <td>While active: each player gains 1 extra energy at the start of their turn.</td>
-        </tr>
-        <tr>
-          <td class="card-name-cell">Midnight Carnival</td>
-          <td class="cost-cell">2</td>
-          <td class="type-stage">Stage</td>
-          <td>While active: KO'd bench units deal 0 penalty damage to their controller instead of 20.</td>
-        </tr>
-        <tr>
-          <td class="card-name-cell">Master Emerald</td>
-          <td class="cost-cell">4</td>
-          <td class="type-genesis">Genesis</td>
-          <td>This turn: all bench unit actives cost 0 and do not exhaust. Cleared at end of turn.</td>
-        </tr>
-        <tr>
-          <td class="card-name-cell">Super Form</td>
-          <td class="cost-cell">4</td>
-          <td class="type-genesis">Genesis</td>
-          <td>Double your current energy.</td>
-        </tr>
-        <tr>
-          <td class="card-name-cell">Polaris Pact</td>
-          <td class="cost-cell">5</td>
-          <td class="type-genesis">Genesis</td>
-          <td>Both players draw until they have 6 cards in hand. Then your opponent discards 1 card of their choice.</td>
-        </tr>
-      </tbody>
-    </table>
+<div class="two-col">
+  <div class="rule-card">
+    <span class="tag tag-stage">STAGE</span>
+    <h3>STAGE CARDS</h3>
+    <ul>
+      <li>Play from hand, pay Energy cost</li>
+      <li>Only <strong>1 Stage active</strong> at a time — playing a new one sends the old one to your discard</li>
+      <li>Effects persist until replaced</li>
+      <li>Examples: Green Hill Zone (both draw +1/turn), Radical Highway (+1 Energy/turn)</li>
+    </ul>
   </div>
-
-  <!-- LEADERS -->
-  <div class="section">
-    <p class="section-label">Leaders</p>
-    <h2>Leader Cards</h2>
-    <p>Your Leader is placed in the Leader zone before the game starts and is not part of your thirty-card deck. Each Leader has a base HP, a base damage value, and one active ability that costs energy and can be used once per turn.</p>
-    <p>More Leaders may be added in future updates. Currently available:</p>
-
-    <table class="card-table">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>HP</th>
-          <th>Damage</th>
-          <th>Active (cost)</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td class="card-name-cell">Sonic the Hedgehog</td>
-          <td class="hp-cell">100</td>
-          <td class="cost-cell">1</td>
-          <td>Discard 1 card from hand, then draw 2. Requires at least 1 card in hand. (1)</td>
-        </tr>
-      </tbody>
-    </table>
+  <div class="rule-card">
+    <span class="tag tag-genesis">GENESIS</span>
+    <h3>GENESIS CARDS</h3>
+    <ul>
+      <li>Max <strong>1 Genesis card per deck</strong></li>
+      <li>Play from hand during Main Phase, pay Energy cost</li>
+      <li>Powerful one-time effects</li>
+      <li>Examples: Master Emerald (all unit actives free this turn), Arsène Unleashed (halve a leader's HP)</li>
+    </ul>
   </div>
+</div>
 
-  <!-- DECK BUILDING -->
-  <div class="section">
-    <p class="section-label">Building your deck</p>
-    <h2>Deck Rules</h2>
-    <p>Exactly <strong>30 cards</strong> per deck. Maximum <strong>3 copies</strong> of any non-Genesis card. Maximum <strong>1 Genesis card</strong> (0 is fine). The deck builder enforces all of this and won't let you start with an invalid deck.</p>
-    <p>Three prebuilt decks are available if you want to play immediately without building your own.</p>
-  </div>
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>ENERGY</h2>
+<ul>
+  <li>You gain 1 max Energy per turn (no cap)</li>
+  <li>Each turn you refresh to your full max Energy</li>
+  <li>Unspent Energy does <strong>not</strong> carry over</li>
+  <li><strong>Ring</strong>: +1 Energy immediately (can spend same turn)</li>
+  <li><strong>Speed Shoes</strong>: +3 Energy immediately</li>
+  <li><strong>Extreme Gear</strong>: Discard up to 3 cards, +1 Energy per discard</li>
+  <li><strong>Radical Highway</strong> (Stage): +1 Energy to the active player each turn</li>
+  <li><strong>Palace Infiltration Route</strong> (Stage): +1 Energy to the active player each turn, but both leaders take 10 damage</li>
+</ul>
 
-  <div class="bottom">
-    <a class="play-link" href="deck-builder.html">Build a Deck and Play</a>
-  </div>
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>KEY SONIC CARDS</h2>
+<table class="card-table">
+  <tr><th>CARD</th><th>TYPE</th><th>COST</th><th>EFFECT</th></tr>
+  <tr><td>Ring</td><td><span class="tag tag-equip">Equipment</span></td><td>0</td><td>Gain 1 Energy immediately.</td></tr>
+  <tr><td>Speed Shoes</td><td><span class="tag tag-equip">Equipment</span></td><td>1</td><td>Gain 3 Energy immediately.</td></tr>
+  <tr><td>Extreme Gear</td><td><span class="tag tag-equip">Equipment</span></td><td>0</td><td>Discard up to 3 cards — gain 1 Energy per card discarded.</td></tr>
+  <tr><td>Chili Dog</td><td><span class="tag tag-equip">Equipment</span></td><td>1</td><td>Heal your Leader 20 HP (cannot exceed max HP).</td></tr>
+  <tr><td>Elemental Shield</td><td><span class="tag tag-equip">Equipment</span></td><td>1</td><td>Reduce next damage your Leader takes by 20 (one time).</td></tr>
+  <tr><td>Chaos Emerald</td><td><span class="tag tag-equip">Equipment</span></td><td>2</td><td>Leader gains +20 damage this turn.</td></tr>
+  <tr><td>Dragon's Eye</td><td><span class="tag tag-equip">Equipment</span></td><td>2</td><td>Look at top 3 deck cards; take 1 into hand, return the rest.</td></tr>
+  <tr><td>Power Glove</td><td><span class="tag tag-equip">Equipment</span></td><td>3</td><td>Leader gains +30 damage this turn.</td></tr>
+  <tr><td>Green Hill Zone</td><td><span class="tag tag-stage">Stage</span></td><td>1</td><td>Both players draw 1 extra card each Draw Phase.</td></tr>
+  <tr><td>Radical Highway</td><td><span class="tag tag-stage">Stage</span></td><td>1</td><td>Active player gains +1 Energy each turn.</td></tr>
+  <tr><td>Midnight Carnival</td><td><span class="tag tag-stage">Stage</span></td><td>2</td><td>KO'd bench units deal 0 overflow/penalty damage to their controller.</td></tr>
+  <tr><td>Master Emerald</td><td><span class="tag tag-genesis">Genesis</span></td><td>4</td><td>This turn: all bench unit actives cost 0 and units do not exhaust.</td></tr>
+  <tr><td>Polaris Pact</td><td><span class="tag tag-genesis">Genesis</span></td><td>2</td><td>If a friendly unit died last turn: both shuffle hands into decks. You draw 5, opponent draws 2.</td></tr>
+  <tr><td>Super Form</td><td><span class="tag tag-genesis">Genesis</span></td><td>4</td><td>Double your current Energy.</td></tr>
+</table>
 
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>KEY PERSONA 5 CARDS</h2>
+<table class="card-table">
+  <tr><th>CARD</th><th>TYPE</th><th>COST</th><th>EFFECT</th></tr>
+  <tr><td>Calling Card</td><td><span class="tag tag-equip">Equipment</span></td><td>0</td><td>Opponent discards 1 card at random.</td></tr>
+  <tr><td>Treasure (Distorted Desire)</td><td><span class="tag tag-equip">Equipment</span></td><td>2</td><td>Leader +20 damage this turn. If opponent has ≤3 cards, +40 instead.</td></tr>
+  <tr><td>LeBlanc Coffee</td><td><span class="tag tag-equip">Equipment</span></td><td>1</td><td>Heal Leader 20 HP. Then optionally discard 1 card to draw 1.</td></tr>
+  <tr><td>Third Eye</td><td><span class="tag tag-equip">Equipment</span></td><td>2</td><td>Look at top 3 deck cards, take 1 into hand. Opponent discards 1 at random.</td></tr>
+  <tr><td>Guard Persona</td><td><span class="tag tag-equip">Equipment</span></td><td>3</td><td>Prevent ALL damage to your Leader during opponent's next turn. Afterward, opponent discards 1.</td></tr>
+  <tr><td>All-Out Attack</td><td><span class="tag tag-equip">Equipment</span></td><td>3</td><td>Leader +30 damage this turn. If opponent has ≤2 cards, +50 instead.</td></tr>
+  <tr><td>Phantom Thief Tools</td><td><span class="tag tag-equip">Equipment</span></td><td>1</td><td>Gain 2 Energy. If opponent has more cards than you, gain 3 instead.</td></tr>
+  <tr><td>Metaverse Navigator</td><td><span class="tag tag-equip">Equipment</span></td><td>2</td><td>Both players discard their hands and draw that many cards.</td></tr>
+  <tr><td>Shibuya Crossing</td><td><span class="tag tag-stage">Stage</span></td><td>1</td><td>Both draw 1 extra each Draw Phase. Whenever opponent draws outside Draw Phase, they discard 1.</td></tr>
+  <tr><td>Mementos Depths</td><td><span class="tag tag-stage">Stage</span></td><td>2</td><td>When a support unit is KO'd, its controller discards 1 card.</td></tr>
+  <tr><td>Palace Infiltration Route</td><td><span class="tag tag-stage">Stage</span></td><td>1</td><td>Active player gains +1 Energy each turn. Both Leaders take 10 damage each turn.</td></tr>
+  <tr><td>Holy Grail</td><td><span class="tag tag-genesis">Genesis</span></td><td>4</td><td>This turn: all bench unit actives cost 0 and units do not exhaust.</td></tr>
+  <tr><td>Contract of Rebellion</td><td><span class="tag tag-genesis">Genesis</span></td><td>5</td><td>Both draw to 6 cards. Opponent discards 2 and cannot draw outside Draw Phase until your next turn.</td></tr>
+  <tr><td>Arsène Unleashed</td><td><span class="tag tag-genesis">Genesis</span></td><td>4</td><td>Set any Leader's HP to half of their max (choose target).</td></tr>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>QUICK REFERENCE: INTERCEPT vs DIRECT ATTACK</h2>
+
+<div class="highlight">
+  <table class="card-table" style="margin:0;">
+    <tr><th></th><th>ATTACK LEADER (opponent intercepts)</th><th>ATTACK BENCH UNIT DIRECTLY</th></tr>
+    <tr><td><strong>Opponent can intercept?</strong></td><td>Yes — any non-exhausted unit</td><td>No — no interception</td></tr>
+    <tr><td><strong>If interceptor KO'd</strong></td><td>Overflow damage hits Leader (min 20)</td><td>N/A — unit just goes to discard</td></tr>
+    <tr><td><strong>KO penalty damage</strong></td><td>Included in overflow calculation</td><td>No penalty to opponent's Leader</td></tr>
+    <tr><td><strong>Best when</strong></td><td>You can kill the interceptor AND still deal overflow</td><td>You want to remove a specific passive without penalty</td></tr>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>SPECIAL MECHANICS</h2>
+
+<div class="rule-card">
+  <h3>EXHAUSTION</h3>
+  <p>A unit becomes exhausted when it uses its active ability. Exhausted units: lose their passive bonus, cannot intercept, and cannot use their active. They recover at the <strong>End Phase</strong> of the controlling player's turn.</p>
+</div>
+
+<div class="rule-card">
+  <h3>DECK-OUT DAMAGE</h3>
+  <p>If your deck is empty during Draw Phase, instead of drawing you take damage equal to <strong>10 × number of consecutive failed draws</strong>. (10 on 1st miss, 20 on 2nd, 30 on 3rd, etc.) A successful draw resets the counter to 0.</p>
+</div>
+
+<div class="rule-card">
+  <h3>TAUNT</h3>
+  <p>Some units (e.g. Sojiro Sakura) can gain Taunt. While a unit has Taunt, the <strong>opponent must choose it as the intercept target</strong> if they intercept — they cannot send a different unit. Taunt expires at the start of your next turn.</p>
 </div>
 
 </body>

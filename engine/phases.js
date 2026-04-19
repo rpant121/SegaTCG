@@ -103,7 +103,10 @@ function runEnergyPhase(state, log, emit) {
   }
 
   if (state.activeStage?.id === 'palace_infiltration_route') {
-    // Both leaders take 10 damage at start of energy phase
+    // +1 energy to the active player
+    state.energy[p] += 1;
+    log(`Palace Infiltration Route: +1 energy to Player ${p + 1}`, 'phase');
+    // Both leaders take 10 damage
     for (let pi = 0; pi <= 1; pi++) {
       const ldr = state.players[pi].leader;
       ldr.currentHp = Math.max(0, ldr.currentHp - 10);

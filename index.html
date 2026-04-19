@@ -318,11 +318,11 @@
 </div>
 
 <!-- Block Modal -->
-<div class="overlay" id="block-overlay">
+<div class="overlay" id="intercept-overlay">
   <div class="modal">
-    <h2>⚔ INCOMING ATTACK</h2>
-    <p id="block-desc"></p>
-    <div class="modal-cards" id="block-options"></div>
+    <h2>🛡 INCOMING ATTACK</h2>
+    <p id="intercept-desc"></p>
+    <div class="modal-cards" id="intercept-options"></div>
     <button class="action-btn danger" id="btn-take-hit" style="margin-top:8px;">Take the Hit</button>
   </div>
 </div>
@@ -379,37 +379,56 @@
   }
 </script>
 
-<!-- Mobile panel toggle + mini-status updater -->
+<!-- Mobile: strip inline grid-row styles + panel toggle + mini-status -->
 <script>
 (function () {
-  const panel  = document.querySelector('.side-panel');
-  const toggle = document.getElementById('mobile-panel-toggle');
-  if (!panel || !toggle) return;
+  const MOBILE_MQ = window.matchMedia('(max-width: 700px)');
+  const panel     = document.querySelector('.side-panel');
+  const toggle    = document.getElementById('mobile-panel-toggle');
 
-  // Show/hide toggle button only on mobile
-  function applyMobileMode() {
-    const isMobile = window.matchMedia('(max-width: 700px)').matches;
-    toggle.style.display = isMobile ? 'flex' : 'none';
-    if (!isMobile) panel.classList.remove('panel-open');
+  // IDs that have inline style="grid-row:N" which must be cleared on mobile
+  const GRID_ROW_IDS = ['p2-hand','p2-bench','p2-leader-row','p1-leader-row','p1-bench','p1-hand'];
+
+  function applyMobileMode(isMobile) {
+    // Strip / restore inline grid-row so our flex order takes effect
+    GRID_ROW_IDS.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (isMobile) {
+        el.dataset.savedGridRow = el.style.gridRow || '';
+        el.style.gridRow = '';
+      } else {
+        el.style.gridRow = el.dataset.savedGridRow || '';
+      }
+    });
+    // Also clear the midline (no id, use class)
+    document.querySelectorAll('.midline').forEach(el => {
+      if (isMobile) { el.dataset.savedGridRow = el.style.gridRow || ''; el.style.gridRow = ''; }
+      else           { el.style.gridRow = el.dataset.savedGridRow || ''; }
+    });
+
+    if (toggle) toggle.style.display = isMobile ? 'flex' : 'none';
+    if (!isMobile && panel) panel.classList.remove('panel-open');
   }
-  applyMobileMode();
-  window.addEventListener('resize', applyMobileMode);
 
-  // Toggle open/close
-  toggle.addEventListener('click', () => {
-    panel.classList.toggle('panel-open');
-  });
+  // Run on load and on viewport resize
+  applyMobileMode(MOBILE_MQ.matches);
+  MOBILE_MQ.addEventListener('change', e => applyMobileMode(e.matches));
 
-  // Close panel when an action button is tapped
+  // Toggle panel open/close on handle tap
+  if (toggle && panel) {
+    toggle.addEventListener('click', () => panel.classList.toggle('panel-open'));
+  }
+
+  // Auto-close panel after tapping an action button
   ['btn-end-phase', 'btn-leader-active'].forEach(id => {
     const btn = document.getElementById(id);
-    if (btn) btn.addEventListener('click', () => {
+    if (btn && panel) btn.addEventListener('click', () => {
       setTimeout(() => panel.classList.remove('panel-open'), 300);
     });
   });
 
-  // Update the mini-status strip in the toggle bar
-  // This is called by renderer.js indirectly via a custom event
+  // Called by renderer.js to update the mini strip
   window.updateMobileStrip = function (phase, energy) {
     const phaseEl  = document.getElementById('mobile-phase-mini');
     const energyEl = document.getElementById('mobile-energy-mini');

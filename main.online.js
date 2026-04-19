@@ -49,7 +49,7 @@ const lobbyHTML = `
     max-width:320px;line-height:1.6;
   ">
     ⚠ No deck found. Please build your deck first.
-    <br><a href="deck-builder.html" style="color:#ffd700;">Go to Deck Builder →</a>
+    <br><a href="deck-builder-online.html" style="color:#ffd700;">Go to Deck Builder →</a>
   </div>
 
   <!-- Buttons -->
@@ -115,6 +115,9 @@ function getSavedDeck() {
 //   3. Same origin (when server and client are deployed together)
 const SERVER_URL = sessionStorage.getItem('online_server_url')
   || (window.location.hostname === 'localhost' ? 'http://localhost:3000' : window.location.origin);
+
+// Ensure the nav deck-builder button routes correctly even if home.html wasn't used
+sessionStorage.setItem('online_server_url', SERVER_URL);
 
 const socket = io(SERVER_URL, { autoConnect: false });
 
