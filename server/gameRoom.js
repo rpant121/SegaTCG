@@ -37,17 +37,26 @@ import {
 // Affected patterns:
 //   "📄 Player N draws CardName"  → "📄 Player N draws a card"  (for opponent)
 //   "📄 Player N draws CardName"  → unchanged                   (for self)
-function sanitizeLogForPlayer(logEntries, viewerIdx) {
+function sanitizeLogForPlayer(logEntries, viewerIdx, activePlayer) {
   return logEntries.map(entry => {
     if (!entry.msg) return entry;
 
-    // Redact draw card names for opponent
+    // Redact "📄 Player N draws CardName" for opponent
     const drawMatch = entry.msg.match(/^(. Player )(\d+)( draws )(.+)$/);
     if (drawMatch) {
       const pIdx = parseInt(drawMatch[2], 10) - 1;
       if (pIdx !== viewerIdx) {
         return { ...entry, msg: drawMatch[1] + drawMatch[2] + drawMatch[3] + 'a card' };
       }
+    }
+
+    // Redact passive draw logs (Rouge, Vector, Mighty, etc.) — these happen on
+    // the active player's turn; hide the card name from the opponent.
+    // Patterns: "🦇 Rouge: draws CardName ...", "Vector: draws CardName ...",
+    //           "Mighty: draws CardName ...", "Tails: draws CardName ..."
+    const passiveDrawMatch = entry.msg.match(/^(.+: draws )([^(]+)(.*)$/);
+    if (passiveDrawMatch && typeof activePlayer === 'number' && activePlayer !== viewerIdx) {
+      return { ...entry, msg: passiveDrawMatch[1] + 'a card' + (passiveDrawMatch[3] ? ' ' + passiveDrawMatch[3].trim() : '') };
     }
 
     // Redact setup deployment card names for opponent
@@ -653,7 +662,7 @@ export class GameRoom {
       if (!socketId) return;
       const payload = {
         state:        sanitizeForPlayer(this.state, idx),
-        logEntries:   sanitizeLogForPlayer(extra.logEntries ?? [], idx),
+        logEntries:   sanitizeLogForPlayer(extra.logEntries ?? [], idx, this.state.activePlayer),
         pendingBlock: this.state.pendingBlock
           ? (idx === this.state.pendingBlock.defenderP
               ? this.state.pendingBlock
