@@ -255,8 +255,8 @@ export const EQUIP_DATA = {
     isPersistent: false,
     effectDesc: '-20 to the next instance of damage you receive (applies once, then clears).',
   },
-  heat_barrier: {
-    id: 'heat_barrier', name: 'Heat Barrier', type: 'Equipment', ip: 'Sonic', cost: 1,
+  chili_dog: {
+    id: 'chili_dog', name: 'Chili Dog', type: 'Equipment', ip: 'Sonic', cost: 1,
     isPersistent: false,
     effectDesc: 'Heal your Leader for 20 HP. Cannot exceed max HP.',
   },

@@ -19,7 +19,7 @@ const UNIT_EMOJI = {
 const EQUIP_EMOJI = {
   ring: '💍', chaos_emerald: '💎', master_emerald: '💚',
   green_hill_zone: '🌿', elemental_shield: '🛡',
-  heat_barrier: '🔥', dragons_eye: '👁', power_glove: '🥊',
+  chili_dog: '🔥', dragons_eye: '👁', power_glove: '🥊',
   midnight_carnival: '🎪', polaris_pact: '🌌',
   speed_shoes: '👟', extreme_gear: '⚙', radical_highway: '🛣', super_form: '✨',
 };

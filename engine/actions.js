@@ -226,13 +226,13 @@ export function applyEquipmentEffect(state, p, card, log) {
       state.shieldReduction[p] += 20;
       log(`🛡 Elemental Shield: -20 to next damage taken by Player ${p + 1}`, 'play');
       break;
-    case 'heat_barrier': {
+    case 'chili_dog': {
       const leader = state.players[p].leader;
       const healed = Math.min(20, leader.hp - leader.currentHp);
       leader.currentHp += healed;
       if (!state.healedThisTurn) state.healedThisTurn = [0, 0];
       state.healedThisTurn[p] = (state.healedThisTurn[p] ?? 0) + healed;
-      log(`🔥 Heat Barrier: Leader healed ${healed} HP (${leader.currentHp}/${leader.hp})`, 'heal');
+      log(`🔥 Chili Dog: Leader healed ${healed} HP (${leader.currentHp}/${leader.hp})`, 'heal');
       break;
     }
     case 'dragons_eye':
