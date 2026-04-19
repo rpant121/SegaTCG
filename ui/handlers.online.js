@@ -590,7 +590,6 @@ function openRayActiveModal() {
 
 function openExtremeGearModal() {
   const { playerIdx: pi, maxDiscards = 3 } = state.pendingExtremeGear;
-  const hand = state.players[pi].hand.filter(c => c && !c.hidden);
   _extremeGearSelected = new Set();
   const c = document.getElementById('extreme-gear-options'); c.innerHTML = '';
   const updateCount = () => {
@@ -598,7 +597,8 @@ function openExtremeGearModal() {
     document.getElementById('extreme-gear-count').textContent = n + '/' + maxDiscards + ' selected -> +' + n + ' Energy';
     c.querySelectorAll('.eg-wrap').forEach(w => { const atCap = n >= maxDiscards && !_extremeGearSelected.has(+w.dataset.i); w.style.opacity = atCap ? '0.4' : '1'; w.style.pointerEvents = atCap ? 'none' : ''; });
   };
-  hand.forEach((card, hi) => {
+  state.players[pi].hand.forEach((card, hi) => {
+    if (!card || card.hidden) return;
     const w = document.createElement('div'); w.className = 'eg-wrap'; w.dataset.i = hi;
     w.style.cssText = 'position:relative;cursor:pointer;display:inline-block;';
     const cel = buildCardEl(card, false); cel.style.pointerEvents = 'none';
