@@ -13,6 +13,7 @@ import { checkWin }                     from '../engine/combat.js';
 import { attackLeader, applyDamageToUnit, resolveBlock } from '../engine/combat.js';
 import {
   playCardFromHand, resolveExtremeGear,
+  canAfford, spendEnergy,
   tailsActive, knucklesActive, amyActive, creamActive, bigActive,
   silverActive, shadowActive, mightyActive, rougeActive, blazeActive,
   rayActive, charmyActive, espioActive, vectorActive, sonicActive,
@@ -271,7 +272,64 @@ export class GameRoom {
       // ── Leader Active (Sonic) ─────────────────────────────────────────────
       case 'USE_LEADER_ACTIVE': {
         const { handIdx } = payload;
-        sonicActive(state, handIdx, log);
+        const leaderId = state.players[playerIdx].leader.id;
+        if (leaderId === 'kiryu') {
+          // Kiryu: +10 attack this turn, may be used multiple times
+          const leader = state.players[playerIdx].leader;
+          if (!canAfford(state, leader.activeCost)) throw new Error('Not enough energy for Kiryu active.');
+          spendEnergy(state, leader.activeCost);
+          state.powerGloveBuff[playerIdx] = (state.powerGloveBuff[playerIdx] ?? 0) + 10;
+          // Note: leaderUsedThisTurn NOT set so Kiryu can activate multiple times
+          log('Kazuma Kiryu: +10 attack this turn!', 'play');
+        } else if (leaderId === 'joker') {
+          // Joker: activate any bench unit's active — client sends which benchIdx to copy
+          const { benchIdx } = payload;
+          if (benchIdx === undefined || benchIdx === null) throw new Error('Joker: no bench unit selected.');
+          const unit = state.players[playerIdx].bench[benchIdx];
+          if (!unit) throw new Error('Joker: no unit at that bench slot.');
+          const leader = state.players[playerIdx].leader;
+          if (!canAfford(state, leader.activeCost)) throw new Error('Not enough energy for Joker active.');
+          if (state.leaderUsedThisTurn[playerIdx]) throw new Error('Joker active already used this turn.');
+          spendEnergy(state, leader.activeCost);
+          state.leaderUsedThisTurn[playerIdx] = true;
+          log('Joker: activating ' + unit.name + "'s ability!", 'play');
+          // Fire the copied unit's active via RESOLVE_YUSUKE-style dispatch
+          switch (unit.id) {
+            case 'tails':    tailsActive(state, playerIdx, benchIdx, payload.discardIdx, log);            break;
+            case 'knuckles': knucklesActive(state, playerIdx, benchIdx, payload.targetBenchIdx, log);     break;
+            case 'amy':      amyActive(state, playerIdx, benchIdx, log);                                  break;
+            case 'cream':    creamActive(state, playerIdx, benchIdx, payload.targetType, payload.targetBenchIdx, log); break;
+            case 'big':      bigActive(state, playerIdx, benchIdx, log);                                  break;
+            case 'silver':   silverActive(state, playerIdx, benchIdx, payload.targetBenchIdx, log);       break;
+            case 'shadow':   shadowActive(state, playerIdx, benchIdx, log);                               break;
+            case 'mighty':   mightyActive(state, playerIdx, benchIdx, log);                               break;
+            case 'rouge':    rougeActive(state, playerIdx, benchIdx, log);                                break;
+            case 'blaze':    blazeActive(state, playerIdx, benchIdx, log);                                break;
+            case 'ray':      rayActive(state, playerIdx, benchIdx, log);                                  break;
+            case 'charmy':   charmyActive(state, playerIdx, benchIdx, log);                               break;
+            case 'espio':    espioActive(state, playerIdx, benchIdx, log);                                break;
+            case 'vector':   vectorActive(state, playerIdx, benchIdx, log);                               break;
+            case 'caroline':         carolineActive(state, playerIdx, benchIdx, log);          break;
+            case 'justine':          justineActive(state, playerIdx, benchIdx, log);           break;
+            case 'tae_takumi':       taeTakumiActive(state, playerIdx, benchIdx, log);         break;
+            case 'sojiro_sakura':    sojiroSakuraActive(state, playerIdx, benchIdx, log);      break;
+            case 'sae_niijima':      saeNiijimaActive(state, playerIdx, benchIdx, log);        break;
+            case 'sadayo_kawakami':  sadayoKawakamiActive(state, playerIdx, benchIdx, log);    break;
+            case 'suguru_kamoshida': suguruKamoshidaActive(state, playerIdx, benchIdx, log);   break;
+            case 'ryuji_sakamoto':   ryujiSakamotoActive(state, playerIdx, benchIdx, log);     break;
+            case 'ann_takamaki':     annTakamakiActive(state, playerIdx, benchIdx, log);       break;
+            case 'morgana':          morganaActive(state, playerIdx, benchIdx, payload.targetBenchIdx, log); break;
+            case 'yusuke_kitagawa':  yusukeKitagawaActive(state, playerIdx, benchIdx, payload.targetBenchIdx, log); break;
+            case 'makoto_niijima':   makotoNiijimaActive(state, playerIdx, benchIdx, log);     break;
+            case 'futaba_sakura':    futabaSakuraActive(state, playerIdx, benchIdx, log);       break;
+            case 'haru_okumura':     haruOkumuraActive(state, playerIdx, benchIdx, log);        break;
+            case 'sumire_yoshizawa': sumireYoshizawaActive(state, playerIdx, benchIdx, payload.targetBenchIdx, log); break;
+            default: throw new Error('Joker cannot copy: ' + unit.id);
+          }
+        } else {
+          // Sonic (default): discard 1 card from hand, draw 2
+          sonicActive(state, handIdx, log);
+        }
         break;
       }
 
@@ -430,7 +488,12 @@ export class GameRoom {
         const { targetType, targetBenchIdx } = payload;
         const opp = opponent(playerIdx);
         if (targetType === 'leader') {
-          const canBlock = state.players[opp].bench.some(u => !u.exhausted);
+          const isUnblockable = !!(state.unblockableAttack?.[playerIdx]);
+          const canBlock = !isUnblockable && state.players[opp].bench.some(u => !u.exhausted);
+          if (isUnblockable) {
+            state.unblockableAttack[playerIdx] = false; // consume
+            log('Sae Niijima: attack is unblockable!', 'play');
+          }
           if (canBlock) {
             // Store pending block — defender must respond
             state.pendingBlock = { attackerP: playerIdx, defenderP: opp };

@@ -27,6 +27,12 @@ export function startTurn(state, log, emit) {
   for (const u of state.players[p].bench) {
     if (u.exhausted) { u.exhausted = false; log(`${u.name} recovered`, 'phase'); }
   }
+  // Haru shield expires at the start of the PROTECTED player's own turn
+  if (state.haruShield) state.haruShield[p] = false;
+  // Haru extended exhaust: clear haruShield flag on unit so she can be used again
+  state.players[p].bench.forEach(u => { if (u.haruShield) { u.haruShield = false; } });
+  // shieldReduction (Elemental Shield / Guard Persona) expires at start of protected player's turn
+  if (state.shieldReduction) state.shieldReduction[p] = 0;
 
   // Activate Kamoshida passive flag for this turn (always, before any early return)
   if (!state.kamoshidaPassive) state.kamoshidaPassive = [false, false];
@@ -158,17 +164,16 @@ export function enterEndPhase(state, log, emit) {
   state.rougeUsedThisTurn[p]         = false;
   state.leaderUsedThisTurn[p]        = false;
   state.usedActivesThisTurn           = [];
-  if (state.shieldReduction)         state.shieldReduction[p]         = 0;
+  // shieldReduction NOT cleared here — persists into opponent's turn (Guard Persona)
   // P5 per-turn resets
   if (state.healedThisTurn)          state.healedThisTurn[p]          = 0;
   if (state.dmgToEnemyUnitsThisTurn) state.dmgToEnemyUnitsThisTurn[p] = 0;
   if (state.opponentDiscardsThisTurn)state.opponentDiscardsThisTurn[p]= 0;
   if (state.unblockableAttack)       state.unblockableAttack[p]       = false;
   if (state.tauntUnit)               state.tauntUnit[p]               = null;
-  if (state.haruShield)              state.haruShield[p]              = false;
+  // haruShield intentionally NOT cleared here — persists until start of player's NEXT turn
   if (state.kamoshidaPassive)        state.kamoshidaPassive[p]        = false;
-  // Haru: clear extended exhaust if she was protecting this turn
-  state.players[p].bench.forEach(u => { if (u.haruShield) { u.haruShield = false; u.exhausted = false; } });
+  // Haru exhausted state cleared in startTurn when shield expires
   // Caroline/Justine: track whether each died alone this turn for revival condition
   _updateCarolineJustineLock(state, p);
   delete state._genesisPlayedBy;

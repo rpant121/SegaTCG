@@ -65,8 +65,6 @@ export function drawCards(state, p, count, log, fromDrawPhase = false) {
       log(`📄 Player ${p + 1} draws ${card.name}`, 'draw');
       // Shibuya Crossing: when opponent draws outside draw phase, they discard 1
       if (!fromDrawPhase && state.activeStage?.id === 'shibuya_crossing') {
-        const opp2 = p === 0 ? 1 : 0; // the other player (stage owner perspective doesn't matter here)
-        // Only triggers if p is the opponent of the stage player (stage active for both)
         if (state.players[p].hand.length > 0) {
           const discIdx = Math.floor(Math.random() * state.players[p].hand.length);
           const disc = state.players[p].hand.splice(discIdx, 1)[0];
@@ -1068,7 +1066,7 @@ export function mightyActive(state, p, benchIdx, log) {
   const opp = opponent(p);
   log('Mighty: second attack incoming!', 'damage');
   const canBlock = state.players[opp].bench.some(u => !u.exhausted);
-  if (state.shieldActive[opp] || !canBlock) {
+  if (!canBlock) {
     attackLeader(state, p, opp, log);
   } else {
     state.pendingBlock = { attackerP: p, defenderP: opp, isMighty: true };

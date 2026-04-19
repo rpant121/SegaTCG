@@ -86,8 +86,12 @@ function bindSocketListeners() {
       }
     }
 
-    if (state.pendingBigScry && state.pendingBigScry.playerIdx === myPlayerIdx)
+    if (state.pendingBigScry && state.pendingBigScry.playerIdx === myPlayerIdx) {
       showScryModal(state.pendingBigScry.card);
+      // Update modal title based on who triggered the scry
+      const scryTitle = document.querySelector('#scry-overlay h2');
+      if (scryTitle) scryTitle.textContent = state.pendingBigScry.isFutaba ? "FUTABA'S SCRY" : "BIG'S SCRY";
+    }
 
     if (myPlayerIdx === state.activePlayer) checkPendingEffects();
 
@@ -165,16 +169,22 @@ function attachBoardHandlers() {
       ownHandEl.querySelectorAll('.card').forEach((div, i) => {
         const card = state.players[p].hand[i];
         if (!card || card.hidden) return;
-        if (card.type === 'Unit') attachDragToHandCard(div, i, p);
+        if (card.type === 'Unit') {
+          attachDragToHandCard(div, i, p);
+          // Also allow click-to-deploy during setup (not just drag)
+          div.style.cursor = 'pointer';
+          div.onclick = () => {
+            if (state.players[p].bench.length >= 3) { addLog('Bench is full', 'damage'); return; }
+            act('PLAY_CARD', { handIdx: i });
+          };
+        }
         div.addEventListener('contextmenu', e => { e.preventDefault(); openCardInspect(card, null); });
       });
     }
 
-    const ownBenchEl = document.getElementById('p' + (p + 1) + '-bench');
-    if (ownBenchEl) {
-      delete ownBenchEl.dataset.dropWired;
-      attachBenchDropZoneOnce('p' + (p + 1) + '-bench', p);
-      ownBenchEl.querySelectorAll('.bench-unit').forEach((div, i) => {
+    const _ownBenchFresh = attachBenchDropZoneOnce('p' + (p + 1) + '-bench', p);
+    if (_ownBenchFresh) {
+      _ownBenchFresh.querySelectorAll('.bench-unit').forEach((div, i) => {
         const unit = state.players[p].bench[i];
         if (unit) div.addEventListener('contextmenu', e => { e.preventDefault(); openCardInspect(unit, null); });
       });
@@ -206,9 +216,11 @@ function attachBoardHandlers() {
     });
   }
 
-  const ownBenchEl = document.getElementById('p' + (p + 1) + '-bench');
+  const _freshBench = isMyTurn()
+    ? attachBenchDropZoneOnce('p' + (p + 1) + '-bench', p)
+    : document.getElementById('p' + (p + 1) + '-bench');
+  const ownBenchEl = _freshBench;
   if (ownBenchEl) {
-    if (isMyTurn()) { delete ownBenchEl.dataset.dropWired; attachBenchDropZoneOnce('p' + (p + 1) + '-bench', p); }
     ownBenchEl.querySelectorAll('.bench-unit').forEach((div, i) => {
       const unit = state.players[p].bench[i];
       if (!unit) return;
@@ -267,11 +279,19 @@ function attachDragToHandCard(div, handIdx, p) {
 
 function attachBenchDropZoneOnce(benchId, p) {
   const el = document.getElementById(benchId);
-  if (!el || el.dataset.dropWired === '1') return;
-  el.dataset.dropWired = '1';
-  el.addEventListener('dragover',  e => { e.preventDefault(); el.classList.add('drop-hover'); });
-  el.addEventListener('dragleave', () => el.classList.remove('drop-hover'));
-  el.addEventListener('drop', e => { e.preventDefault(); el.classList.remove('drop-hover'); if (_drag.active) { act('PLAY_CARD', { handIdx: _drag.handIdx }); endDrag(p); } });
+  if (!el) return null;
+  // Clone to strip all stale event listeners, then re-attach fresh ones
+  const fresh = el.cloneNode(true);
+  el.parentNode.replaceChild(fresh, el);
+  fresh.dataset.dropWired = '1';
+  fresh.addEventListener('dragover',  e => { e.preventDefault(); fresh.classList.add('drop-hover'); });
+  fresh.addEventListener('dragleave', () => fresh.classList.remove('drop-hover'));
+  fresh.addEventListener('drop', e => {
+    e.preventDefault();
+    fresh.classList.remove('drop-hover');
+    if (_drag.active) { act('PLAY_CARD', { handIdx: _drag.handIdx }); endDrag(p); }
+  });
+  return fresh; // return new element so callers don't use stale ref
 }
 
 function highlightBenchZone(on, p) { const el = document.getElementById('p' + (p + 1) + '-bench'); if (el) el.classList.toggle('drop-target-active', on); }
@@ -450,11 +470,27 @@ function openLeaderActiveModal() {
   const p = myPlayerIdx;
   const leader = state.players[p].leader;
   if (leader.id === 'kiryu') { act('USE_LEADER_ACTIVE', {}); return; }
+  if (leader.id === 'joker') {
+    // Joker: choose a bench unit to copy their active
+    const bench = state.players[p].bench;
+    if (bench.length === 0) { addLog('! Joker: no bench units to copy', 'damage'); return; }
+    const c = document.getElementById('target-options'); c.innerHTML = '';
+    document.getElementById('target-title').textContent = 'JOKER: COPY ACTIVE';
+    document.getElementById('target-desc').textContent  = 'Choose a bench unit to activate:';
+    bench.forEach((unit, bi) => {
+      c.appendChild(mkBtn(unit.name + ' — ' + unit.activeDesc, () => {
+        act('USE_LEADER_ACTIVE', { benchIdx: bi });
+        closeOverlay('target-overlay');
+      }));
+    });
+    showOverlay('target-overlay');
+    return;
+  }
+  // Sonic (default): pick hand card to discard
   if (state.players[p].hand.length === 0) { addLog('! ' + leader.name + ': hand is empty', 'damage'); return; }
   const c = document.getElementById('sonic-discard-options'); c.innerHTML = '';
-  const label = leader.id === 'joker' ? 'Use for ability' : 'Discard -> Draw 2';
   state.players[p].hand.filter(card => card && !card.hidden).forEach((card, hi) => {
-    c.appendChild(mkCardBtn(card, () => { act('USE_LEADER_ACTIVE', { handIdx: hi }); closeOverlay('sonic-overlay'); }, label));
+    c.appendChild(mkCardBtn(card, () => { act('USE_LEADER_ACTIVE', { handIdx: hi }); closeOverlay('sonic-overlay'); }, 'Discard -> Draw 2'));
   });
   showOverlay('sonic-overlay');
 }
