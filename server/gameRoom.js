@@ -41,8 +41,9 @@ function sanitizeLogForPlayer(logEntries, viewerIdx, activePlayer) {
   return logEntries.map(entry => {
     if (!entry.msg) return entry;
 
-    // Redact "📄 Player N draws CardName" for opponent
-    const drawMatch = entry.msg.match(/^(. Player )(\d+)( draws )(.+)$/);
+    // Redact "📄 Player N draws CardName" for opponent.
+    // NOTE: emoji like 📄 are 2 code units in JS without /u flag, so use .+ not . for prefix.
+    const drawMatch = entry.msg.match(/^(.+Player )(\d+)( draws )(.+)$/u);
     if (drawMatch) {
       const pIdx = parseInt(drawMatch[2], 10) - 1;
       if (pIdx !== viewerIdx) {
@@ -50,11 +51,9 @@ function sanitizeLogForPlayer(logEntries, viewerIdx, activePlayer) {
       }
     }
 
-    // Redact passive draw logs (Rouge, Vector, Mighty, etc.) — these happen on
-    // the active player's turn; hide the card name from the opponent.
-    // Patterns: "🦇 Rouge: draws CardName ...", "Vector: draws CardName ...",
-    //           "Mighty: draws CardName ...", "Tails: draws CardName ..."
-    const passiveDrawMatch = entry.msg.match(/^(.+: draws )([^(]+)(.*)$/);
+    // Redact passive draw logs (Rouge, Vector, Mighty, Tails, etc.)
+    // These happen on the active player's turn; hide the card name from the opponent.
+    const passiveDrawMatch = entry.msg.match(/^(.+: draws )([^(]+)(.*)$/u);
     if (passiveDrawMatch && typeof activePlayer === 'number' && activePlayer !== viewerIdx) {
       return { ...entry, msg: passiveDrawMatch[1] + 'a card' + (passiveDrawMatch[3] ? ' ' + passiveDrawMatch[3].trim() : '') };
     }

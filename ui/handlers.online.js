@@ -48,6 +48,11 @@ function bindSocketListeners() {
   socket.on('state_update', ({ state: newState, logEntries, winner, pendingBlock }) => {
     state = newState;
 
+    // Always dismiss any waiting/pass overlay when fresh state arrives.
+    // Paths that need the overlay (end-phase wait, block wait) re-show it below.
+    closeOverlay('pass-overlay');
+    document.getElementById('btn-continue').style.display = '';
+
     if (Array.isArray(logEntries)) logEntries.forEach(({ msg, type }) => addLog(msg, type));
 
     if (winner !== undefined && !_gameOver) {
