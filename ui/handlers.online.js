@@ -273,7 +273,14 @@ let _drag = { active: false, handIdx: null };
 
 function attachDragToHandCard(div, handIdx, p) {
   div.draggable = true;
-  div.addEventListener('dragstart', e => { _drag = { active: true, handIdx }; e.dataTransfer.effectAllowed = 'move'; highlightBenchZone(true, p); });
+  div.addEventListener('dragstart', e => {
+    _drag = { active: true, handIdx };
+    e.dataTransfer.effectAllowed = 'move';
+    highlightBenchZone(true, p);
+    // Disable pointer events on bench children so drag events land on the container
+    const benchEl = document.getElementById('p' + (p + 1) + '-bench');
+    if (benchEl) benchEl.querySelectorAll('.bench-unit, .bench-slot').forEach(el => { el.style.pointerEvents = 'none'; });
+  });
   div.addEventListener('dragend', () => endDrag(p));
 }
 
@@ -284,8 +291,12 @@ function attachBenchDropZoneOnce(benchId, p) {
   const fresh = el.cloneNode(true);
   el.parentNode.replaceChild(fresh, el);
   fresh.dataset.dropWired = '1';
-  fresh.addEventListener('dragover',  e => { e.preventDefault(); fresh.classList.add('drop-hover'); });
-  fresh.addEventListener('dragleave', () => fresh.classList.remove('drop-hover'));
+  fresh.addEventListener('dragover',  e => { e.preventDefault(); }); // must preventDefault to allow drop
+  fresh.addEventListener('dragenter', e => { e.preventDefault(); fresh.classList.add('drop-hover'); });
+  fresh.addEventListener('dragleave', e => {
+    // Only remove hover if leaving the bench entirely (not just entering a child)
+    if (!fresh.contains(e.relatedTarget)) fresh.classList.remove('drop-hover');
+  });
   fresh.addEventListener('drop', e => {
     e.preventDefault();
     fresh.classList.remove('drop-hover');
@@ -295,7 +306,14 @@ function attachBenchDropZoneOnce(benchId, p) {
 }
 
 function highlightBenchZone(on, p) { const el = document.getElementById('p' + (p + 1) + '-bench'); if (el) el.classList.toggle('drop-target-active', on); }
-function endDrag(p) { _drag = { active: false, handIdx: null }; highlightBenchZone(false, p); document.querySelectorAll('.drop-hover').forEach(el => el.classList.remove('drop-hover')); }
+function endDrag(p) {
+  _drag = { active: false, handIdx: null };
+  highlightBenchZone(false, p);
+  document.querySelectorAll('.drop-hover').forEach(el => el.classList.remove('drop-hover'));
+  // Restore pointer events on bench children
+  const benchEl = document.getElementById('p' + (p + 1) + '-bench');
+  if (benchEl) benchEl.querySelectorAll('.bench-unit, .bench-slot').forEach(el => { el.style.pointerEvents = ''; });
+}
 
 function triggerGenesisGlow(playerIdx) {
   ['p' + (playerIdx+1) + '-hand', 'p' + (playerIdx+1) + '-bench', 'p' + (playerIdx+1) + '-leader-row'].forEach(id => {
