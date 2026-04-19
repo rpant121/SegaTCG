@@ -11,7 +11,7 @@ import {
   tailsActive, knucklesActive, amyActive, creamActive, bigActive,
   silverActive, shadowActive, mightyActive, rougeActive, blazeActive,
   rayActive, charmyActive, espioActive, vectorActive,
-  sonicActive,
+  sonicActive, kiryuActive, jokerActiveValidate,
 } from '../engine/actions.js';
 import {
   startTurn, resolveBigScry as engineResolveBigScry,
@@ -139,14 +139,18 @@ function attachBoardHandlers() {
 
   const ownLeaderDiv = renderLeader(`p${p + 1}-leader-zone`, state, p);
   if (state.phase === 'main') {
-    const canUse = canAfford(state, state.players[p].leader.activeCost)
-                   && state.players[p].hand.length > 0
-                   && !(state.leaderUsedThisTurn ?? [false, false])[p];
+    const leader  = state.players[p].leader;
+    const needsHand = leader.id === 'sonic'; // only Sonic requires a card in hand
+    const alreadyUsed = (state.leaderUsedThisTurn ?? [false, false])[p];
+    const canUse  = canAfford(state, leader.activeCost)
+                   && (!needsHand || state.players[p].hand.length > 0)
+                   && (leader.id === 'kiryu' || !alreadyUsed); // Kiryu can activate multiple times
+    const openFn  = () => openLeaderActiveModal(p);
     ownLeaderDiv.style.cursor = canUse ? 'pointer' : 'default';
-    if (canUse) ownLeaderDiv.onclick = () => openSonicModal();
+    if (canUse) ownLeaderDiv.onclick = openFn;
     ownLeaderDiv.addEventListener('contextmenu', (e) => {
       e.preventDefault();
-      openCardInspect(state.players[p].leader, canUse ? () => openSonicModal() : null);
+      openCardInspect(state.players[p].leader, canUse ? openFn : null);
     });
   }
 
@@ -356,6 +360,65 @@ function openMightyAttackModal(p) {
   showOverlay('mighty-attack-overlay');
 }
 
+// ── Leader active router ───────────────────────────────────────────────────
+function openLeaderActiveModal(p) {
+  const leaderId = state.players[p].leader.id;
+  if (leaderId === 'kiryu') {
+    if (kiryuActive(state, log)) { refreshBoard(); winGuard(); }
+  } else if (leaderId === 'joker') {
+    openJokerModal(p);
+  } else {
+    openSonicModal();
+  }
+}
+
+// ── Joker: pick a bench unit to copy ──────────────────────────────────────
+function openJokerModal(p) {
+  const bench = state.players[p].bench;
+  if (bench.length === 0) { addLog('\ud83c\udca1 Joker: no bench units to copy', 'damage'); return; }
+
+  const c = document.getElementById('target-options');
+  c.innerHTML = '';
+  document.getElementById('target-title').textContent = 'JOKER: COPY ACTIVE';
+  document.getElementById('target-desc').textContent  =
+    'Select a bench unit \u2014 Joker copies its active (1\u26a1 for cost \u22643, 2\u26a1 for cost \u22654):';
+
+  bench.forEach((unit, ui) => {
+    const unitCost  = unit.activeCost ?? 0;
+    const jokerCost = unitCost >= 4 ? 2 : 1;
+    const btn = mkBtn(
+      `${unit.name}  [copy: ${jokerCost}\u26a1]  (unit cost: ${unitCost})`,
+      () => {
+        closeOverlay('target-overlay');
+        if (!jokerActiveValidate(state, ui, log)) return;
+        handleUnitActiveByUnit(p, ui, unit);
+      }
+    );
+    c.appendChild(btn);
+  });
+  showOverlay('target-overlay');
+}
+
+// Fire a unit active by bench index (Joker already paid — skip energy re-check)
+function handleUnitActiveByUnit(p, benchIdx, unit) {
+  switch (unit.id) {
+    case 'tails':    openTailsModal(p, benchIdx);        break;
+    case 'knuckles': openKnucklesModal(p, benchIdx);     break;
+    case 'amy':      if (amyActive(state, p, benchIdx, log))    { refreshBoard(); winGuard(); } break;
+    case 'cream':    openCreamModal(p, benchIdx);        break;
+    case 'big':      if (bigActive(state, p, benchIdx, log))    { refreshBoard(); winGuard(); } break;
+    case 'silver':   openSilverBounceModal(p, benchIdx); break;
+    case 'shadow':   if (shadowActive(state, p, benchIdx, log)) { refreshBoard(); winGuard(); } break;
+    case 'rouge':    if (rougeActive(state, p, benchIdx, log))  { refreshBoard(); winGuard(); } break;
+    case 'blaze':    if (blazeActive(state, p, benchIdx, log))  { refreshBoard(); winGuard(); } break;
+    case 'ray':      if (rayActive(state, p, benchIdx, log))    { refreshBoard(); checkPendingEffects(); } break;
+    case 'charmy':   if (charmyActive(state, p, benchIdx, log)) { refreshBoard(); winGuard(); } break;
+    case 'espio':    if (espioActive(state, p, benchIdx, log))  { refreshBoard(); winGuard(); } break;
+    case 'vector':   if (vectorActive(state, p, benchIdx, log)) { refreshBoard(); winGuard(); } break;
+    default: addLog(`\ud83c\udca1 Joker: cannot copy ${unit.id} in local mode`, 'damage');
+  }
+}
+
 function openSonicModal() {
   const p = state.activePlayer;
   if (state.players[p].hand.length === 0) { addLog('\u274c Sonic: hand is empty', 'damage'); return; }
@@ -481,7 +544,7 @@ function bindStaticButtons() {
   });
 
   document.getElementById('btn-leader-active').addEventListener('click', () => {
-    if (state.phase === 'main') openSonicModal();
+    if (state.phase === 'main') openLeaderActiveModal(state.activePlayer);
   });
 
   document.getElementById('btn-scry-discard').addEventListener('click', () => {
