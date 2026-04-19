@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sega Card Game TCG</title>
   <link rel="stylesheet" href="ui/styles.css">
+  <link rel="stylesheet" href="ui/mobile.css">
   <style>
     .top-nav {
       position: fixed; top: 6px; right: 8px; z-index: 50;
@@ -119,6 +120,15 @@
 
   <!-- ── SIDE PANEL ─────────────────────────────────────── -->
   <div class="side-panel">
+
+    <!-- Mobile toggle handle (hidden on desktop via CSS) -->
+    <div id="mobile-panel-toggle" style="display:none;">
+      <div class="toggle-status">
+        <span id="mobile-phase-mini">SETUP</span>
+        <span id="mobile-energy-mini" style="color:var(--gold);">⚡0</span>
+      </div>
+      <span class="toggle-chevron">▲</span>
+    </div>
 
     <!-- Status: phase + turn + energy -->
     <div class="panel-section">
@@ -369,8 +379,47 @@
   }
 </script>
 
-<!-- Deck Builder nav routing -->
+<!-- Mobile panel toggle + mini-status updater -->
 <script>
+(function () {
+  const panel  = document.querySelector('.side-panel');
+  const toggle = document.getElementById('mobile-panel-toggle');
+  if (!panel || !toggle) return;
+
+  // Show/hide toggle button only on mobile
+  function applyMobileMode() {
+    const isMobile = window.matchMedia('(max-width: 700px)').matches;
+    toggle.style.display = isMobile ? 'flex' : 'none';
+    if (!isMobile) panel.classList.remove('panel-open');
+  }
+  applyMobileMode();
+  window.addEventListener('resize', applyMobileMode);
+
+  // Toggle open/close
+  toggle.addEventListener('click', () => {
+    panel.classList.toggle('panel-open');
+  });
+
+  // Close panel when an action button is tapped
+  ['btn-end-phase', 'btn-leader-active'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.addEventListener('click', () => {
+      setTimeout(() => panel.classList.remove('panel-open'), 300);
+    });
+  });
+
+  // Update the mini-status strip in the toggle bar
+  // This is called by renderer.js indirectly via a custom event
+  window.updateMobileStrip = function (phase, energy) {
+    const phaseEl  = document.getElementById('mobile-phase-mini');
+    const energyEl = document.getElementById('mobile-energy-mini');
+    if (phaseEl)  phaseEl.textContent  = (phase  || 'SETUP').toUpperCase();
+    if (energyEl) energyEl.textContent = '⚡' + (energy ?? 0);
+  };
+})();
+</script>
+
+
   document.getElementById('nav-deck-builder').addEventListener('click', (e) => {
     e.preventDefault();
     const isOnline = !!sessionStorage.getItem('online_server_url');

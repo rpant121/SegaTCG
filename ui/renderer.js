@@ -105,6 +105,11 @@ export function renderHUD(state) {
   }
   setText('energy-text', `${state.energy[p]}/${state.energyMax[p]}`);
 
+  // Update mobile mini-status strip
+  if (typeof window.updateMobileStrip === 'function') {
+    window.updateMobileStrip(PHASE_LABELS[state.phase] ?? state.phase, state.energy[p]);
+  }
+
   // Stage
   const stageEl = q('stage-zone');
   if (state.activeStage) {
