@@ -1028,6 +1028,38 @@ export function sonicActive(state, handIdx, log) {
   return true;
 }
 
+export function kiryuActive(state, log) {
+  const p      = state.activePlayer;
+  const leader = state.players[p].leader;
+  if (!canAfford(state, leader.activeCost)) { log(`❌ Not enough energy for Kiryu's active`, 'damage'); return false; }
+  spendEnergy(state, leader.activeCost);
+  // Kiryu does NOT set leaderUsedThisTurn — can be used multiple times per turn
+  state.powerGloveBuff[p] = (state.powerGloveBuff[p] ?? 0) + 10;
+  log(`🐉 Kazuma Kiryu: +10 attack this turn! (total buff: ${state.powerGloveBuff[p]})`, 'play');
+  return true;
+}
+
+// Joker active: pay 1 energy (cost ≤3) or 2 energy (cost ≥4) to copy a bench unit's active.
+// Returns the benchIdx chosen, or false if preconditions fail.
+// Actual unit active dispatch happens in the UI after this validates + spends energy.
+export function jokerActiveValidate(state, benchIdx, log) {
+  const p      = state.activePlayer;
+  const leader = state.players[p].leader;
+  if (state.leaderUsedThisTurn[p]) { log(`❌ Joker: active already used this turn`, 'damage'); return false; }
+  const unit = state.players[p].bench[benchIdx];
+  if (!unit) { log(`❌ Joker: no unit at that bench slot`, 'damage'); return false; }
+  const unitCost  = unit.activeCost ?? 0;
+  const jokerCost = unitCost >= 4 ? 2 : 1;
+  if (!canAfford(state, jokerCost)) {
+    log(`❌ Not enough energy. Joker needs ${jokerCost} energy to copy ${unit.name}'s active (base cost ${unitCost})`, 'damage');
+    return false;
+  }
+  spendEnergy(state, jokerCost);
+  state.leaderUsedThisTurn[p] = true;
+  log(`🃏 Joker copies ${unit.name}'s active! (paid ${jokerCost}⚡)`, 'play');
+  return true;
+}
+
 export function resolveExtremeGear(state, handIndices, log) {
   const p = state.pendingExtremeGear.playerIdx;
   const sorted = [...handIndices].sort((a, b) => b - a);
