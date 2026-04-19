@@ -218,8 +218,11 @@ function attachBoardHandlers() {
       if (!card || card.hidden) return;
       div.addEventListener('contextmenu', e => { e.preventDefault(); openCardInspect(card, null); });
       if (isMyTurn()) {
+        // All card types: click to play
+        div.style.cursor = 'pointer';
+        div.onclick = () => { if (state.phase === 'main') act('PLAY_CARD', { handIdx: i }); };
+        // Unit cards: also support drag-to-bench as an alternative
         if (card.type === 'Unit') attachDragToHandCard(div, i, p);
-        else div.onclick = () => { if (state.phase === 'main') act('PLAY_CARD', { handIdx: i }); };
       }
     });
   }
