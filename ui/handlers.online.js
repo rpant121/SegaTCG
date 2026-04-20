@@ -21,7 +21,7 @@ import {
   render, addLog, showOverlay, closeOverlay,
   showScryModal, showWinModal,
   renderLeader, renderBench, renderHand, openCardInspect,
-  buildCardEl,
+  buildCardEl, showCardPlayAnim, registerCardStub,
 } from './renderer.js';
 import { opponent } from '../engine/state.js';
 import { calcEffectiveDamage } from '../engine/combat.js';
@@ -71,7 +71,25 @@ function bindSocketListeners() {
     closeOverlay('pass-overlay');
     document.getElementById('btn-continue').style.display = '';
 
-    if (Array.isArray(logEntries)) logEntries.forEach(({ msg, type }) => addLog(msg, type));
+    // Register all visible cards as stubs for log chip lookups
+    if (state) {
+      state.players.forEach(pl => {
+        [pl.leader, ...pl.bench, ...(pl.hand || []), ...(pl.discard || [])].forEach(c => {
+          if (c && c.id && !c.hidden) registerCardStub(c);
+        });
+      });
+      if (state.activeStage) registerCardStub(state.activeStage);
+    }
+
+    if (Array.isArray(logEntries)) {
+      logEntries.forEach(({ msg, type, cardId }) => {
+        addLog(msg, type, cardId ?? null);
+        // Trigger card play animation for play-type entries with a cardId
+        if (cardId && type === 'play' && state) {
+          showCardPlayAnim(cardId, state.activePlayer);
+        }
+      });
+    }
 
     if (winner !== undefined && !_gameOver) {
       _gameOver = true;
@@ -469,6 +487,8 @@ function openUnitActiveConfirm(unit, benchIdx, p) {
 function fireUnitActive(p, benchIdx) {
   const unit = state.players[p].bench[benchIdx];
   if (!unit) return;
+  registerCardStub(unit);
+  showCardPlayAnim(unit, p);
   switch (unit.id) {
     case 'tails':            openTailsModal(p, benchIdx);        break;
     case 'knuckles':         openKnucklesModal(p, benchIdx);     break;
@@ -612,6 +632,8 @@ function openInterceptModal(attackerP, defenderP) {
 function openLeaderActiveModal() {
   const p      = myPlayerIdx;
   const leader = state.players[p].leader;
+  registerCardStub(leader);
+  showCardPlayAnim(leader, p);
   if (leader.id === 'kiryu') { act('USE_LEADER_ACTIVE', {}); return; }
   if (leader.id === 'joker') {
     const bench = state.players[p].bench;

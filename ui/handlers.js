@@ -30,7 +30,7 @@ import {
   render, addLog, showOverlay, closeOverlay,
   showScryModal, showPassModal, showWinModal,
   renderLeader, renderBench, renderHand, openCardInspect,
-  buildCardEl,
+  buildCardEl, showCardPlayAnim, registerCardStub,
 } from './renderer.js';
 
 let state     = null;
@@ -94,9 +94,9 @@ function emit(event, payload) {
   winGuard();
 }
 
-function log(msg, type) {
-  addLog(msg, type);
-  _turnLog.push({ msg, type });
+function log(msg, type, cardId = null) {
+  addLog(msg, type, cardId);
+  _turnLog.push({ msg, type, ...(cardId ? { cardId } : {}) });
 }
 
 function winGuard() {
@@ -119,7 +119,12 @@ function attachBoardHandlers() {
       if (card.type !== 'Unit') return;
       if (state.players[sp].bench.length >= 3) return;
       div.classList.add('playable');
-      div.onclick = () => { playCardFromHand(state, idx, log); refreshBoard(); };
+      div.onclick = () => {
+        registerCardStub(card);
+        playCardFromHand(state, idx, log);
+        showCardPlayAnim(card, sp);
+        refreshBoard();
+      };
       attachDragSource(div, idx, card);
     });
     renderBench(`p${sp + 1}-bench`, state, sp);
@@ -139,10 +144,14 @@ function attachBoardHandlers() {
     const effectiveCost = Math.max(0, (card.cost ?? 0) - charmyDiscount);
     const playable = state.phase === 'main' && canAfford(state, effectiveCost);
     const onPlay = (playable && card.type !== 'Unit') ? () => {
-      const isEquipType = card.type === 'Equipment'; // only equipment gets undo, not Stage/Genesis
-      playCardFromHand(state, idx, log);
+      const isEquipType = card.type === 'Equipment';
+      registerCardStub(card);
+      // inject cardId into the first 'play' log entry emitted
+      const logWithCard = (msg, type = 'phase', cid = null) => log(msg, type, cid ?? (type === 'play' && !logWithCard._tagged ? (logWithCard._tagged = true, card.id) : null));
+      logWithCard._tagged = false;
+      playCardFromHand(state, idx, logWithCard);
+      showCardPlayAnim(card, p);
       refreshBoard(); winGuard(); checkPendingEffects();
-      // #21 — offer undo for Equipment cards (not Stage/Genesis) for 2 seconds
       if (isEquipType && !_gameOver) showEquipUndo(card, idx, p);
     } : null;
     div.addEventListener('contextmenu', (e) => { e.preventDefault(); openCardInspect(card, onPlay); });
@@ -151,7 +160,12 @@ function attachBoardHandlers() {
       attachDragSource(div, idx, card);
     } else if (playable) {
       div.classList.add('playable');
-      div.onclick = () => { playCardFromHand(state, idx, log); refreshBoard(); winGuard(); checkPendingEffects(); };
+      div.onclick = () => {
+        registerCardStub(card);
+        playCardFromHand(state, idx, log);
+        showCardPlayAnim(card, p);
+        refreshBoard(); winGuard(); checkPendingEffects();
+      };
     }
   });
 
@@ -267,6 +281,8 @@ function attachBenchDropZone(benchId, p) {
   el.addEventListener('drop', (e) => {
     e.preventDefault(); el.classList.remove('drop-hover');
     if (!_drag.active || _drag.handIdx === null) return;
+    const draggedCard = state.players[state.activePlayer].hand[_drag.handIdx];
+    if (draggedCard) { registerCardStub(draggedCard); showCardPlayAnim(draggedCard, state.activePlayer); }
     playCardFromHand(state, _drag.handIdx, log);
     endDrag(); refreshBoard(); winGuard(); checkPendingEffects();
   });
@@ -303,6 +319,8 @@ function checkPendingEffects() {
 function handleUnitActive(p, benchIdx) {
   const unit = state.players[p].bench[benchIdx];
   if (!unit) return;
+  registerCardStub(unit);
+  showCardPlayAnim(unit, p);
   switch (unit.id) {
     case 'tails':    openTailsModal(p, benchIdx);       break;
     case 'knuckles': openKnucklesModal(p, benchIdx);    break;
@@ -461,7 +479,10 @@ function openMightyAttackModal(p) {
 }
 
 function openLeaderActiveModal(p) {
-  const leaderId = state.players[p].leader.id;
+  const leader = state.players[p].leader;
+  registerCardStub(leader);
+  showCardPlayAnim(leader, p);
+  const leaderId = leader.id;
   if (leaderId === 'kiryu') {
     if (kiryuActive(state, log)) { refreshBoard(); winGuard(); }
   } else if (leaderId === 'joker') {

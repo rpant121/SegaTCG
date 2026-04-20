@@ -82,7 +82,7 @@ function sanitizeForPlayer(state, viewerIdx) {
 // ---------------------------------------------------------------------------
 function makeLog() {
   const entries = [];
-  const fn = (msg, type = 'phase') => entries.push({ msg, type });
+  const fn = (msg, type = 'phase', cardId = null) => entries.push({ msg, type, ...(cardId ? { cardId } : {}) });
   fn.flush = () => entries.splice(0);
   return fn;
 }
@@ -216,7 +216,19 @@ export class GameRoom {
 
       case 'PLAY_CARD': {
         const { handIdx } = payload;
-        playCardFromHand(state, handIdx, log);
+        // Capture card id before playCardFromHand removes it from hand
+        const _playedCard = state.players[playerIdx].hand[handIdx];
+        const _playedCardId = _playedCard?.id ?? null;
+        // Wrap log to inject cardId into the first 'play' entry emitted by playCardFromHand
+        const logWithCard = (msg, type = 'phase') => {
+          if (type === 'play' && _playedCardId && !logWithCard._tagged) {
+            logWithCard._tagged = true;
+            return log(msg, type, _playedCardId);
+          }
+          return log(msg, type);
+        };
+        logWithCard._tagged = false;
+        playCardFromHand(state, handIdx, logWithCard);
         break;
       }
 
@@ -228,7 +240,7 @@ export class GameRoom {
           if (!canAfford(state, leader.activeCost)) throw new Error('Not enough energy for Kiryu active.');
           spendEnergy(state, leader.activeCost);
           state.powerGloveBuff[playerIdx] = (state.powerGloveBuff[playerIdx] ?? 0) + 10;
-          log('Kazuma Kiryu: +10 attack this turn!', 'play');
+          log('Kazuma Kiryu: +10 attack this turn!', 'play', 'kiryu');
         } else if (leaderId === 'joker') {
           const { benchIdx } = payload;
           if (benchIdx === undefined || benchIdx === null) throw new Error('Joker: no bench unit selected.');
@@ -240,7 +252,7 @@ export class GameRoom {
           if (!canAfford(state, jokerCost)) throw new Error(`Not enough energy. Joker needs ${jokerCost} energy.`);
           spendEnergy(state, jokerCost);
           state.leaderUsedThisTurn[playerIdx] = true;
-          log(`Joker: copies ${unit.name}'s active (paid ${jokerCost}⚡)`, 'play');
+          log(`Joker: copies ${unit.name}'s active (paid ${jokerCost}⚡)`, 'play', 'joker');
           // Temporarily set masterEmeraldActive so _dispatchUnitActive's energy
           // check passes without a second spend. Joker has already paid above.
           const _wasActive = state.masterEmeraldActive;
@@ -258,7 +270,17 @@ export class GameRoom {
         const unit = state.players[playerIdx].bench[benchIdx];
         if (!unit) throw new Error('No unit at that bench slot.');
         if (state.justineDisabledUid === unit.uid) throw new Error(`${unit.name}'s active is disabled by Justine+Caroline.`);
-        this._dispatchUnitActive(state, playerIdx, benchIdx, payload, log);
+        // Wrap log to inject unit's cardId into the first 'play' entry
+        const _unitId = unit.id;
+        const logWithUnit = (msg, type = 'phase') => {
+          if (type === 'play' && !logWithUnit._tagged) {
+            logWithUnit._tagged = true;
+            return log(msg, type, _unitId);
+          }
+          return log(msg, type);
+        };
+        logWithUnit._tagged = false;
+        this._dispatchUnitActive(state, playerIdx, benchIdx, payload, logWithUnit);
         // Justine+Caroline passive: disable the unit just used
         {
           const oppIdx = opponent(playerIdx);

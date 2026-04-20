@@ -529,7 +529,127 @@ export function buildCardEl(card, playable = false) {
 }
 
 // ---------------------------------------------------------------------------
-// Card Inspect Modal (right-click)
+// Card play animation — flies a card in from active player's side
+// ---------------------------------------------------------------------------
+let _animQueue = Promise.resolve();
+
+export function showCardPlayAnim(cardOrId, playerIdx) {
+  // Resolve card object from id string if needed
+  let card = (typeof cardOrId === 'string')
+    ? _cardById(cardOrId)
+    : cardOrId;
+  if (!card) return;
+
+  // Queue animations so rapid plays don't stack on top of each other
+  _animQueue = _animQueue.then(() => new Promise(resolve => {
+    const overlay = document.getElementById('card-play-anim-overlay');
+    if (!overlay) { resolve(); return; }
+
+    const cardEl = buildCardEl(card, false);
+    cardEl.style.cssText = `
+      width: 110px; height: 155px; font-size: 9px;
+      position: absolute; left: 50%; top: 50%;
+      transform: translate(-50%, -50%) translateX(${playerIdx === 0 ? '-500px' : '500px'}) scale(0.7);
+      transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.35s;
+      opacity: 0; pointer-events: none; z-index: 10;
+      box-shadow: 0 0 40px ${playerIdx === 0 ? 'var(--sonic-blue)' : '#cc4400'}, 0 8px 32px #000a;
+    `;
+
+    // Label showing which player played it
+    const label = document.createElement('div');
+    label.style.cssText = `
+      position: absolute; left: 50%; top: calc(50% + 88px);
+      transform: translateX(-50%); font-family: var(--font-display);
+      font-size: 9px; letter-spacing: 1px; color: var(--grey);
+      pointer-events: none; white-space: nowrap;
+    `;
+    label.textContent = `P${playerIdx + 1} played`;
+
+    overlay.innerHTML = '';
+    overlay.appendChild(cardEl);
+    overlay.appendChild(label);
+    overlay.style.display = 'block';
+
+    // Fly in
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        cardEl.style.transform = 'translate(-50%, -50%) translateX(0) scale(1.08)';
+        cardEl.style.opacity   = '1';
+      });
+    });
+
+    // Hold → fly out
+    setTimeout(() => {
+      cardEl.style.transform = `translate(-50%, -50%) translateX(${playerIdx === 0 ? '500px' : '-500px'}) scale(0.7)`;
+      cardEl.style.opacity   = '0';
+      setTimeout(() => {
+        overlay.style.display = 'none';
+        overlay.innerHTML = '';
+        resolve();
+      }, 380);
+    }, 900);
+  }));
+}
+
+// Build a lookup map from all unique emojis (id → stub card) for online mode
+// where we only have a cardId string. We store stubs in a module-level map.
+const _cardStubs = {};
+export function registerCardStub(card) {
+  if (card?.id) _cardStubs[card.id] = card;
+}
+function _cardById(id) {
+  return _cardStubs[id] ?? { id, name: id, type: 'Equipment' };
+}
+
+// ---------------------------------------------------------------------------
+// #19 — Game log with colour-coded borders, KO bolding, and card thumbnails
+// ---------------------------------------------------------------------------
+export function addLog(msg, type = '', cardId = null) {
+  const log   = q('game-log');
+  const entry = mk('div', 'log-entry ' + type);
+
+  const isKO = msg.includes('KO') || msg.includes('defeated');
+  if (isKO) entry.classList.add('log-ko');
+
+  // Card thumbnail chip
+  if (cardId) {
+    const card = _cardById(cardId);
+    const chip = document.createElement('span');
+    chip.className = 'log-card-chip';
+    chip.title = `${card.name || cardId} — click to inspect`;
+    chip.style.cssText = `
+      display:inline-flex; align-items:center; gap:3px;
+      background:var(--card-bg,#0d1f35); border:1px solid #2a4060;
+      border-radius:4px; padding:1px 5px; margin-right:5px;
+      cursor:pointer; font-size:8px; font-family:var(--font-display);
+      color:var(--sonic-bright,#4af); letter-spacing:0.5px;
+      vertical-align:middle; transition:border-color 0.15s;
+    `;
+    const emoji = (card.type === 'Unit' || card.type === 'Leader')
+      ? (UNIT_EMOJI[cardId] ?? '⭐')
+      : (EQUIP_EMOJI[cardId] ?? '🃏');
+    chip.innerHTML = `${emoji} <span>${card.name || cardId}</span>`;
+    chip.onmouseenter = () => chip.style.borderColor = 'var(--sonic-bright,#4af)';
+    chip.onmouseleave = () => chip.style.borderColor = '#2a4060';
+    chip.onclick = (e) => { e.stopPropagation(); openCardInspect(card, null); };
+
+    const textNode = document.createTextNode(msg);
+    entry.appendChild(chip);
+    entry.appendChild(textNode);
+  } else {
+    entry.textContent = msg;
+  }
+
+  log.appendChild(entry);
+  log.scrollTop = log.scrollHeight;
+
+  if (type === 'damage' || type === 'heal' || isKO) {
+    pushMiniLog(msg, type);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Card Inspect Modal — two-panel layout inspired by Pokémon TCG Live
 // ---------------------------------------------------------------------------
 function buildInspectModal(card, onActivate = null) {
   if (!card || card.hidden) return document.createElement('div');
@@ -539,123 +659,275 @@ function buildInspectModal(card, onActivate = null) {
     Equipment: 'equipment', Genesis: 'genesis', Leader: 'leader',
   }[card.type] ?? 'equipment';
 
+  const typeColour = {
+    unit:      'var(--sonic-blue)',
+    stage:     '#22aa66',
+    equipment: 'var(--gold)',
+    genesis:   '#e040fb',
+    leader:    'var(--sonic-bright)',
+  }[typeKey] ?? 'var(--gold)';
+
   const modal = document.createElement('div');
-  modal.className = 'card-inspect-modal';
-
-  const cost = card.cost ?? 0;
-  const hdr  = document.createElement('div');
-  hdr.className = `cim-header type-${typeKey}`;
-  hdr.innerHTML = `
-    <div class="cim-art">${cardEmoji(card)}</div>
-    <div class="cim-name">${card.name}</div>
-    <div class="cim-type-row">
-      <div class="cim-type-pill type-${typeKey}">${card.type.toUpperCase()}</div>
-      ${cost > 0 ? `<div class="cim-cost-pill">${cost}⚡</div>` : ''}
-    </div>
+  modal.className = 'card-inspect-modal cim-v2';
+  modal.style.cssText = `
+    display: flex; flex-direction: row; gap: 0;
+    background: linear-gradient(160deg, #0d1f35, #060d1a);
+    border: 1px solid ${typeColour}44;
+    border-radius: 14px; overflow: hidden;
+    max-width: min(600px, 96vw); width: 100%;
+    box-shadow: 0 0 60px #000c, 0 0 20px ${typeColour}22;
   `;
-  modal.appendChild(hdr);
 
-  const hasStats = card.hp !== undefined || card.damage !== undefined || card.activeCost !== undefined;
-  if (hasStats) {
-    const stats = document.createElement('div');
-    stats.className = 'cim-stats';
-    const parts = [];
-    if (card.hp !== undefined) parts.push(
-      `<div class="cim-stat"><div class="cim-stat-label">HP</div><div class="cim-stat-value hp">${card.hp}</div></div>`
-    );
-    if (card.damage !== undefined) parts.push(
-      `<div class="cim-divider"></div>
-       <div class="cim-stat"><div class="cim-stat-label">Damage</div><div class="cim-stat-value dmg">${card.damage}</div></div>`
-    );
-    if (card.activeCost !== undefined && card.type !== 'Leader') parts.push(
-      `<div class="cim-divider"></div>
-       <div class="cim-stat"><div class="cim-stat-label">Active Cost</div><div class="cim-stat-value cost">${card.activeCost}⚡</div></div>`
-    );
-    if (card.currentHp !== undefined) parts.push(
-      `<div class="cim-divider"></div>
-       <div class="cim-stat"><div class="cim-stat-label">Current HP</div><div class="cim-stat-value hp">${card.currentHp}</div></div>`
-    );
-    stats.innerHTML = parts.join('');
-    modal.appendChild(stats);
+  // ── Left panel: large card art ──────────────────────────────────────────
+  const leftPanel = document.createElement('div');
+  leftPanel.style.cssText = `
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 24px 16px;
+    background: linear-gradient(180deg, #060d1a, #030810);
+    border-right: 1px solid ${typeColour}33;
+    min-width: 160px; flex-shrink: 0;
+  `;
+
+  // Large emoji art
+  const artEl = document.createElement('div');
+  artEl.style.cssText = `
+    font-size: 64px; line-height: 1; margin-bottom: 12px;
+    filter: drop-shadow(0 0 20px ${typeColour}66);
+  `;
+  artEl.textContent = cardEmoji(card);
+  leftPanel.appendChild(artEl);
+
+  // Type pill
+  const typePill = document.createElement('div');
+  typePill.style.cssText = `
+    font-family: var(--font-display); font-size: 8px; letter-spacing: 2px;
+    color: ${typeColour}; border: 1px solid ${typeColour}66;
+    border-radius: 20px; padding: 3px 10px; margin-bottom: 8px;
+    background: ${typeColour}11;
+  `;
+  typePill.textContent = card.type.toUpperCase();
+  leftPanel.appendChild(typePill);
+
+  // Cost pill (non-unit, non-free)
+  const cost = card.cost ?? 0;
+  if (cost > 0 && card.type !== 'Unit') {
+    const costPill = document.createElement('div');
+    costPill.style.cssText = `
+      font-family: var(--font-display); font-size: 10px;
+      color: var(--gold); background: #1a1200;
+      border: 1px solid #604a0066; border-radius: 20px; padding: 2px 10px;
+    `;
+    costPill.textContent = `${cost}⚡`;
+    leftPanel.appendChild(costPill);
   }
 
-  const body = document.createElement('div');
-  body.className = 'cim-body';
+  // Genesis badge
+  if (card.isGenesis || card.type === 'Genesis') {
+    const genBadge = document.createElement('div');
+    genBadge.style.cssText = `
+      margin-top: 6px; font-family: var(--font-display); font-size: 7px;
+      letter-spacing: 1.5px; color: #e040fb; border: 1px solid #e040fb44;
+      border-radius: 4px; padding: 2px 6px; background: #1a0022;
+    `;
+    genBadge.textContent = 'GENESIS';
+    leftPanel.appendChild(genBadge);
+  }
 
+  modal.appendChild(leftPanel);
+
+  // ── Right panel: info ───────────────────────────────────────────────────
+  const rightPanel = document.createElement('div');
+  rightPanel.style.cssText = `
+    flex: 1; display: flex; flex-direction: column; padding: 20px;
+    overflow-y: auto; gap: 12px; min-width: 0;
+    /* single-column on narrow → handled by media query in CSS */
+  `;
+
+  // Name + stat row
+  const nameRow = document.createElement('div');
+  nameRow.style.cssText = 'display:flex; justify-content:space-between; align-items:flex-start; gap:8px; flex-wrap:wrap;';
+  const nameEl = document.createElement('div');
+  nameEl.style.cssText = `
+    font-family: var(--font-display); font-size: 18px; font-weight: 900;
+    color: var(--white); letter-spacing: 1px; line-height: 1.1;
+  `;
+  nameEl.textContent = card.name;
+  nameRow.appendChild(nameEl);
+
+  // HP/stat chips on the right
+  const statChips = document.createElement('div');
+  statChips.style.cssText = 'display:flex; gap:6px; flex-wrap:wrap; align-items:center;';
+  const addChip = (label, val, colour) => {
+    const ch = document.createElement('div');
+    ch.style.cssText = `
+      font-family: var(--font-display); font-size: 10px; font-weight: 900;
+      color: ${colour}; background: ${colour}15;
+      border: 1px solid ${colour}44; border-radius: 6px;
+      padding: 3px 8px; white-space: nowrap;
+    `;
+    ch.textContent = `${label} ${val}`;
+    statChips.appendChild(ch);
+  };
+  if (card.hp      !== undefined) addChip('HP',  card.hp,      '#22cc66');
+  if (card.damage  !== undefined) addChip('⚔',   card.damage,  '#ff5555');
+  if (card.activeCost !== undefined && card.type !== 'Leader')
+                                   addChip('⚡',  card.activeCost, 'var(--gold)');
+  nameRow.appendChild(statChips);
+  rightPanel.appendChild(nameRow);
+
+  // HP bar — shown when currentHp is available (in-game card)
+  if (card.currentHp !== undefined && card.hp !== undefined) {
+    const hpPct    = Math.max(0, Math.min(100, (card.currentHp / card.hp) * 100));
+    const hpColour = hpPct > 60 ? '#22cc66' : hpPct > 30 ? '#ffaa00' : '#ff3333';
+    const barWrap  = document.createElement('div');
+    barWrap.style.cssText = 'display:flex; flex-direction:column; gap:4px;';
+    const barLabel = document.createElement('div');
+    barLabel.style.cssText = 'display:flex; justify-content:space-between; font-family:var(--font-display); font-size:9px;';
+    barLabel.innerHTML = `<span style="color:var(--grey)">CURRENT HP</span><span style="color:${hpColour};font-weight:900;">${card.currentHp} / ${card.hp}</span>`;
+    const barBg  = document.createElement('div');
+    barBg.style.cssText  = 'height:6px; background:#0a1825; border-radius:3px; overflow:hidden;';
+    const barFill = document.createElement('div');
+    barFill.style.cssText = `height:100%; width:${hpPct}%; background:${hpColour}; border-radius:3px; transition:width 0.3s;`;
+    barBg.appendChild(barFill);
+    barWrap.appendChild(barLabel);
+    barWrap.appendChild(barBg);
+    rightPanel.appendChild(barWrap);
+  }
+
+  // Divider helper
+  const divider = () => {
+    const d = document.createElement('div');
+    d.style.cssText = `border-top: 1px solid #1a2a40; margin: 0;`;
+    return d;
+  };
+
+  // Section block builder
+  const mkSection = (labelText, labelColour, content, actionBtn = null) => {
+    const sec = document.createElement('div');
+    sec.style.cssText = 'display:flex; flex-direction:column; gap:8px;';
+
+    const lbl = document.createElement('div');
+    lbl.style.cssText = `
+      font-family: var(--font-display); font-size: 8px; letter-spacing: 2px;
+      color: ${labelColour}; text-transform: uppercase;
+    `;
+    lbl.textContent = labelText;
+
+    const box = document.createElement('div');
+    box.style.cssText = `
+      background: ${labelColour}08; border: 1px solid ${labelColour}22;
+      border-left: 3px solid ${labelColour}; border-radius: 0 6px 6px 0;
+      padding: 10px 12px; font-size: 11px; color: var(--white); line-height: 1.5;
+    `;
+    box.textContent = content;
+
+    sec.appendChild(lbl);
+    sec.appendChild(box);
+
+    if (actionBtn) {
+      sec.appendChild(actionBtn);
+    }
+
+    return sec;
+  };
+
+  // Passive
   if (card.passiveDesc && card.passiveDesc !== 'No passive.') {
-    body.innerHTML += `
-      <div>
-        <div class="cim-section-label">Passive Ability</div>
-        <div class="cim-passive-box">
-          <div class="cim-passive-text">${card.passiveDesc}</div>
-        </div>
-      </div>`;
+    rightPanel.appendChild(divider());
+    rightPanel.appendChild(mkSection('Passive Ability', '#44aaff', card.passiveDesc));
   }
 
+  // Active
   if (card.activeDesc) {
-    const activeSection = document.createElement('div');
-    activeSection.innerHTML = `
-      <div class="cim-section-label">Active Ability</div>
-      <div class="cim-active-box">
-        <div class="cim-active-cost">${card.activeCost ?? 0}⚡ COST</div>
-        <div class="cim-active-text">${card.activeDesc}</div>
-      </div>`;
+    rightPanel.appendChild(divider());
+    let btn = null;
     if (onActivate) {
-      const useBtn = document.createElement('button');
-      useBtn.style.cssText = `margin-top:8px;width:100%;padding:9px;background:var(--gold);color:#000;border:none;border-radius:6px;font-family:var(--font-display);font-size:10px;font-weight:900;letter-spacing:1px;cursor:pointer;transition:opacity 0.15s;`;
-      useBtn.textContent = '⚡ USE ACTIVE';
-      useBtn.onmouseenter = () => useBtn.style.opacity = '0.8';
-      useBtn.onmouseleave = () => useBtn.style.opacity = '1';
-      useBtn.onclick = () => { closeOverlay('card-inspect-overlay'); onActivate(); };
-      activeSection.appendChild(useBtn);
+      btn = document.createElement('button');
+      btn.style.cssText = `
+        margin-top: 4px; padding: 9px 16px; background: var(--gold); color: #000;
+        border: none; border-radius: 8px; font-family: var(--font-display);
+        font-size: 10px; font-weight: 900; letter-spacing: 1px;
+        cursor: pointer; transition: opacity 0.15s, transform 0.1s;
+        align-self: flex-start;
+      `;
+      btn.textContent = '⚡ USE ACTIVE';
+      btn.onmouseenter = () => { btn.style.opacity = '0.85'; btn.style.transform = 'scale(1.03)'; };
+      btn.onmouseleave = () => { btn.style.opacity = '1';    btn.style.transform = 'scale(1)'; };
+      btn.onclick = () => { closeOverlay('card-inspect-overlay'); onActivate(); };
     }
-    body.appendChild(activeSection);
+    rightPanel.appendChild(mkSection(
+      `Active Ability  ·  ${card.activeCost ?? 0}⚡`,
+      'var(--gold)', card.activeDesc, btn
+    ));
   } else if (card.effectDesc) {
-    const effectSection = document.createElement('div');
-    effectSection.innerHTML = `
-      <div class="cim-section-label">Effect</div>
-      <div class="cim-effect-box">
-        <div class="cim-effect-text">${card.effectDesc}</div>
-      </div>`;
+    rightPanel.appendChild(divider());
+    let btn = null;
     if (onActivate) {
-      const playBtn = document.createElement('button');
-      playBtn.style.cssText = `margin-top:8px;width:100%;padding:9px;background:var(--green);color:#000;border:none;border-radius:6px;font-family:var(--font-display);font-size:10px;font-weight:900;letter-spacing:1px;cursor:pointer;transition:opacity 0.15s;`;
-      playBtn.textContent = '▶ PLAY CARD';
-      playBtn.onmouseenter = () => playBtn.style.opacity = '0.8';
-      playBtn.onmouseleave = () => playBtn.style.opacity = '1';
-      playBtn.onclick = () => { closeOverlay('card-inspect-overlay'); onActivate(); };
-      effectSection.appendChild(playBtn);
+      btn = document.createElement('button');
+      btn.style.cssText = `
+        margin-top: 4px; padding: 9px 16px; background: var(--green); color: #000;
+        border: none; border-radius: 8px; font-family: var(--font-display);
+        font-size: 10px; font-weight: 900; letter-spacing: 1px;
+        cursor: pointer; transition: opacity 0.15s, transform 0.1s;
+        align-self: flex-start;
+      `;
+      btn.textContent = '▶ PLAY CARD';
+      btn.onmouseenter = () => { btn.style.opacity = '0.85'; btn.style.transform = 'scale(1.03)'; };
+      btn.onmouseleave = () => { btn.style.opacity = '1';    btn.style.transform = 'scale(1)'; };
+      btn.onclick = () => { closeOverlay('card-inspect-overlay'); onActivate(); };
     }
-    body.appendChild(effectSection);
+    rightPanel.appendChild(mkSection('Effect', '#22cc88', card.effectDesc, btn));
   }
 
-  modal.appendChild(body);
+  modal.appendChild(rightPanel);
 
+  // Close button — top right corner
   const close = document.createElement('div');
-  close.className = 'cim-close';
-  close.textContent = 'CLOSE';
+  close.style.cssText = `
+    position: absolute; top: 10px; right: 12px;
+    font-family: var(--font-display); font-size: 9px; letter-spacing: 1px;
+    color: var(--grey); cursor: pointer; padding: 4px 8px;
+    border: 1px solid #1a2a40; border-radius: 4px;
+    transition: color 0.15s, border-color 0.15s;
+  `;
+  close.textContent = '✕ CLOSE';
+  close.onmouseenter = () => { close.style.color = 'var(--white)'; close.style.borderColor = '#2a4060'; };
+  close.onmouseleave = () => { close.style.color = 'var(--grey)'; close.style.borderColor = '#1a2a40'; };
   close.onclick = () => closeOverlay('card-inspect-overlay');
-  modal.appendChild(close);
 
-  return modal;
+  // Wrap in a relative container so close button positions correctly
+  const container = document.createElement('div');
+  container.style.cssText = 'position:relative; display:flex; max-width:min(600px,96vw); width:100%;';
+  container.appendChild(modal);
+  container.appendChild(close);
+
+  return container;
 }
 
 export function openCardInspect(card, onActivate = null) {
   if (!card || card.hidden) return;
+  if (card.id) registerCardStub(card);
   const overlay = q('card-inspect-overlay');
   overlay.innerHTML = '';
-  overlay.appendChild(buildInspectModal(card, onActivate));
+  const container = buildInspectModal(card, onActivate);
+  container.style.transform  = 'translateX(40px)';
+  container.style.opacity    = '0';
+  container.style.transition = 'transform 0.22s cubic-bezier(0.22,1,0.36,1), opacity 0.22s';
+  overlay.appendChild(container);
   overlay.classList.add('active');
-  overlay.onclick = (e) => {
-    if (e.target === overlay) closeOverlay('card-inspect-overlay');
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    container.style.transform = 'translateX(0)';
+    container.style.opacity   = '1';
+  }));
+  overlay.onclick = (e) => { if (e.target === overlay) closeOverlay('card-inspect-overlay'); };
+  const escHandler = (e) => {
+    if (e.key === 'Escape') { closeOverlay('card-inspect-overlay'); document.removeEventListener('keydown', escHandler); }
   };
+  document.addEventListener('keydown', escHandler);
 }
 
 export function addContextMenu(el, card, onActivate = null) {
-  el.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
-    openCardInspect(card, onActivate);
-  });
+  el.addEventListener('contextmenu', (e) => { e.preventDefault(); openCardInspect(card, onActivate); });
 }
 
 // ---------------------------------------------------------------------------
