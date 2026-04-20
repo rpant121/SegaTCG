@@ -54,7 +54,7 @@ export function initOnlineHandlers(_socket, _roomCode, _playerIdx) {
 
 function act(type, payload = {}) {
   if (_gameOver) { console.log('[ACT] blocked — game over'); return; }
-  console.log('[ACT] →', type, payload);
+  console.log('[ACT] →', type, payload, '| socket connected:', socket?.connected, '| roomCode:', roomCode);
   socket.emit('action', { roomCode, type, payload });
 }
 
@@ -133,6 +133,12 @@ function bindSocketListeners() {
   });
   socket.on('opponent_disconnected',({ message }) => { addLog(message, 'damage'); showWaitingOverlay(message); });
   socket.on('setup_turn', () => refreshBoard());
+  socket.on('disconnect', (reason) => {
+    console.warn('[SOCKET] disconnected — reason:', reason, '| will reconnect:', socket.io?.reconnection?.());
+  });
+  socket.on('connect', () => {
+    console.log('[SOCKET] (re)connected — new id:', socket.id, '| roomCode:', roomCode);
+  });
 }
 
 // ---------------------------------------------------------------------------

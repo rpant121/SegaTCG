@@ -137,9 +137,15 @@ export class GameRoom {
   }
 
   handleAction(socket, type, payload) {
-    if (this._gameOver || !this.state) return;
+    if (this._gameOver || !this.state) {
+      console.log(`[ROOM ${this.roomCode}] ACTION DROPPED (${type}) — gameOver: ${this._gameOver}, hasState: ${!!this.state}`);
+      return;
+    }
     const playerIdx = this.sockets.indexOf(socket.id);
-    if (playerIdx === -1) return;
+    if (playerIdx === -1) {
+      console.log(`[ROOM ${this.roomCode}] UNKNOWN SOCKET ${socket.id} sent ${type} — known sockets:`, this.sockets);
+      return;
+    }
     const state = this.state;
     const log   = this.log;
 
