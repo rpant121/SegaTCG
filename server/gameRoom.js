@@ -545,7 +545,7 @@ export class GameRoom {
   handleDisconnect(socketId) {
     const idx = this.sockets.indexOf(socketId);
     if (idx === -1) return;
-    console.log(`[Room ${this.roomCode}] P${idx + 1} disconnected`);
+    console.log(`[Room ${this.roomCode}] P${idx + 1} disconnected — keeping slot open for rejoin`);
     const oppIdx = opponent(idx);
     const oppId  = this.sockets[oppIdx];
     if (oppId) {
@@ -553,7 +553,44 @@ export class GameRoom {
         message: `Player ${idx + 1} disconnected. Waiting 60s for reconnect...`,
       });
     }
-    this.sockets[idx] = null;
+    // Do NOT null out the slot — keep it so we can detect the stale ID
+    // and replace it in rejoin(). index.js schedules cleanupRoom after 60s.
+  }
+
+  /**
+   * Re-seat a reconnected socket into its original player slot.
+   * Called by the server when it receives a 'rejoin_room' event.
+   * @param {Socket} socket  - the new socket object (new socket.id)
+   * @param {number} playerIdx - 0 or 1
+   * @returns {boolean} true if successfully reseated
+   */
+  rejoin(socket, playerIdx) {
+    if (playerIdx !== 0 && playerIdx !== 1) return false;
+    const oldId = this.sockets[playerIdx];
+    console.log(`[Room ${this.roomCode}] rejoin P${playerIdx + 1}: ${oldId} → ${socket.id}`);
+    this.sockets[playerIdx] = socket.id;
+    socket.join(this.roomCode);
+    return true;
+  }
+
+  /**
+   * Send the current sanitized game state to a single player.
+   * Used after rejoin to resync the reconnected client.
+   * @param {number} playerIdx - 0 or 1
+   */
+  broadcastStateTo(playerIdx) {
+    if (!this.state) return;
+    const socketId = this.sockets[playerIdx];
+    if (!socketId) return;
+    const payload = {
+      state:      sanitizeForPlayer(this.state, playerIdx),
+      logEntries: [],
+      pendingIntercept: this.state.pendingIntercept
+        ? (playerIdx === this.state.pendingIntercept.defenderP ? this.state.pendingIntercept : null)
+        : null,
+    };
+    console.log(`[Room ${this.roomCode}] broadcastStateTo P${playerIdx + 1} — phase: ${this.state.phase}`);
+    this.io.to(socketId).emit('state_update', payload);
   }
 
   _broadcast(extra = {}) {

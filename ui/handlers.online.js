@@ -134,10 +134,14 @@ function bindSocketListeners() {
   socket.on('opponent_disconnected',({ message }) => { addLog(message, 'damage'); showWaitingOverlay(message); });
   socket.on('setup_turn', () => refreshBoard());
   socket.on('disconnect', (reason) => {
-    console.warn('[SOCKET] disconnected — reason:', reason, '| will reconnect:', socket.io?.reconnection?.());
+    console.warn('[SOCKET] disconnected — reason:', reason);
   });
   socket.on('connect', () => {
-    console.log('[SOCKET] (re)connected — new id:', socket.id, '| roomCode:', roomCode);
+    console.log('[SOCKET] (re)connected — new id:', socket.id, '| roomCode:', roomCode, '| playerIdx:', myPlayerIdx);
+    if (roomCode && myPlayerIdx !== null) {
+      console.log('[SOCKET] emitting rejoin_room');
+      socket.emit('rejoin_room', { roomCode, playerIdx: myPlayerIdx });
+    }
   });
 }
 
