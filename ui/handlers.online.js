@@ -53,7 +53,8 @@ export function initOnlineHandlers(_socket, _roomCode, _playerIdx) {
 }
 
 function act(type, payload = {}) {
-  if (_gameOver) return;
+  if (_gameOver) { console.log('[ACT] blocked — game over'); return; }
+  console.log('[ACT] →', type, payload);
   socket.emit('action', { roomCode, type, payload });
 }
 
@@ -63,6 +64,7 @@ function act(type, payload = {}) {
 function bindSocketListeners() {
 
   socket.on('state_update', ({ state: newState, logEntries, winner, pendingIntercept }) => {
+    console.log('[STATE_UPDATE] phase:', newState?.phase, '| activePlayer:', newState?.activePlayer, '| myIdx:', myPlayerIdx);
     const wasMyTurn = state ? state.activePlayer === myPlayerIdx : false;
     state = newState;
 
@@ -125,7 +127,10 @@ function bindSocketListeners() {
     if (myPlayerIdx === state.activePlayer) checkPendingEffects();
   });
 
-  socket.on('action_error',         ({ message }) => addLog('! ' + message, 'damage'));
+  socket.on('action_error', ({ message }) => {
+    console.error('[ACTION_ERROR]', message);
+    addLog('! ' + message, 'damage');
+  });
   socket.on('opponent_disconnected',({ message }) => { addLog(message, 'damage'); showWaitingOverlay(message); });
   socket.on('setup_turn', () => refreshBoard());
 }
@@ -471,6 +476,16 @@ function fireUnitActive(p, benchIdx) {
 // ---------------------------------------------------------------------------
 function bindStaticButtons() {
   document.getElementById('btn-end-phase').addEventListener('click', () => {
+    // ── DIAGNOSTIC LOGGING ─────────────────────────────────────────────────
+    console.log('[BTN-END-PHASE] clicked');
+    console.log('  state exists:', !!state);
+    console.log('  state.phase:', state?.phase);
+    console.log('  myPlayerIdx:', myPlayerIdx);
+    console.log('  state.activePlayer:', state?.activePlayer);
+    console.log('  isMyTurn():', isMyTurn());
+    console.log('  btn disabled:', document.getElementById('btn-end-phase')?.disabled);
+    console.log('  btn dataset.setupReady:', document.getElementById('btn-end-phase')?.dataset?.setupReady);
+    // ───────────────────────────────────────────────────────────────────────
     if (!state) return;
     if (state.phase === 'setup') {
       const btn = document.getElementById('btn-end-phase');
@@ -478,10 +493,19 @@ function bindStaticButtons() {
       btn.textContent = 'Waiting for opponent...'; btn.disabled = true; btn.dataset.setupReady = '1';
       act('SETUP_DONE'); return;
     }
-    if (!isMyTurn()) return;
-    if (state.phase === 'main')        act('ENTER_ATTACK_PHASE');
-    // #12 — confirm before skipping attack
-    else if (state.phase === 'attack') openSkipAttackConfirm();
+    if (!isMyTurn()) {
+      console.log('[BTN-END-PHASE] blocked — not my turn');
+      return;
+    }
+    if (state.phase === 'main') {
+      console.log('[BTN-END-PHASE] sending ENTER_ATTACK_PHASE');
+      act('ENTER_ATTACK_PHASE');
+    } else if (state.phase === 'attack') {
+      console.log('[BTN-END-PHASE] opening skip confirm');
+      openSkipAttackConfirm();
+    } else {
+      console.log('[BTN-END-PHASE] unhandled phase:', state.phase);
+    }
   });
 
   document.getElementById('btn-leader-active').addEventListener('click', () => {

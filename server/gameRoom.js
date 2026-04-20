@@ -142,6 +142,11 @@ export class GameRoom {
     if (playerIdx === -1) return;
     const state = this.state;
     const log   = this.log;
+
+    // ── DIAGNOSTIC ─────────────────────────────────────────────────────────
+    console.log(`[ROOM ${this.roomCode}] P${playerIdx + 1} → ${type} | phase: ${state.phase} | activePlayer: ${state.activePlayer}`);
+    // ───────────────────────────────────────────────────────────────────────
+
     try {
       const asyncActions = new Set([
         'RESOLVE_POLARIS_PACT', 'REQUEST_STATE', 'SETUP_DONE',
@@ -160,6 +165,7 @@ export class GameRoom {
       }
       if (!asyncActions.has(type) && playerIdx !== state.activePlayer) {
         if (type !== 'RESOLVE_INTERCEPT' || !state.pendingIntercept) {
+          console.log(`[ROOM ${this.roomCode}] REJECTED — not P${playerIdx + 1}'s turn (activePlayer: ${state.activePlayer})`);
           socket.emit('action_error', { message: "It's not your turn." });
           return;
         }
@@ -178,7 +184,8 @@ export class GameRoom {
       }
       this._broadcast({ logEntries: log.flush() });
     } catch (err) {
-      console.error(`[Room ${this.roomCode}] Action error (${type}):`, err.message);
+      console.error(`[Room ${this.roomCode}] ACTION ERROR (${type}) from P${playerIdx + 1}:`, err.message);
+      console.error(err.stack);
       socket.emit('action_error', { message: err.message });
     }
   }
