@@ -1,6 +1,17 @@
 /**
  * RENDERER
  * All DOM reads and writes. Never mutates gameState.
+ *
+ * Improvements applied:
+ *  #13 — damage-flash / heal-flash CSS animations on leaders and bench units
+ *  #14 — floating damage numbers (showFloatingNumber)
+ *  #15 — attack-target pulse (CSS in styles.css; class applied here)
+ *  #16 — HP bar colour changes dynamically (green → amber → red)
+ *  #17 — playable card float animation (CSS in styles.css; class applied here)
+ *  #19 — game log colour-coded left-border, KO entries bolded, mini-log strip
+ *  #20 — hand card counts shown in info row for both players
+ *  #24 — action button label adapts to phase (Attack Phase → / End Turn →)
+ *  #26 — scry modal renders actual card element
  */
 
 import { calcEffectiveDamage } from '../engine/combat.js';
@@ -49,6 +60,83 @@ const PHASE_LABELS = {
 };
 
 // ---------------------------------------------------------------------------
+// #19 — Mini-log: last N entries shown on the board
+// ---------------------------------------------------------------------------
+const _miniLogEntries = [];
+let _miniLogTimer = null;
+
+function pushMiniLog(msg, type) {
+  _miniLogEntries.push({ msg, type });
+  if (_miniLogEntries.length > 3) _miniLogEntries.shift();
+  renderMiniLog();
+  clearTimeout(_miniLogTimer);
+  _miniLogTimer = setTimeout(() => {
+    const el = document.getElementById('mini-log');
+    if (el) el.style.opacity = '0';
+  }, 4000);
+}
+
+function renderMiniLog() {
+  const el = document.getElementById('mini-log');
+  if (!el) return;
+  el.style.opacity = '1';
+  el.innerHTML = _miniLogEntries.map(e =>
+    `<div class="mini-log-entry ${e.type}">${e.msg}</div>`
+  ).join('');
+}
+
+// ---------------------------------------------------------------------------
+// #14 — Floating damage/heal numbers
+// ---------------------------------------------------------------------------
+export function showFloatingNumber(targetEl, amount, type = 'damage') {
+  if (!targetEl) return;
+  const el = document.createElement('div');
+  el.className = 'floating-number ' + type;
+  el.textContent = type === 'heal' ? `+${amount}` : `-${amount}`;
+  // Position relative to the target element
+  const rect = targetEl.getBoundingClientRect();
+  el.style.cssText = `
+    position: fixed;
+    left: ${rect.left + rect.width / 2}px;
+    top: ${rect.top + rect.height / 3}px;
+    pointer-events: none;
+    z-index: 9999;
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 900;
+    color: ${type === 'heal' ? 'var(--green)' : 'var(--red)'};
+    text-shadow: 0 2px 8px #000, 0 0 16px ${type === 'heal' ? '#00cc44' : '#ff2244'};
+    animation: float-number 0.8s ease-out forwards;
+    transform: translateX(-50%);
+  `;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 820);
+}
+
+// #13 — Damage flash on an element
+export function flashDamage(el) {
+  if (!el) return;
+  el.classList.remove('damage-flash', 'heal-flash');
+  void el.offsetWidth; // force reflow to restart animation
+  el.classList.add('damage-flash');
+  setTimeout(() => el.classList.remove('damage-flash'), 420);
+}
+
+export function flashHeal(el) {
+  if (!el) return;
+  el.classList.remove('damage-flash', 'heal-flash');
+  void el.offsetWidth;
+  el.classList.add('heal-flash');
+  setTimeout(() => el.classList.remove('heal-flash'), 420);
+}
+
+// Track HP between renders so we know whether to flash/float
+const _prevLeaderHp  = [null, null];
+const _prevBenchHp   = [[], []];
+// #28 — track bench UIDs to detect KO'd units between renders
+const _prevBenchUids = [[], []];
+
+// ---------------------------------------------------------------------------
 // Main render
 // ---------------------------------------------------------------------------
 export function render(state) {
@@ -58,21 +146,12 @@ export function render(state) {
   renderBench('p1-bench', state, 0);
   renderBench('p2-bench', state, 1);
 
-  // During setup: determine whose hand to show face-up.
-  // Local mode uses _setupPlayer (sequential). Online concurrent mode has no
-  // _setupPlayer — in that case pass the player's own index as owner so both
-  // players see their own hand. The caller (handlers.online.js) re-renders
-  // each player's hand with the correct ownerP via renderHand directly, but
-  // render() is also called generically, so we need a safe fallback.
   if (state.phase === 'setup') {
     if (state._setupPlayer !== undefined) {
-      // Local sequential setup: only the active setup player sees their hand
       const sp = state._setupPlayer;
       renderHand('p1-hand', state, 0, sp);
       renderHand('p2-hand', state, 1, sp);
     }
-    // Online concurrent setup: hands are rendered by handlers.online.js
-    // refreshBoard() which knows myPlayerIdx — skip here to avoid overwriting.
   } else {
     renderHand('p1-hand', state, 0, state.activePlayer);
     renderHand('p2-hand', state, 1, state.activePlayer);
@@ -93,7 +172,6 @@ export function renderHUD(state) {
   setText('phase-display', PHASE_LABELS[state.phase] ?? state.phase);
   setText('turn-num', `Turn ${state.turn}`);
 
-  // Energy pips — one pip per max energy; cap at 15, text-only beyond
   const pipsEl = q('energy-pips');
   pipsEl.innerHTML = '';
   const maxPips = state.energyMax[p];
@@ -105,12 +183,10 @@ export function renderHUD(state) {
   }
   setText('energy-text', `${state.energy[p]}/${state.energyMax[p]}`);
 
-  // Update mobile mini-status strip
   if (typeof window.updateMobileStrip === 'function') {
     window.updateMobileStrip(PHASE_LABELS[state.phase] ?? state.phase, state.energy[p]);
   }
 
-  // Stage
   const stageEl = q('stage-zone');
   if (state.activeStage) {
     stageEl.className = 'stage-zone active';
@@ -143,6 +219,7 @@ export function renderPlayerLabels(state) {
   q('p2-label').className = 'player-label' + (p === 1 ? ' active' : '');
 }
 
+// #20 — Hand count shown for both players
 export function renderInfoRow(containerId, state, p) {
   const el = q(containerId);
   const flags = [
@@ -158,9 +235,12 @@ export function renderInfoRow(containerId, state, p) {
       ? '<span style="color:#6677aa;font-size:8px;" title="Rouge used">🦇✓</span>' : '',
   ].filter(Boolean).join(' ');
 
+  const handCount = Array.isArray(state.players[p].hand) ? state.players[p].hand.length : 0;
+
   el.innerHTML = `
     <span class="deck-count" style="font-size:9px;padding:2px 5px;">${state.players[p].deck.length}📚</span>
     <span class="discard-count info-discard" style="font-size:9px;padding:2px 5px;cursor:pointer;" title="Click to view discard pile">${state.players[p].discard.length}🗑</span>
+    <span class="hand-count-badge" title="Cards in hand">🤚${handCount}</span>
     ${flags}
   `;
 
@@ -169,7 +249,7 @@ export function renderInfoRow(containerId, state, p) {
 }
 
 // ---------------------------------------------------------------------------
-// Leader card
+// Leader card — #16 HP bar colour + #13 flash + #14 float numbers
 // ---------------------------------------------------------------------------
 export function renderLeader(containerId, state, p) {
   const el     = q(containerId);
@@ -178,28 +258,38 @@ export function renderLeader(containerId, state, p) {
   const hpPct  = Math.max(0, (leader.currentHp / leader.hp) * 100);
   const effDmg = calcEffectiveDamage(state, p);
 
+  // #16 — HP bar colour
+  const hpColour = hpPct > 60 ? '#22cc66'
+                 : hpPct > 30 ? '#ffaa00'
+                               : '#ff3333';
+
   const isTarget = state.phase === 'attack' && p !== ap;
   const canUse   = state.phase === 'main' && p === ap
     && canAfford(state, leader.activeCost)
     && state.players[p].hand.length > 0
     && !(state.leaderUsedThisTurn ?? [false, false])[p];
 
-  const div = mk('div', [
+  const classes = [
     'leader-card',
     isTarget              ? 'attack-target' : '',
     state.shieldActive[p] ? 'shielded'      : '',
     canUse                ? 'active-avail'  : '',
-  ].filter(Boolean).join(' '));
+    // #16 — low-HP glow
+    hpPct <= 30           ? 'low-hp'        : '',
+  ].filter(Boolean).join(' ');
+
+  const div = mk('div', classes);
 
   const leaderEmoji = { sonic: '🦔', joker: '🃏', kiryu: '🐉' }[leader.id] ?? '👑';
+  const isBuffed = effDmg > leader.damage;
   div.innerHTML = `
     <div class="leader-emoji">${leaderEmoji}</div>
     <div class="leader-info">
       <div class="leader-name">${leader.name ?? leader.id?.toUpperCase() ?? 'LEADER'}</div>
-      <div class="leader-hp-bar"><div class="leader-hp-fill" style="width:${hpPct}%"></div></div>
+      <div class="leader-hp-bar"><div class="leader-hp-fill" style="width:${hpPct}%;background:${hpColour}"></div></div>
       <div class="leader-stats">
-        <span class="leader-hp-text">${leader.currentHp}/${leader.hp}</span>
-        <span class="leader-dmg-text">⚔${effDmg}</span>
+        <span class="leader-hp-text" style="color:${hpColour}">${leader.currentHp}/${leader.hp}</span>
+        <span class="leader-dmg-chip${isBuffed ? ' buffed' : ''}" title="Click for damage breakdown">⚔${effDmg}</span>
       </div>
     </div>
   `;
@@ -210,22 +300,105 @@ export function renderLeader(containerId, state, p) {
 
   el.innerHTML = '';
   el.appendChild(div);
+
+  // #18 — damage chip click shows a breakdown popup
+  const chip = div.querySelector('.leader-dmg-chip');
+  if (chip) {
+    chip.style.cursor = 'pointer';
+    chip.onclick = (e) => {
+      e.stopPropagation();
+      _showDamageBreakdown(div, state, p);
+    };
+  }
+
+  // #13 / #14 — Flash and float if HP changed since last render
+  const prevHp = _prevLeaderHp[p];
+  if (prevHp !== null && prevHp !== leader.currentHp) {
+    const diff = prevHp - leader.currentHp;
+    if (diff > 0) {
+      flashDamage(div);
+      showFloatingNumber(div, diff, 'damage');
+    } else if (diff < 0) {
+      flashHeal(div);
+      showFloatingNumber(div, Math.abs(diff), 'heal');
+    }
+  }
+  _prevLeaderHp[p] = leader.currentHp;
+
   return div;
 }
 
+// #18 — Damage breakdown popup when clicking the ⚔ chip
+function _showDamageBreakdown(anchorEl, state, p) {
+  document.querySelectorAll('.dmg-breakdown-popup').forEach(e => e.remove());
+  const popup = document.createElement('div');
+  popup.className = 'dmg-breakdown-popup';
+  const leader = state.players[p].leader;
+  const lines = [`Base: ${leader.damage}`];
+  // Shadow doubling
+  let base = leader.damage;
+  for (const u of state.players[p].bench) {
+    if (u.id === 'shadow' && !u.exhausted && u.passive?.type === 'shadow_boost') {
+      lines.push(`Shadow ×2: ${base} → ${base * 2}`);
+      base *= 2;
+    }
+  }
+  // Attack boosts
+  for (const u of state.players[p].bench) {
+    if (!u.exhausted && u.passive?.type === 'attack_boost')
+      lines.push(`${u.name}: +${u.passive.amount}`);
+  }
+  if ((state.chaosEmeraldBuff?.[p] ?? 0) > 0)
+    lines.push(`Chaos Emerald: +${state.chaosEmeraldBuff[p]}`);
+  if ((state.powerGloveBuff?.[p] ?? 0) > 0)
+    lines.push(`Power Glove: +${state.powerGloveBuff[p]}`);
+  const effDmg = calcEffectiveDamage(state, p);
+  lines.push(`─────`);
+  lines.push(`Total: ${effDmg}`);
+  popup.innerHTML = lines.map(l => `<div>${l}</div>`).join('');
+  document.body.appendChild(popup);
+  const rect = anchorEl.getBoundingClientRect();
+  popup.style.left = `${rect.left}px`;
+  popup.style.top  = `${rect.bottom + 4}px`;
+  // Auto-dismiss on next click anywhere
+  const dismiss = () => { popup.remove(); document.removeEventListener('click', dismiss); };
+  setTimeout(() => document.addEventListener('click', dismiss), 10);
+}
+
 // ---------------------------------------------------------------------------
-// Bench
+// Bench — #13 flash + #14 float on units, #28 KO animation
 // ---------------------------------------------------------------------------
 export function renderBench(containerId, state, p) {
   const el        = q(containerId);
-  el.innerHTML    = '';
   const ap        = state.activePlayer;
   const isActiveP = p === ap;
   const isAttack  = state.phase === 'attack';
   const unitDivs  = [];
 
+  // #28 — detect KO'd units (were in prev render, absent now) and animate them out
+  const currentUids = new Set(state.players[p].bench.map(u => u.uid));
+  const prevUids    = _prevBenchUids[p];
+  const koUids      = prevUids.filter(uid => !currentUids.has(uid));
+
+  // Flash existing DOM slots for KO'd units before wiping innerHTML
+  if (koUids.length > 0) {
+    const existingSlots = el.querySelectorAll('.bench-unit');
+    existingSlots.forEach(slot => {
+      const uid = slot.dataset.uid;
+      if (uid && koUids.includes(uid)) {
+        slot.classList.add('bench-ko');
+      }
+    });
+    // Let the CSS animation play (300ms), then proceed with normal re-render
+    // We don't actually delay — the animation plays on the OLD DOM while we
+    // rebuild immediately below. The browser composites both simultaneously.
+  }
+
+  el.innerHTML = '';
+
   state.players[p].bench.forEach((unit, idx) => {
     const hpPct       = Math.max(0, (unit.currentHp / unit.hp) * 100);
+    const hpColour    = hpPct > 60 ? '#22cc66' : hpPct > 30 ? '#ffaa00' : '#ff3333';
     const cost        = getActiveCost(state, unit);
     const canActivate = state.phase === 'main' && isActiveP && !unit.exhausted
       && canAfford(state, cost)
@@ -241,12 +414,15 @@ export function renderBench(containerId, state, p) {
       isTarget       ? 'attack-target' : '',
     ].filter(Boolean).join(' '));
 
+    // #28 — tag each slot with its uid for KO detection next render
+    div.dataset.uid = unit.uid;
+
     div.innerHTML = `
       <div class="bench-name">${unit.name}</div>
       <div class="bench-emoji">${UNIT_EMOJI[unit.id] ?? '⭐'}</div>
       <div class="bench-hp">${unit.currentHp}/${unit.hp}HP</div>
       ${icon && !unit.exhausted ? `<div class="bench-passive">${icon}</div>` : ''}
-      <div class="unit-hp-bar"><div class="unit-hp-fill" style="width:${hpPct}%"></div></div>
+      <div class="unit-hp-bar"><div class="unit-hp-fill" style="width:${hpPct}%;background:${hpColour}"></div></div>
     `;
 
     addTooltip(div, unit.name,
@@ -254,7 +430,26 @@ export function renderBench(containerId, state, p) {
 
     el.appendChild(div);
     unitDivs.push({ div, idx });
+
+    // #13 / #14 — flash bench unit if HP changed
+    const prevArr = _prevBenchHp[p];
+    const prevHp  = prevArr[idx] ?? null;
+    if (prevHp !== null && prevHp !== unit.currentHp) {
+      const diff = prevHp - unit.currentHp;
+      if (diff > 0) {
+        flashDamage(div);
+        showFloatingNumber(div, diff, 'damage');
+      } else if (diff < 0) {
+        flashHeal(div);
+        showFloatingNumber(div, Math.abs(diff), 'heal');
+      }
+    }
+    prevArr[idx] = unit.currentHp;
   });
+
+  // Update UID tracking
+  _prevBenchUids[p] = state.players[p].bench.map(u => u.uid);
+  _prevBenchHp[p]   = state.players[p].bench.map(u => u.currentHp);
 
   for (let i = state.players[p].bench.length; i < 3; i++) {
     const slot = mk('div', 'bench-slot');
@@ -272,21 +467,17 @@ export function renderHand(containerId, state, p, ownerP = null) {
   const el    = q(containerId);
   el.innerHTML = '';
 
-  // ownerP=-1 forces all cards face-down (used by local setup for non-active player)
-  // ownerP=null means use activePlayer as owner
   const activeOwner = ownerP === null ? state.activePlayer : ownerP;
   const isOwner     = ownerP !== -1 && p === activeOwner;
   const cardEls     = [];
 
   if (!isOwner) {
-    // Render face-down placeholders — use hand length if available, else 0
     const count = Array.isArray(state.players[p].hand) ? state.players[p].hand.length : 0;
     for (let i = 0; i < count; i++) el.appendChild(mk('div', 'card face-down'));
     return cardEls;
   }
 
   state.players[p].hand.forEach((card, idx) => {
-    // Guard: skip hidden cards (opponent's hand sanitized by server in online mode)
     if (!card || card.hidden) {
       el.appendChild(mk('div', 'card face-down'));
       return;
@@ -306,7 +497,6 @@ export function renderHand(containerId, state, p, ownerP = null) {
 // Card element builder
 // ---------------------------------------------------------------------------
 export function buildCardEl(card, playable = false) {
-  // Safety guard — should never be called with a hidden/null card but just in case
   if (!card || card.hidden) {
     return mk('div', 'card face-down');
   }
@@ -349,7 +539,6 @@ function buildInspectModal(card, onActivate = null) {
     Equipment: 'equipment', Genesis: 'genesis', Leader: 'leader',
   }[card.type] ?? 'equipment';
 
-  const typePillClass = `type-${typeKey}`;
   const modal = document.createElement('div');
   modal.className = 'card-inspect-modal';
 
@@ -360,7 +549,7 @@ function buildInspectModal(card, onActivate = null) {
     <div class="cim-art">${cardEmoji(card)}</div>
     <div class="cim-name">${card.name}</div>
     <div class="cim-type-row">
-      <div class="cim-type-pill ${typePillClass}">${card.type.toUpperCase()}</div>
+      <div class="cim-type-pill type-${typeKey}">${card.type.toUpperCase()}</div>
       ${cost > 0 ? `<div class="cim-cost-pill">${cost}⚡</div>` : ''}
     </div>
   `;
@@ -470,7 +659,7 @@ export function addContextMenu(el, card, onActivate = null) {
 }
 
 // ---------------------------------------------------------------------------
-// Action buttons
+// #24 — Action buttons with phase-aware labels
 // ---------------------------------------------------------------------------
 export function renderActionButtons(state) {
   const p         = state.activePlayer;
@@ -479,8 +668,6 @@ export function renderActionButtons(state) {
 
   if (state.phase === 'setup') {
     btnLeader.style.display = 'none';
-    // In online concurrent mode the handler rewrites this button text/onclick.
-    // In local mode we just show a generic label.
     if (state._setupPlayer !== undefined) {
       btnEnd.textContent = 'Done Setup →';
       btnEnd.disabled    = false;
@@ -496,15 +683,18 @@ export function renderActionButtons(state) {
       && !(state.leaderUsedThisTurn ?? [false, false])[p];
     btnLeader.disabled = !canUseActive;
     btnLeader.textContent = `⚡ ${leader.name} Active (${leader.activeCost}⚡)`;
-    btnEnd.textContent = 'Start Attack →';
+    // #24 — "Attack Phase →" during main phase
+    btnEnd.textContent = 'Attack Phase →';
     btnEnd.disabled    = false;
   } else if (state.phase === 'attack') {
     btnLeader.style.display = 'none';
-    btnEnd.textContent      = 'Skip Attack →';
-    btnEnd.disabled         = false;
+    // #24 — "End Turn →" during attack phase
+    btnEnd.textContent = 'End Turn →';
+    btnEnd.disabled    = false;
   } else {
     btnLeader.style.display = 'none';
     btnEnd.disabled         = true;
+    btnEnd.textContent      = '...';
   }
 }
 
@@ -514,26 +704,96 @@ export function renderActionButtons(state) {
 export function showOverlay(id)  { q(id).classList.add('active');    }
 export function closeOverlay(id) { q(id).classList.remove('active'); }
 
-export function showScryModal(card) {
-  q('scry-card-display').innerHTML = `
-    <strong style="color:var(--sonic-bright);font-family:'Orbitron',sans-serif;">${card.name}</strong><br>
-    <span style="color:var(--grey);font-size:9px;">${card.type}</span><br>
-    <span style="font-size:10px;">${card.effectDesc ?? card.passiveDesc ?? card.activeDesc ?? ''}</span>
-  `;
+// #26 — Scry modal renders actual card element
+export function showScryModal(card, title = null) {
+  const displayEl = q('scry-card-display');
+  displayEl.innerHTML = '';
+
+  // Render the actual card element
+  const cardEl = buildCardEl(card, false);
+  cardEl.style.margin = '8px auto';
+  cardEl.style.display = 'block';
+  displayEl.appendChild(cardEl);
+
+  // Update scry overlay title if provided
+  const titleEl = document.querySelector('#scry-overlay h2');
+  if (titleEl && title) titleEl.textContent = title;
+
   showOverlay('scry-overlay');
 }
 
-export function showPassModal(nextPlayerNum) {
+export function showPassModal(nextPlayerNum, lastTurnLog = null) {
   setText('pass-title', `PASS TO PLAYER ${nextPlayerNum}`);
   setText('pass-msg',   `Player ${nextPlayerNum}'s turn is about to begin. Hand the device over.`);
+
+  // #22 — Show last-turn summary on pass screen
+  const summaryEl = q('pass-turn-summary');
+  if (summaryEl) {
+    if (lastTurnLog && lastTurnLog.length > 0) {
+      const entries = lastTurnLog.slice(-8);
+      summaryEl.innerHTML = `
+        <div class="pass-summary-title">LAST TURN</div>
+        ${entries.map(e => `<div class="pass-summary-entry ${e.type ?? ''}">${e.msg}</div>`).join('')}
+      `;
+      summaryEl.style.display = 'block';
+    } else {
+      summaryEl.style.display = 'none';
+    }
+  }
+
   showOverlay('pass-overlay');
 }
 
 export function showWinModal(loserP, turn) {
-  const winner = loserP === 0 ? 2 : 1;
-  setText('win-title', `PLAYER ${winner} WINS!`);
-  setText('win-msg',   `Player ${loserP + 1}'s Leader was defeated on Turn ${turn}.`);
+  const winner     = loserP === 0 ? 2 : 1;
+  const winnerP    = loserP === 0 ? 1 : 0;
+  const winnerName = `PLAYER ${winner}`;
+
+  // Populate the structured win overlay
+  const titleEl = q('win-title');
+  const msgEl   = q('win-msg');
+  if (titleEl) titleEl.textContent = `${winnerName} WINS!`;
+  if (msgEl)   msgEl.textContent   = `Player ${loserP + 1}'s Leader fell on Turn ${turn}.`;
+
+  // #25 — inject fanfare content into win-fanfare div if it exists
+  const fanfareEl = q('win-fanfare');
+  if (fanfareEl) {
+    fanfareEl.innerHTML = `
+      <div class="win-glow-name">${winnerName}</div>
+      <div class="win-stat">Turn ${turn} · ${winnerName} wins!</div>
+    `;
+    fanfareEl.classList.add('active');
+  }
+
+  // #25 — spawn confetti particles
+  _spawnConfetti();
+
   showOverlay('win-overlay');
+}
+
+function _spawnConfetti() {
+  const colours = ['#FFD700','#0066CC','#00CC44','#FF2244','#e040fb','#1a8eff'];
+  const container = document.body;
+  for (let i = 0; i < 60; i++) {
+    const el = document.createElement('div');
+    el.className = 'confetti-particle';
+    el.style.cssText = `
+      position:fixed;
+      top:${-10 + Math.random() * 30}px;
+      left:${Math.random() * 100}vw;
+      width:${6 + Math.random() * 8}px;
+      height:${6 + Math.random() * 8}px;
+      background:${colours[Math.floor(Math.random() * colours.length)]};
+      border-radius:${Math.random() > 0.5 ? '50%' : '2px'};
+      opacity:${0.7 + Math.random() * 0.3};
+      animation: confetti-fall ${1.5 + Math.random() * 2}s ease-in ${Math.random() * 0.8}s forwards;
+      pointer-events:none;
+      z-index:9999;
+      transform: rotate(${Math.random() * 360}deg);
+    `;
+    container.appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -567,14 +827,26 @@ export function openDiscardViewer(state, p) {
 }
 
 // ---------------------------------------------------------------------------
-// Game log
+// #19 — Game log with colour-coded borders and KO bolding
 // ---------------------------------------------------------------------------
 export function addLog(msg, type = '') {
   const log   = q('game-log');
   const entry = mk('div', 'log-entry ' + type);
+
+  // KO events get bold + larger text
+  const isKO = msg.includes('KO') || msg.includes('defeated');
+  if (isKO) {
+    entry.classList.add('log-ko');
+  }
+
   entry.textContent = msg;
   log.appendChild(entry);
   log.scrollTop = log.scrollHeight;
+
+  // Feed into mini-log for significant events
+  if (type === 'damage' || type === 'heal' || isKO) {
+    pushMiniLog(msg, type);
+  }
 }
 
 // ---------------------------------------------------------------------------

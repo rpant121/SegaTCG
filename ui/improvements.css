@@ -1,0 +1,330 @@
+/* ============================================================
+   SEGA TCG — Visual Improvements
+   items #13, #14, #15, #16, #17, #19, #20, #22, #24, #26
+   Add <link rel="stylesheet" href="ui/improvements.css"> to index.html
+   AFTER ui/styles.css
+   ============================================================ */
+
+/* ── #13 — Damage & heal flash animations ──────────────────── */
+@keyframes damage-flash {
+  0%   { box-shadow: 0 0 0px #ff000000; transform: translateX(0); }
+  20%  { box-shadow: 0 0 30px #ff4444cc; transform: translateX(-4px); }
+  40%  { transform: translateX(4px); }
+  60%  { transform: translateX(-2px); }
+  100% { box-shadow: 0 0 0px #ff000000; transform: translateX(0); }
+}
+@keyframes heal-flash {
+  0%   { box-shadow: 0 0 0px #00cc4400; }
+  30%  { box-shadow: 0 0 24px #00cc44cc; }
+  100% { box-shadow: 0 0 0px #00cc4400; }
+}
+.damage-flash { animation: damage-flash 0.42s ease-out !important; }
+.heal-flash   { animation: heal-flash   0.42s ease-out !important; }
+
+/* ── #14 — Floating number keyframe ────────────────────────── */
+@keyframes float-number {
+  0%   { opacity: 1;   transform: translateX(-50%) translateY(0);     }
+  80%  { opacity: 0.8; transform: translateX(-50%) translateY(-36px); }
+  100% { opacity: 0;   transform: translateX(-50%) translateY(-44px); }
+}
+/* class applied inline via JS */
+
+/* ── #15 — Attack target pulse (replaces static border) ────── */
+@keyframes target-pulse {
+  0%, 100% { box-shadow: 0 0 8px #ff444488;  border-color: #ff4444; }
+  50%       { box-shadow: 0 0 22px #ff4444cc; border-color: #ff6666; }
+}
+.attack-target {
+  animation: target-pulse 0.9s ease-in-out infinite !important;
+}
+
+/* ── #16 — Low-HP leader red glow ──────────────────────────── */
+.leader-card.low-hp {
+  box-shadow: 0 0 18px #ff224466, 0 0 36px #ff224422 !important;
+  border-color: #ff3344 !important;
+}
+/* HP bar transition already uses inline background set by renderer */
+
+/* ── #17 — Playable card float + glow ──────────────────────── */
+@keyframes float-up {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-5px); }
+}
+.card.playable {
+  border-color: var(--green) !important;
+  box-shadow: 0 0 14px var(--green), 0 0 28px #00cc4444 !important;
+  animation: float-up 2s ease-in-out infinite;
+}
+/* Don't float cards that are already selected or dragged */
+.card.selected.playable,
+.card.playable:active { animation: none !important; }
+
+/* ── #19 — Log colour-coded left borders ────────────────────── */
+#game-log .log-entry {
+  border-left: 3px solid transparent;
+  padding-left: 6px !important;
+  border-bottom: 1px solid #0d1a2a;
+}
+#game-log .log-entry.damage { border-left-color: #ff4444; }
+#game-log .log-entry.heal   { border-left-color: #00cc44; }
+#game-log .log-entry.draw   { border-left-color: var(--sonic-blue); }
+#game-log .log-entry.play   { border-left-color: var(--gold); }
+#game-log .log-entry.phase  { border-left-color: #1a2a40; color: #3a5066; font-style: italic; }
+
+/* KO log entries: bold + slightly larger */
+#game-log .log-entry.log-ko {
+  font-weight: 700;
+  font-size: 12px !important;
+  color: #ff5555 !important;
+  border-left-color: #ff2244 !important;
+  letter-spacing: 0.3px;
+}
+
+/* ── #19 — Mini-log strip on the board ─────────────────────── */
+#mini-log {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  pointer-events: none;
+  transition: opacity 0.6s;
+  min-width: 240px;
+  max-width: 420px;
+}
+.mini-log-entry {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  background: #060d1acc;
+  border: 1px solid #1a2a40;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mini-log-entry.damage { color: #ff6677; border-color: #602020; }
+.mini-log-entry.heal   { color: #44cc77; border-color: #206040; }
+.mini-log-entry.draw   { color: var(--sonic-bright); border-color: #1a3a5e; }
+
+/* ── #20 — Hand count badge in info row ─────────────────────── */
+.hand-count-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-family: var(--font-display);
+  font-size: 9px;
+  color: var(--white);
+  background: #0d2040;
+  border: 1px solid #1a4060;
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+/* ── #22 — Pass screen last-turn summary ───────────────────── */
+#pass-turn-summary {
+  display: none;
+  margin-top: 12px;
+  max-height: 200px;
+  overflow-y: auto;
+  background: #060d1a;
+  border: 1px solid #1a3050;
+  border-radius: 6px;
+  padding: 8px 12px;
+  text-align: left;
+}
+.pass-summary-title {
+  font-family: var(--font-display);
+  font-size: 9px;
+  color: var(--sonic-bright);
+  letter-spacing: 2px;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+.pass-summary-entry {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  padding: 2px 0;
+  border-bottom: 1px solid #0d1a2a;
+  color: #6688aa;
+  border-left: 2px solid transparent;
+  padding-left: 6px;
+}
+.pass-summary-entry.damage { color: #ff8888; border-left-color: #ff4444; }
+.pass-summary-entry.heal   { color: #44cc77; border-left-color: #00cc44; }
+.pass-summary-entry.draw   { color: var(--sonic-bright); border-left-color: var(--sonic-blue); }
+.pass-summary-entry.play   { color: var(--gold); border-left-color: var(--gold-dim); }
+
+/* ── #12 — Skip attack confirm overlay ─────────────────────── */
+#skip-attack-overlay .modal {
+  border-color: var(--gold);
+  box-shadow: var(--glow-gold);
+  max-width: 380px;
+}
+#skip-attack-overlay h2 { color: var(--gold); }
+#skip-attack-msg {
+  font-size: 12px;
+  color: var(--white);
+  margin: 8px 0 16px;
+}
+
+/* ── #26 — Scry modal card display ─────────────────────────── */
+#scry-card-display .card {
+  width: 130px !important;
+  height: 220px !important;
+  cursor: default !important;
+  pointer-events: none;
+  margin: 0 auto;
+  display: block;
+}
+#scry-card-display .card:hover {
+  transform: none !important;
+}
+
+/* ── Scrollbar polish on game log ───────────────────────────── */
+#game-log::-webkit-scrollbar       { width: 3px; }
+#game-log::-webkit-scrollbar-track { background: #040c18; }
+#game-log::-webkit-scrollbar-thumb { background: #1a3a5e; border-radius: 2px; }
+
+/* ── #18 — Damage chip (leader card ⚔N) ─────────────────── */
+.leader-dmg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #1a0a0a;
+  border: 1px solid var(--red-dim);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: var(--red);
+  cursor: default;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+.leader-dmg-chip.buffed {
+  background: #2a0808;
+  border-color: #ff4422;
+  color: #ff6644;
+  box-shadow: 0 0 8px #ff224444;
+  animation: dmg-pulse 1.5s ease-in-out infinite;
+}
+@keyframes dmg-pulse {
+  0%, 100% { box-shadow: 0 0 6px #ff224433; }
+  50%       { box-shadow: 0 0 14px #ff224488, 0 0 24px #ff224422; }
+}
+/* #18 — Damage breakdown popup */
+.dmg-breakdown-popup {
+  position: fixed;
+  z-index: 9000;
+  background: #060d1aee;
+  border: 1px solid var(--red-dim);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--white);
+  line-height: 1.8;
+  min-width: 150px;
+  box-shadow: 0 4px 20px #000a;
+  pointer-events: none;
+}
+.dmg-breakdown-popup div:last-child { color: var(--red); font-family: var(--font-display); font-weight: 700; }
+
+/* ── #21 — Equipment undo toast ─────────────────────────── */
+.equip-undo-toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: #0d1f35;
+  border: 1.5px solid var(--sonic-blue);
+  border-radius: 8px;
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--white);
+  box-shadow: var(--glow-blue);
+  transition: transform 0.25s ease-out;
+  z-index: 9998;
+  white-space: nowrap;
+}
+.equip-undo-toast.show {
+  transform: translateX(-50%) translateY(0);
+}
+.equip-undo-toast button {
+  background: var(--sonic-blue);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-family: var(--font-display);
+  font-size: 9px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.equip-undo-toast button:hover { background: var(--sonic-bright); }
+
+/* ── #25 — Win screen fanfare ───────────────────────────── */
+@keyframes confetti-fall {
+  0%   { transform: translateY(0) rotate(0deg);     opacity: 1; }
+  80%  { opacity: 1; }
+  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+}
+
+@keyframes win-glow-pulse {
+  0%, 100% { text-shadow: 0 0 20px var(--gold), 0 0 40px var(--gold); }
+  50%       { text-shadow: 0 0 60px var(--gold), 0 0 100px #ffaa0088; }
+}
+
+#win-overlay .modal {
+  position: relative;
+  overflow: hidden;
+}
+.win-glow-name {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 900;
+  color: var(--gold);
+  letter-spacing: 4px;
+  text-align: center;
+  margin: 8px 0 4px;
+  animation: win-glow-pulse 1.5s ease-in-out infinite;
+}
+.win-stat {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--grey);
+  text-align: center;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+#win-fanfare { display: none; }
+#win-fanfare.active { display: block; }
+
+/* ── #27 — Card button grid in targeting modals ─────────── */
+#target-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+/* ── #28 — KO animation on bench units ─────────────────── */
+@keyframes bench-ko {
+  0%   { opacity: 1;   transform: scale(1)    rotate(0deg);   box-shadow: 0 0 0px #ff000000; }
+  30%  { opacity: 0.9; transform: scale(1.05) rotate(-3deg);  box-shadow: 0 0 30px #ff4444cc; }
+  100% { opacity: 0;   transform: scale(0)    rotate(10deg);  box-shadow: 0 0 0px #ff000000; }
+}
+.bench-ko {
+  animation: bench-ko 0.3s ease-in forwards !important;
+  pointer-events: none;
+}

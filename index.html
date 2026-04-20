@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sega Card Game TCG</title>
   <link rel="stylesheet" href="ui/styles.css">
+  <link rel="stylesheet" href="ui/improvements.css">
   <link rel="stylesheet" href="ui/mobile.css">
   <style>
     .top-nav {
@@ -87,7 +88,7 @@
      BOARD LAYOUT
      Top = Player 2  |  Bottom = Player 1  |  Right = Side Panel
      ============================================================ -->
-<div id="game-board">
+<div id="game-board" style="position:relative;">
 
   <!-- P2 Hand (face-down during P1's turn) -->
   <div class="board-area hand-area" id="p2-hand" style="grid-row:1;"></div>
@@ -171,7 +172,7 @@
       <button class="action-btn gold" id="btn-leader-active" style="display:none;margin-bottom:6px;">
         ⚡ Sonic Active (1⚡)
       </button>
-      <button class="action-btn" id="btn-end-phase">Start Attack →</button>
+      <button class="action-btn" id="btn-end-phase">Attack Phase →</button>
       <div style="font-size:8px;color:#445566;text-align:center;margin-top:4px;">Right-click any card for details</div>
     </div>
 
@@ -182,6 +183,10 @@
     </div>
 
   </div><!-- /side-panel -->
+
+  <!-- #19 mini-log strip (overlays midline area) -->
+  <div id="mini-log" style="opacity:0;"></div>
+
 </div><!-- /game-board -->
 
 
@@ -197,6 +202,8 @@
     <button class="action-btn gold" id="btn-continue" style="font-size:14px;padding:10px;">
       ▶ CONTINUE
     </button>
+    <!-- #22 last-turn summary -->
+    <div id="pass-turn-summary"></div>
   </div>
 </div>
 
@@ -204,6 +211,7 @@
 <div class="overlay" id="win-overlay">
   <div class="modal">
     <h2 id="win-title">PLAYER 1 WINS!</h2>
+    <div id="win-fanfare"></div>
     <p  id="win-msg">The battle is over.</p>
     <div class="modal-btn-row" style="margin-top:12px;">
       <button class="action-btn gold"
@@ -243,7 +251,7 @@
   </div>
 </div>
 
-<!-- Tails Modal — styled like the discard viewer -->
+<!-- Tails Modal -->
 <div class="overlay" id="tails-overlay">
   <div class="modal" style="max-width:580px;">
     <h2>TAILS: PLAY FROM DISCARD</h2>
@@ -327,6 +335,18 @@
   </div>
 </div>
 
+<!-- #12 Skip Attack Confirm -->
+<div class="overlay" id="skip-attack-overlay">
+  <div class="modal">
+    <h2>SKIP ATTACK?</h2>
+    <p id="skip-attack-msg">Skip your attack this turn?</p>
+    <div class="modal-btn-row">
+      <button class="action-btn danger" id="btn-skip-attack-confirm">Skip Attack</button>
+      <button class="action-btn" id="btn-skip-attack-cancel">Cancel — Keep Attacking</button>
+    </div>
+  </div>
+</div>
+
 <!-- Unit Active Confirm Modal -->
 <div class="overlay" id="unit-confirm-overlay">
   <div class="overlay-panel">
@@ -366,9 +386,7 @@
 </div>
 
 <!-- ============================================================
-     ENTRY POINT — routes to main.js (local) or main.online.js
-     A dynamic import() is used because <script type="module"> src
-     cannot be chosen at runtime with a plain src attribute change.
+     ENTRY POINT
      ============================================================ -->
 <script type="module">
   const isOnline = !!sessionStorage.getItem('online_server_url');
@@ -386,11 +404,9 @@
   const panel     = document.querySelector('.side-panel');
   const toggle    = document.getElementById('mobile-panel-toggle');
 
-  // IDs that have inline style="grid-row:N" which must be cleared on mobile
   const GRID_ROW_IDS = ['p2-hand','p2-bench','p2-leader-row','p1-leader-row','p1-bench','p1-hand'];
 
   function applyMobileMode(isMobile) {
-    // Strip / restore inline grid-row so our flex order takes effect
     GRID_ROW_IDS.forEach(id => {
       const el = document.getElementById(id);
       if (!el) return;
@@ -401,7 +417,6 @@
         el.style.gridRow = el.dataset.savedGridRow || '';
       }
     });
-    // Also clear the midline (no id, use class)
     document.querySelectorAll('.midline').forEach(el => {
       if (isMobile) { el.dataset.savedGridRow = el.style.gridRow || ''; el.style.gridRow = ''; }
       else           { el.style.gridRow = el.dataset.savedGridRow || ''; }
@@ -411,16 +426,13 @@
     if (!isMobile && panel) panel.classList.remove('panel-open');
   }
 
-  // Run on load and on viewport resize
   applyMobileMode(MOBILE_MQ.matches);
   MOBILE_MQ.addEventListener('change', e => applyMobileMode(e.matches));
 
-  // Toggle panel open/close on handle tap
   if (toggle && panel) {
     toggle.addEventListener('click', () => panel.classList.toggle('panel-open'));
   }
 
-  // Auto-close panel after tapping an action button
   ['btn-end-phase', 'btn-leader-active'].forEach(id => {
     const btn = document.getElementById(id);
     if (btn && panel) btn.addEventListener('click', () => {
@@ -428,7 +440,6 @@
     });
   });
 
-  // Called by renderer.js to update the mini strip
   window.updateMobileStrip = function (phase, energy) {
     const phaseEl  = document.getElementById('mobile-phase-mini');
     const energyEl = document.getElementById('mobile-energy-mini');
@@ -438,7 +449,7 @@
 })();
 </script>
 
-
+<script>
   document.getElementById('nav-deck-builder').addEventListener('click', (e) => {
     e.preventDefault();
     const isOnline = !!sessionStorage.getItem('online_server_url');

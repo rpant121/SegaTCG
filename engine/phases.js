@@ -2,6 +2,10 @@
  * PHASES
  * Turn structure: Big Scry → Draw → Energy → Main → Attack → End.
  * No DOM. Communicates with UI via emit(eventName, payload).
+ *
+ * Fixes applied:
+ *  #7  — Caroline/Justine "died alone" condition now uses _twinKOThisTurn flag
+ *  #10 — Futaba end-of-turn scry now emits scry_prompt so local mode shows the modal
  */
 
 import { opponent } from './state.js';
@@ -23,18 +27,20 @@ export function startTurn(state, log, emit) {
   if (state.leaderUsedThisTurn) state.leaderUsedThisTurn[p] = false;
   state.usedActivesThisTurn = [];
   if (state.supportDiedLastTurn) state.supportDiedLastTurn[p] = false;
+  // #7 — reset twin-KO-same-turn flag at start of each turn
+  if (!state._twinKOThisTurn) state._twinKOThisTurn = [false, false];
+  state._twinKOThisTurn[p] = false;
 
   for (const u of state.players[p].bench) {
     if (u.exhausted) { u.exhausted = false; log(`${u.name} recovered`, 'phase'); }
   }
   // Haru shield expires at the start of the PROTECTED player's own turn
   if (state.haruShield) state.haruShield[p] = false;
-  // Haru extended exhaust: clear haruShield flag on unit so she can be used again
   state.players[p].bench.forEach(u => { if (u.haruShield) { u.haruShield = false; } });
   // shieldReduction (Elemental Shield / Guard Persona) expires at start of protected player's turn
   if (state.shieldReduction) state.shieldReduction[p] = 0;
 
-  // Activate Kamoshida passive flag for this turn (always, before any early return)
+  // Activate Kamoshida passive flag for this turn
   if (!state.kamoshidaPassive) state.kamoshidaPassive = [false, false];
   state.kamoshidaPassive[p] = !!state.players[p].bench.find(u => u.id === 'suguru_kamoshida' && !u.exhausted);
 
@@ -74,10 +80,8 @@ function runDrawPhase(state, log, emit) {
   const totalDraw = 1 + stageBonus + espioBonus;
 
   if (state.players[p].deck.length === 0) {
-    // drawCards handles the missed-draw penalty (scaled x10), call it for 1 draw
     drawCards(state, p, 1, log, true);
     if (checkWin(state) !== null) { emit('phase_changed', state.phase); return; }
-    // Draw extra cards (stage/espio bonuses) from empty deck each trigger penalty too
     for (let i = 1; i < totalDraw; i++) drawCards(state, p, 1, log, true);
   } else {
     drawCards(state, p, totalDraw, log, true);
@@ -92,21 +96,17 @@ function runEnergyPhase(state, log, emit) {
   state.phase = 'energy';
   const p = state.activePlayer;
   state.energyMax[p] = (state.energyMax[p] ?? 0) + 1;
-
-  // Active player always gets their energyMax restored
   state.energy[p] = state.energyMax[p];
+
   if (state.activeStage?.id === 'radical_highway') {
-    // Both players gain +1 energy on the active player's turn
     state.energy[0] += 1;
     state.energy[1] += 1;
     log(`Radical Highway: each player +1 energy`, 'phase');
   }
 
   if (state.activeStage?.id === 'palace_infiltration_route') {
-    // +1 energy to the active player
     state.energy[p] += 1;
     log(`Palace Infiltration Route: +1 energy to Player ${p + 1}`, 'phase');
-    // Both leaders take 10 damage
     for (let pi = 0; pi <= 1; pi++) {
       const ldr = state.players[pi].leader;
       ldr.currentHp = Math.max(0, ldr.currentHp - 10);
@@ -137,9 +137,11 @@ export function enterEndPhase(state, log, emit) {
   state.phase = 'end';
   const p = state.activePlayer;
 
+  // Tails draw
   const tails = state.players[p].bench.find(u => u.id === 'tails' && !u.exhausted);
   if (tails) { log(`Tails: draws 1`, 'draw'); drawCards(state, p, 1, log); }
 
+  // Blaze sustain heal
   const blaze = state.players[p].bench.find(u => u.id === 'blaze' && !u.exhausted);
   if (blaze && state.players[p].discard.length >= 5) {
     const leader = state.players[p].leader;
@@ -152,11 +154,25 @@ export function enterEndPhase(state, log, emit) {
     }
   }
 
+  // #10 — Futaba end-of-turn scry: set pending state AND emit so local mode shows the modal
   const futaba = state.players[p].bench.find(u => u.id === 'futaba_sakura' && !u.exhausted);
   if (futaba && state.players[p].deck.length > 0) {
     state.pendingBigScry = { playerIdx: p, card: state.players[p].deck[0], isFutaba: true };
+    // Emit before cleanup so the UI can intercept and show the scry modal before pass
+    emit('scry_prompt', state.pendingBigScry);
+    // End phase cleanup will happen after scry resolves (resolveBigScry → advanceTurn path)
+    return;
   }
 
+  _finishEndPhase(state, log, emit, p);
+}
+
+// Called directly, and also after Futaba scry resolves
+export function finishEndPhaseAfterScry(state, log, emit) {
+  _finishEndPhase(state, log, emit, state.activePlayer);
+}
+
+function _finishEndPhase(state, log, emit, p) {
   state.chaosEmeraldBuff[p]          = 0;
   state.powerGloveBuff[p]            = 0;
   state.masterEmeraldActive           = false;
@@ -167,19 +183,19 @@ export function enterEndPhase(state, log, emit) {
   state.rougeUsedThisTurn[p]         = false;
   state.leaderUsedThisTurn[p]        = false;
   state.usedActivesThisTurn           = [];
-  // shieldReduction NOT cleared here — persists into opponent's turn (Guard Persona)
-  // P5 per-turn resets
   if (state.healedThisTurn)          state.healedThisTurn[p]          = 0;
   if (state.dmgToEnemyUnitsThisTurn) state.dmgToEnemyUnitsThisTurn[p] = 0;
   if (state.opponentDiscardsThisTurn)state.opponentDiscardsThisTurn[p]= 0;
   if (state.unblockableAttack)       state.unblockableAttack[p]       = false;
   if (state.tauntUnit)               state.tauntUnit[p]               = null;
-  // haruShield intentionally NOT cleared here — persists until start of player's NEXT turn
   if (state.kamoshidaPassive)        state.kamoshidaPassive[p]        = false;
-  // Haru exhausted state cleared in startTurn when shield expires
-  // Caroline/Justine: track whether each died alone this turn for revival condition
-  _updateCarolineJustineLock(state, p);
+  // #7 — reset twin-KO flag
+  if (state._twinKOThisTurn)         state._twinKOThisTurn[p]        = false;
+
   delete state._genesisPlayedBy;
+
+  // #7 — update Caroline/Justine revival locks using the twin-KO-same-turn flag
+  _updateCarolineJustineLock(state, p);
 
   emit('phase_changed', state.phase);
   emit('request_pass', opponent(p) + 1);
@@ -192,7 +208,8 @@ export function advanceTurn(state, log, emit) {
   startTurn(state, log, emit);
 }
 
-// Track Caroline/Justine revival conditions (died alone = other twin wasn't also KO'd this turn)
+// #7 — Track Caroline/Justine revival: only unlock if the OTHER twin died ALONE
+// (i.e. was not also KO'd in the same action/turn as the surviving twin)
 function _updateCarolineJustineLock(state, p) {
   if (!state.carolineLock) state.carolineLock = [false, false];
   if (!state.justineLock)  state.justineLock  = [false, false];
@@ -205,8 +222,14 @@ function _updateCarolineJustineLock(state, p) {
   const carolineOnBench   = bench.includes('caroline');
   const justineOnBench    = bench.includes('justine');
 
-  // Caroline active unlocked if Justine is in discard but Caroline is still on bench
-  state.carolineLock[p] = justineInDiscard && carolineOnBench;
-  // Justine active unlocked if Caroline is in discard but Justine is still on bench
-  state.justineLock[p]  = carolineInDiscard && justineOnBench;
+  // Both died this turn — neither twin "died alone", so no revival lock
+  const bothDiedThisTurn = state._twinKOThisTurn?.[p] === true
+    && carolineInDiscard && justineInDiscard;
+
+  // Caroline active: Justine died alone (Justine in discard, Caroline still on bench,
+  // and NOT both KO'd in the same turn)
+  state.carolineLock[p] = justineInDiscard && carolineOnBench && !bothDiedThisTurn;
+
+  // Justine active: Caroline died alone
+  state.justineLock[p]  = carolineInDiscard && justineOnBench && !bothDiedThisTurn;
 }

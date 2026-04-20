@@ -1,7 +1,20 @@
 /**
- * ONLINE HANDLERS -- ui/handlers.online.js
+ * ONLINE HANDLERS — ui/handlers.online.js
  * Every player action is sent to the server as act(type, payload).
  * The server validates, mutates state, and broadcasts sanitized state back.
+ *
+ * Changes vs local handlers.js ported here:
+ *  #6  — taunt enforcement in attack phase
+ *  #10 — Futaba scry modal routing (isFutaba flag)
+ *  #12 — confirm before skipping attack phase
+ *  #15 — attack target pulse (CSS; already in improvements.css)
+ *  #18 — damage chip on leader card (renderer handles render; chip click shows breakdown)
+ *  #22 — elapsed time indicator during opponent's turn (#23)
+ *  #24 — action button label adapts to phase (renderer handles this)
+ *  #25 — win screen fanfare (renderer handles this)
+ *  #26 — scry modal renders card element (renderer handles this)
+ *  #27 — mkCardBtn in Knuckles/Cream/Morgana/Sumire modals
+ *  #28 — KO animation (renderer handles this)
  */
 
 import {
@@ -23,6 +36,10 @@ let myPlayerIdx = null;
 let state       = null;
 let _gameOver   = false;
 let _extremeGearSelected = new Set();
+
+// #23 — elapsed time counter during opponent's turn
+let _elapsedTimer   = null;
+let _elapsedSeconds = 0;
 
 // ---------------------------------------------------------------------------
 // Public init
@@ -46,10 +63,9 @@ function act(type, payload = {}) {
 function bindSocketListeners() {
 
   socket.on('state_update', ({ state: newState, logEntries, winner, pendingIntercept }) => {
+    const wasMyTurn = state ? state.activePlayer === myPlayerIdx : false;
     state = newState;
 
-    // Always dismiss any waiting/pass overlay when fresh state arrives.
-    // Paths that need the overlay (end-phase wait, block wait) re-show it below.
     closeOverlay('pass-overlay');
     document.getElementById('btn-continue').style.display = '';
 
@@ -58,6 +74,7 @@ function bindSocketListeners() {
     if (winner !== undefined && !_gameOver) {
       _gameOver = true;
       showWinModal(opponent(winner), state.turn);
+      _stopElapsedTimer();
       return;
     }
 
@@ -71,13 +88,17 @@ function bindSocketListeners() {
 
     if (state.phase === 'setup') { refreshBoard(); return; }
 
+    // #23 — start/stop elapsed timer based on whose turn it is
+    if (state.activePlayer !== myPlayerIdx) {
+      _startElapsedTimer();
+    } else {
+      _stopElapsedTimer();
+    }
+
     if (state.phase === 'end') {
       if (state.activePlayer === myPlayerIdx) {
-        // Don't render the transient end-phase board; just advance the turn.
         setTimeout(() => act('ADVANCE_TURN'), 400);
       } else {
-        // Render the board state, THEN place the waiting overlay on top.
-        // If overlay is shown first, refreshBoard would immediately clear it.
         refreshBoard();
         showWaitingOverlay('Waiting for Player ' + (state.activePlayer + 1) + ' to finish their turn...');
       }
@@ -94,10 +115,10 @@ function bindSocketListeners() {
       }
     }
 
+    // #10 — Futaba / Big scry prompt
     if (state.pendingBigScry && state.pendingBigScry.playerIdx === myPlayerIdx) {
-      showScryModal(state.pendingBigScry.card);
-      const scryTitle = document.querySelector('#scry-overlay h2');
-      if (scryTitle) scryTitle.textContent = state.pendingBigScry.isFutaba ? "FUTABA'S SCRY" : "BIG'S SCRY";
+      const isFutaba = state.pendingBigScry.isFutaba ?? false;
+      showScryModal(state.pendingBigScry.card, isFutaba ? "FUTABA'S SCRY" : "BIG'S SCRY");
     }
 
     refreshBoard();
@@ -107,6 +128,28 @@ function bindSocketListeners() {
   socket.on('action_error',         ({ message }) => addLog('! ' + message, 'damage'));
   socket.on('opponent_disconnected',({ message }) => { addLog(message, 'damage'); showWaitingOverlay(message); });
   socket.on('setup_turn', () => refreshBoard());
+}
+
+// ---------------------------------------------------------------------------
+// Elapsed timer (#23)
+// ---------------------------------------------------------------------------
+function _startElapsedTimer() {
+  _stopElapsedTimer();
+  _elapsedSeconds = 0;
+  _elapsedTimer = setInterval(() => {
+    _elapsedSeconds++;
+    const mm = String(Math.floor(_elapsedSeconds / 60)).padStart(2, '0');
+    const ss = String(_elapsedSeconds % 60).padStart(2, '0');
+    const msgEl = document.getElementById('pass-msg');
+    if (msgEl && state && state.activePlayer !== myPlayerIdx) {
+      msgEl.textContent = `Opponent's turn — ${mm}:${ss}`;
+    }
+  }, 1000);
+}
+
+function _stopElapsedTimer() {
+  if (_elapsedTimer) { clearInterval(_elapsedTimer); _elapsedTimer = null; }
+  _elapsedSeconds = 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -159,7 +202,7 @@ function showWaitingOverlay(msg) {
 function isMyTurn() { return state && state.activePlayer === myPlayerIdx; }
 
 // ---------------------------------------------------------------------------
-// Board handlers -- attach events to ALREADY-RENDERED DOM only.
+// Board handlers
 // ---------------------------------------------------------------------------
 function attachBoardHandlers() {
   if (!state) return;
@@ -177,7 +220,6 @@ function attachBoardHandlers() {
         if (!card || card.hidden) return;
         if (card.type === 'Unit') {
           attachDragToHandCard(div, i, p);
-          // Also allow click-to-deploy during setup (not just drag)
           div.style.cursor = 'pointer';
           div.onclick = () => {
             if (state.players[p].bench.length >= 3) { addLog('Bench is full', 'damage'); return; }
@@ -208,7 +250,7 @@ function attachBoardHandlers() {
     return;
   }
 
-  // ALL PHASES -- right-click for both players
+  // ALL PHASES — right-click inspect for own hand
   const ownHandEl = document.getElementById('p' + (p + 1) + '-hand');
   if (ownHandEl) {
     ownHandEl.querySelectorAll('.card').forEach((div, i) => {
@@ -216,10 +258,8 @@ function attachBoardHandlers() {
       if (!card || card.hidden) return;
       div.addEventListener('contextmenu', e => { e.preventDefault(); openCardInspect(card, null); });
       if (isMyTurn()) {
-        // All card types: click to play
         div.style.cursor = 'pointer';
         div.onclick = () => { if (state.phase === 'main') act('PLAY_CARD', { handIdx: i }); };
-        // Unit cards: also support drag-to-bench as an alternative
         if (card.type === 'Unit') attachDragToHandCard(div, i, p);
       }
     });
@@ -228,9 +268,8 @@ function attachBoardHandlers() {
   const _freshBench = isMyTurn()
     ? attachBenchDropZoneOnce('p' + (p + 1) + '-bench', p)
     : document.getElementById('p' + (p + 1) + '-bench');
-  const ownBenchEl = _freshBench;
-  if (ownBenchEl) {
-    ownBenchEl.querySelectorAll('.bench-unit').forEach((div, i) => {
+  if (_freshBench) {
+    _freshBench.querySelectorAll('.bench-unit').forEach((div, i) => {
       const unit = state.players[p].bench[i];
       if (!unit) return;
       const cost = getActiveCost(state, unit);
@@ -243,16 +282,21 @@ function attachBoardHandlers() {
     });
   }
 
+  // Own leader
   const ownLeaderEl = document.querySelector('#p' + (p + 1) + '-leader-zone .leader-card');
   if (ownLeaderEl) {
+    const leader   = state.players[p].leader;
+    const needsHand = leader.id === 'sonic';
+    const alreadyUsed = (state.leaderUsedThisTurn || [false,false])[p];
     const canUse = isMyTurn() && state.phase === 'main'
-      && canAfford(state, state.players[p].leader.activeCost)
-      && state.players[p].hand.length > 0
-      && !(state.leaderUsedThisTurn || [false,false])[p];
-    ownLeaderEl.addEventListener('contextmenu', e => { e.preventDefault(); openCardInspect(state.players[p].leader, canUse ? openLeaderActiveModal : null); });
+      && canAfford(state, leader.activeCost)
+      && (!needsHand || state.players[p].hand.length > 0)
+      && (leader.id === 'kiryu' || !alreadyUsed);
+    ownLeaderEl.addEventListener('contextmenu', e => { e.preventDefault(); openCardInspect(leader, canUse ? openLeaderActiveModal : null); });
     if (canUse) { ownLeaderEl.style.cursor = 'pointer'; ownLeaderEl.onclick = openLeaderActiveModal; }
   }
 
+  // Opponent bench — with #6 taunt enforcement
   const oppBenchEl = document.getElementById('p' + (opp + 1) + '-bench');
   if (oppBenchEl) {
     oppBenchEl.querySelectorAll('.bench-unit').forEach((div, i) => {
@@ -260,18 +304,35 @@ function attachBoardHandlers() {
       if (!unit) return;
       div.addEventListener('contextmenu', e => { e.preventDefault(); openCardInspect(unit, null); });
       if (isMyTurn() && state.phase === 'attack') {
-        const tauntUid = state.tauntUnit && state.tauntUnit[opp];
-        if (!tauntUid || unit.uid === tauntUid)
+        // #6 — taunt: only the taunting unit can be targeted
+        const tauntUid = state.tauntUnit?.[opp];
+        const isTauntTarget = tauntUid && unit.uid === tauntUid;
+        const isBlocked     = tauntUid && !isTauntTarget;
+        if (!isBlocked) {
           div.onclick = () => act('ATTACK', { targetType: 'unit', targetBenchIdx: i });
+        } else {
+          div.style.opacity = '0.35';
+          div.style.cursor  = 'not-allowed';
+          div.title = 'Taunt active — must attack the taunting unit first';
+        }
       }
     });
   }
 
+  // Opponent leader — with #6 taunt enforcement
   const oppLeaderEl = document.querySelector('#p' + (opp + 1) + '-leader-zone .leader-card');
   if (oppLeaderEl) {
     oppLeaderEl.addEventListener('contextmenu', e => { e.preventDefault(); openCardInspect(state.players[opp].leader, null); });
-    if (isMyTurn() && state.phase === 'attack' && !(state.tauntUnit && state.tauntUnit[opp]))
-      oppLeaderEl.onclick = () => act('ATTACK', { targetType: 'leader' });
+    if (isMyTurn() && state.phase === 'attack') {
+      const tauntUid = state.tauntUnit?.[opp];
+      if (tauntUid) {
+        oppLeaderEl.style.opacity = '0.35';
+        oppLeaderEl.style.cursor  = 'not-allowed';
+        oppLeaderEl.title = 'Taunt active — must attack the taunting unit first';
+      } else {
+        oppLeaderEl.onclick = () => act('ATTACK', { targetType: 'leader' });
+      }
+    }
   }
 }
 
@@ -286,7 +347,6 @@ function attachDragToHandCard(div, handIdx, p) {
     _drag = { active: true, handIdx };
     e.dataTransfer.effectAllowed = 'move';
     highlightBenchZone(true, p);
-    // Disable pointer events on bench children so drag events land on the container
     const benchEl = document.getElementById('p' + (p + 1) + '-bench');
     if (benchEl) benchEl.querySelectorAll('.bench-unit, .bench-slot').forEach(el => { el.style.pointerEvents = 'none'; });
   });
@@ -296,14 +356,12 @@ function attachDragToHandCard(div, handIdx, p) {
 function attachBenchDropZoneOnce(benchId, p) {
   const el = document.getElementById(benchId);
   if (!el) return null;
-  // Clone to strip all stale event listeners, then re-attach fresh ones
   const fresh = el.cloneNode(true);
   el.parentNode.replaceChild(fresh, el);
   fresh.dataset.dropWired = '1';
-  fresh.addEventListener('dragover',  e => { e.preventDefault(); }); // must preventDefault to allow drop
+  fresh.addEventListener('dragover',  e => { e.preventDefault(); });
   fresh.addEventListener('dragenter', e => { e.preventDefault(); fresh.classList.add('drop-hover'); });
   fresh.addEventListener('dragleave', e => {
-    // Only remove hover if leaving the bench entirely (not just entering a child)
     if (!fresh.contains(e.relatedTarget)) fresh.classList.remove('drop-hover');
   });
   fresh.addEventListener('drop', e => {
@@ -311,7 +369,7 @@ function attachBenchDropZoneOnce(benchId, p) {
     fresh.classList.remove('drop-hover');
     if (_drag.active) { act('PLAY_CARD', { handIdx: _drag.handIdx }); endDrag(p); }
   });
-  return fresh; // return new element so callers don't use stale ref
+  return fresh;
 }
 
 function highlightBenchZone(on, p) { const el = document.getElementById('p' + (p + 1) + '-bench'); if (el) el.classList.toggle('drop-target-active', on); }
@@ -319,7 +377,6 @@ function endDrag(p) {
   _drag = { active: false, handIdx: null };
   highlightBenchZone(false, p);
   document.querySelectorAll('.drop-hover').forEach(el => el.classList.remove('drop-hover'));
-  // Restore pointer events on bench children
   const benchEl = document.getElementById('p' + (p + 1) + '-bench');
   if (benchEl) benchEl.querySelectorAll('.bench-unit, .bench-slot').forEach(el => { el.style.pointerEvents = ''; });
 }
@@ -334,7 +391,7 @@ function triggerGenesisGlow(playerIdx) {
 }
 
 // ---------------------------------------------------------------------------
-// Status effects
+// Status effects panel
 // ---------------------------------------------------------------------------
 function renderStatusEffects(st) {
   const el = document.getElementById('status-effects-panel');
@@ -342,16 +399,16 @@ function renderStatusEffects(st) {
   const p = myPlayerIdx || 0; const opp = opponent(p);
   const fx = [];
   if (st.activeStage)                        fx.push({ label: 'Stage: ' + st.activeStage.name, cls: 'status-stage' });
-  if ((st.chaosEmeraldBuff  && st.chaosEmeraldBuff[p])  > 0) fx.push({ label: '+' + st.chaosEmeraldBuff[p]  + ' Chaos Emerald',     cls: 'status-positive' });
-  if ((st.chaosEmeraldBuff  && st.chaosEmeraldBuff[opp])> 0) fx.push({ label: 'Opp +' + st.chaosEmeraldBuff[opp]  + ' Emerald',    cls: 'status-negative' });
-  if ((st.powerGloveBuff    && st.powerGloveBuff[p])    > 0) fx.push({ label: '+' + st.powerGloveBuff[p]    + ' Power Glove',       cls: 'status-positive' });
-  if ((st.powerGloveBuff    && st.powerGloveBuff[opp])  > 0) fx.push({ label: 'Opp +' + st.powerGloveBuff[opp]    + ' Glove',       cls: 'status-negative' });
+  if ((st.chaosEmeraldBuff  && st.chaosEmeraldBuff[p])  > 0) fx.push({ label: '+' + st.chaosEmeraldBuff[p]  + ' Chaos Emerald',  cls: 'status-positive' });
+  if ((st.chaosEmeraldBuff  && st.chaosEmeraldBuff[opp])> 0) fx.push({ label: 'Opp +' + st.chaosEmeraldBuff[opp]  + ' Emerald', cls: 'status-negative' });
+  if ((st.powerGloveBuff    && st.powerGloveBuff[p])    > 0) fx.push({ label: '+' + st.powerGloveBuff[p]    + ' Power Glove',    cls: 'status-positive' });
+  if ((st.powerGloveBuff    && st.powerGloveBuff[opp])  > 0) fx.push({ label: 'Opp +' + st.powerGloveBuff[opp]    + ' Glove',   cls: 'status-negative' });
   if (st.masterEmeraldActive)                fx.push({ label: 'Master Emerald Active',  cls: 'status-positive' });
   if (st.haruShield  && st.haruShield[p])    fx.push({ label: 'Haru Shield: Leader immune',  cls: 'status-positive' });
   if (st.haruShield  && st.haruShield[opp])  fx.push({ label: 'Opp Haru Shield active',       cls: 'status-negative' });
   if (st.unblockableAttack && st.unblockableAttack[p]) fx.push({ label: 'Sae: Next attack unblockable', cls: 'status-positive' });
-  if (st.tauntUnit   && st.tauntUnit[opp])   fx.push({ label: 'Taunt: Sojiro must be attacked', cls: 'status-negative' });
-  if (st.tauntUnit   && st.tauntUnit[p])     fx.push({ label: 'Your Taunt active',               cls: 'status-positive' });
+  if (st.tauntUnit   && st.tauntUnit[opp])   fx.push({ label: 'Taunt: must attack Sojiro', cls: 'status-negative' });
+  if (st.tauntUnit   && st.tauntUnit[p])     fx.push({ label: 'Your Taunt active',         cls: 'status-positive' });
   const exhausted = (st.players[p].bench || []).filter(u => u.exhausted);
   if (exhausted.length) fx.push({ label: 'Exhausted: ' + exhausted.map(u => u.name).join(', '), cls: 'status-warn' });
   el.innerHTML = fx.length
@@ -423,7 +480,8 @@ function bindStaticButtons() {
     }
     if (!isMyTurn()) return;
     if (state.phase === 'main')        act('ENTER_ATTACK_PHASE');
-    else if (state.phase === 'attack') act('SKIP_ATTACK');
+    // #12 — confirm before skipping attack
+    else if (state.phase === 'attack') openSkipAttackConfirm();
   });
 
   document.getElementById('btn-leader-active').addEventListener('click', () => {
@@ -437,8 +495,9 @@ function bindStaticButtons() {
     if (state.phase === 'end' && isMyTurn()) act('ADVANCE_TURN');
   });
 
-  document.getElementById('btn-scry-discard').addEventListener('click', () => { closeOverlay('scry-overlay'); act('RESOLVE_BIG_SCRY', { shouldDiscard: true  }); });
-  document.getElementById('btn-scry-keep')   .addEventListener('click', () => { closeOverlay('scry-overlay'); act('RESOLVE_BIG_SCRY', { shouldDiscard: false }); });
+  // Scry buttons — rewired per-prompt by the state_update handler
+  document.getElementById('btn-scry-discard').onclick = () => { closeOverlay('scry-overlay'); act('RESOLVE_BIG_SCRY', { shouldDiscard: true  }); };
+  document.getElementById('btn-scry-keep')   .onclick = () => { closeOverlay('scry-overlay'); act('RESOLVE_BIG_SCRY', { shouldDiscard: false }); };
 
   document.getElementById('btn-cancel-target').addEventListener('click', () => closeOverlay('target-overlay'));
   document.getElementById('btn-cancel-tails') .addEventListener('click', () => closeOverlay('tails-overlay'));
@@ -449,6 +508,21 @@ function bindStaticButtons() {
 
   document.getElementById('btn-extreme-gear-cancel') .addEventListener('click', () => { _extremeGearSelected = new Set(); act('RESOLVE_EXTREME_GEAR', { handIndices: [] }); closeOverlay('extreme-gear-overlay'); });
   document.getElementById('btn-extreme-gear-confirm').addEventListener('click', () => { act('RESOLVE_EXTREME_GEAR', { handIndices: [..._extremeGearSelected] }); _extremeGearSelected = new Set(); closeOverlay('extreme-gear-overlay'); });
+
+  // #12 — skip attack confirm
+  const confirmSkip = document.getElementById('btn-skip-attack-confirm');
+  const cancelSkip  = document.getElementById('btn-skip-attack-cancel');
+  if (confirmSkip) confirmSkip.addEventListener('click', () => { closeOverlay('skip-attack-overlay'); act('SKIP_ATTACK'); });
+  if (cancelSkip)  cancelSkip.addEventListener('click',  () => closeOverlay('skip-attack-overlay'));
+}
+
+// #12 — open skip attack confirmation
+function openSkipAttackConfirm() {
+  const p      = myPlayerIdx;
+  const effDmg = calcEffectiveDamage(state, p);
+  const msgEl  = document.getElementById('skip-attack-msg');
+  if (msgEl) msgEl.textContent = `Your Leader would deal ${effDmg} damage. Skip your attack this turn?`;
+  showOverlay('skip-attack-overlay');
 }
 
 // ---------------------------------------------------------------------------
@@ -460,20 +534,24 @@ function mkBtn(label, onClick) {
   return btn;
 }
 
-function mkCardBtn(card, onClick, extra) {
-  const w = document.createElement('div');
-  w.style.cssText = 'position:relative;cursor:pointer;display:inline-block;transition:transform 0.15s;';
-  const cel = buildCardEl(card, false); cel.style.pointerEvents = 'none';
-  w.appendChild(cel);
-  if (extra) {
-    const b = document.createElement('div');
-    b.style.cssText = 'position:absolute;bottom:4px;left:0;right:0;text-align:center;font-size:8px;color:var(--gold);background:#000a;padding:2px;';
-    b.textContent = extra; w.appendChild(b);
+// #27 — render a mini card element as a clickable button
+function mkCardBtn(unit, onClick, extraLabel = '') {
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'position:relative;cursor:pointer;display:inline-block;transition:transform 0.12s;';
+  const cardEl = buildCardEl(unit, false);
+  cardEl.style.pointerEvents = 'none';
+  cardEl.style.width  = '90px';
+  cardEl.style.height = '130px';
+  wrapper.appendChild(cardEl);
+  if (extraLabel) {
+    const badge = document.createElement('div');
+    badge.style.cssText = 'position:absolute;bottom:4px;left:0;right:0;text-align:center;font-size:8px;color:var(--gold);background:#000b;padding:2px 4px;font-family:var(--font-display);letter-spacing:0.5px;border-radius:0 0 5px 5px;';
+    badge.textContent = extraLabel; wrapper.appendChild(badge);
   }
-  w.addEventListener('mouseenter', () => w.style.transform = 'translateY(-4px)');
-  w.addEventListener('mouseleave', () => w.style.transform = '');
-  w.onclick = onClick;
-  return w;
+  wrapper.addEventListener('mouseenter', () => wrapper.style.transform = 'translateY(-4px)');
+  wrapper.addEventListener('mouseleave', () => wrapper.style.transform = '');
+  wrapper.onclick = onClick;
+  return wrapper;
 }
 
 // ---------------------------------------------------------------------------
@@ -481,7 +559,6 @@ function mkCardBtn(card, onClick, extra) {
 // ---------------------------------------------------------------------------
 function openInterceptModal(attackerP, defenderP) {
   const dmg = calcEffectiveDamage(state, attackerP);
-  // Calculate overflow for each potential interceptor so the player can make an informed choice
   document.getElementById('intercept-desc').innerHTML =
     `Player ${attackerP + 1}'s Leader attacks for <strong style="color:var(--red)">${dmg}</strong>.<br>Intercept to protect your Leader — overflow damage applies if the interceptor is KO'd.`;
   const c = document.getElementById('intercept-options'); c.innerHTML = '';
@@ -498,11 +575,10 @@ function openInterceptModal(attackerP, defenderP) {
 }
 
 function openLeaderActiveModal() {
-  const p = myPlayerIdx;
+  const p      = myPlayerIdx;
   const leader = state.players[p].leader;
   if (leader.id === 'kiryu') { act('USE_LEADER_ACTIVE', {}); return; }
   if (leader.id === 'joker') {
-    // Joker: choose a bench unit to copy their active
     const bench = state.players[p].bench;
     if (bench.length === 0) { addLog('! Joker: no bench units to copy', 'damage'); return; }
     const c = document.getElementById('target-options'); c.innerHTML = '';
@@ -517,11 +593,11 @@ function openLeaderActiveModal() {
     showOverlay('target-overlay');
     return;
   }
-  // Sonic (default): pick hand card to discard
+  // Sonic: pick hand card to discard
   if (state.players[p].hand.length === 0) { addLog('! ' + leader.name + ': hand is empty', 'damage'); return; }
   const c = document.getElementById('sonic-discard-options'); c.innerHTML = '';
   state.players[p].hand.filter(card => card && !card.hidden).forEach((card, hi) => {
-    c.appendChild(mkCardBtn(card, () => { act('USE_LEADER_ACTIVE', { handIdx: hi }); closeOverlay('sonic-overlay'); }, 'Discard -> Draw 2'));
+    c.appendChild(mkCardBtn(card, () => { act('USE_LEADER_ACTIVE', { handIdx: hi }); closeOverlay('sonic-overlay'); }, 'Discard → Draw 2'));
   });
   showOverlay('sonic-overlay');
 }
@@ -540,6 +616,7 @@ function openTailsModal(p, benchIdx) {
   showOverlay('tails-overlay');
 }
 
+// #27 — Knuckles uses mkCardBtn
 function openKnucklesModal(p, benchIdx) {
   const opp = opponent(p);
   if (state.players[opp].bench.length === 0) { addLog('Knuckles: No opponent bench units', 'phase'); return; }
@@ -547,21 +624,27 @@ function openKnucklesModal(p, benchIdx) {
   document.getElementById('target-title').textContent = 'KNUCKLES: SELECT TARGET';
   document.getElementById('target-desc').textContent  = 'Deal 10 damage to a Support Unit:';
   state.players[opp].bench.forEach((unit, ui) => {
-    c.appendChild(mkBtn(unit.name + ' (' + unit.currentHp + '/' + unit.hp + ' HP)', () => { act('USE_UNIT_ACTIVE', { benchIdx, targetBenchIdx: ui }); closeOverlay('target-overlay'); }));
+    const willKO = unit.currentHp - 10 <= 0;
+    c.appendChild(mkCardBtn(unit, () => { act('USE_UNIT_ACTIVE', { benchIdx, targetBenchIdx: ui }); closeOverlay('target-overlay'); },
+      willKO ? '💀 KO' : `${unit.currentHp - 10} HP left`));
   });
   showOverlay('target-overlay');
 }
 
+// #27 — Cream uses mkCardBtn
 function openCreamModal(p, benchIdx) {
   const c = document.getElementById('target-options'); c.innerHTML = '';
   document.getElementById('target-title').textContent = 'CREAM: HEAL TARGET';
   document.getElementById('target-desc').textContent  = 'Heal 10 HP from any friendly unit:';
   const leader = state.players[p].leader;
   const lBtn = mkBtn('Leader (' + leader.currentHp + '/' + leader.hp + ' HP)', () => { act('USE_UNIT_ACTIVE', { benchIdx, targetType: 'leader', targetBenchIdx: null }); closeOverlay('target-overlay'); });
-  lBtn.disabled = leader.currentHp >= leader.hp; c.appendChild(lBtn);
+  lBtn.disabled = leader.currentHp >= leader.hp; lBtn.style.width = '100%'; c.appendChild(lBtn);
   state.players[p].bench.forEach((unit, ui) => {
-    const btn = mkBtn(unit.name + ' (' + unit.currentHp + '/' + unit.hp + ' HP)', () => { act('USE_UNIT_ACTIVE', { benchIdx, targetType: 'bench', targetBenchIdx: ui }); closeOverlay('target-overlay'); });
-    btn.disabled = unit.currentHp >= unit.hp; c.appendChild(btn);
+    const atMax = unit.currentHp >= unit.hp;
+    const btn = mkCardBtn(unit, () => { act('USE_UNIT_ACTIVE', { benchIdx, targetType: 'bench', targetBenchIdx: ui }); closeOverlay('target-overlay'); },
+      atMax ? 'Full HP' : `+10 → ${Math.min(unit.currentHp + 10, unit.hp)}`);
+    if (atMax) { btn.style.opacity = '0.4'; btn.style.pointerEvents = 'none'; }
+    c.appendChild(btn);
   });
   showOverlay('target-overlay');
 }
@@ -607,7 +690,7 @@ function openExtremeGearModal() {
   const c = document.getElementById('extreme-gear-options'); c.innerHTML = '';
   const updateCount = () => {
     const n = _extremeGearSelected.size;
-    document.getElementById('extreme-gear-count').textContent = n + '/' + maxDiscards + ' selected -> +' + n + ' Energy';
+    document.getElementById('extreme-gear-count').textContent = n + '/' + maxDiscards + ' selected → +' + n + ' Energy';
     c.querySelectorAll('.eg-wrap').forEach(w => { const atCap = n >= maxDiscards && !_extremeGearSelected.has(+w.dataset.i); w.style.opacity = atCap ? '0.4' : '1'; w.style.pointerEvents = atCap ? 'none' : ''; });
   };
   state.players[pi].hand.forEach((card, hi) => {
@@ -617,7 +700,7 @@ function openExtremeGearModal() {
     const cel = buildCardEl(card, false); cel.style.pointerEvents = 'none';
     const badge = document.createElement('div');
     badge.style.cssText = 'position:absolute;top:4px;right:4px;width:18px;height:18px;border-radius:50%;background:var(--gold);color:#000;font-size:10px;display:flex;align-items:center;justify-content:center;opacity:0;';
-    badge.textContent = 'v'; w.append(cel, badge);
+    badge.textContent = '✓'; w.append(cel, badge);
     w.onclick = () => {
       if (_extremeGearSelected.has(hi)) { _extremeGearSelected.delete(hi); cel.style.borderColor=''; badge.style.opacity='0'; }
       else if (_extremeGearSelected.size < maxDiscards) { _extremeGearSelected.add(hi); cel.style.borderColor='var(--gold)'; badge.style.opacity='1'; }
@@ -628,18 +711,20 @@ function openExtremeGearModal() {
   updateCount(); showOverlay('extreme-gear-overlay');
 }
 
+// #27 — Morgana uses mkCardBtn
 function openMorganaModal(p, benchIdx) {
   const opp = opponent(p);
   if (state.players[opp].bench.length === 0) { addLog('Morgana: no opponent bench units', 'phase'); return; }
   const c = document.getElementById('target-options'); c.innerHTML = '';
   document.getElementById('target-title').textContent = 'MORGANA: CHOOSE TARGET';
-  document.getElementById('target-desc').textContent  = 'Morgana trades with an enemy unit -- both go to discard:';
+  document.getElementById('target-desc').textContent  = 'Morgana trades with an enemy unit — both go to discard:';
   state.players[opp].bench.forEach((unit, ui) => {
-    c.appendChild(mkBtn(unit.name + ' (' + unit.currentHp + '/' + unit.hp + ' HP)', () => { act('USE_UNIT_ACTIVE', { benchIdx, targetBenchIdx: ui }); closeOverlay('target-overlay'); }));
+    c.appendChild(mkCardBtn(unit, () => { act('USE_UNIT_ACTIVE', { benchIdx, targetBenchIdx: ui }); closeOverlay('target-overlay'); }, 'Trade → Discard'));
   });
   showOverlay('target-overlay');
 }
 
+// #27 — Sumire uses mkCardBtn
 function openSumireModal(p, benchIdx) {
   const opp = opponent(p);
   if (state.players[opp].bench.length === 0) { addLog('Sumire: no opponent bench units', 'phase'); return; }
@@ -648,7 +733,8 @@ function openSumireModal(p, benchIdx) {
   document.getElementById('target-desc').textContent  = 'Deal 20 unblockable damage to a support unit:';
   state.players[opp].bench.forEach((unit, ui) => {
     const willKO = unit.currentHp - 20 <= 0;
-    c.appendChild(mkBtn(unit.name + ' (' + unit.currentHp + '/' + unit.hp + ' HP)' + (willKO ? ' will KO' : ''), () => { act('USE_UNIT_ACTIVE', { benchIdx, targetBenchIdx: ui }); closeOverlay('target-overlay'); }));
+    c.appendChild(mkCardBtn(unit, () => { act('USE_UNIT_ACTIVE', { benchIdx, targetBenchIdx: ui }); closeOverlay('target-overlay'); },
+      willKO ? '💀 KO' : `${unit.currentHp - 20} HP left`));
   });
   showOverlay('target-overlay');
 }
@@ -659,7 +745,7 @@ function openYusukeModal(p, benchIdx) {
   document.getElementById('target-desc').textContent  = 'Choose a friendly unit to copy their active:';
   state.players[p].bench.forEach((unit, ui) => {
     if (ui === benchIdx) return;
-    c.appendChild(mkBtn(unit.name + ' -- ' + unit.activeDesc, () => { act('USE_UNIT_ACTIVE', { benchIdx, targetBenchIdx: ui }); closeOverlay('target-overlay'); }));
+    c.appendChild(mkBtn(unit.name + ' — ' + unit.activeDesc, () => { act('USE_UNIT_ACTIVE', { benchIdx, targetBenchIdx: ui }); closeOverlay('target-overlay'); }));
   });
   showOverlay('target-overlay');
 }
@@ -670,7 +756,7 @@ function openLeBlancModal() {
   const pi = state.pendingLeblanc.playerIdx;
   const hand = state.players[pi].hand.filter(c => c && !c.hidden);
   const c = document.getElementById('sonic-discard-options'); c.innerHTML = '';
-  hand.forEach((card, hi) => { c.appendChild(mkCardBtn(card, () => { act('RESOLVE_LEBLANC', { handIdx: hi }); closeOverlay('sonic-overlay'); }, 'Discard -> Draw 1')); });
+  hand.forEach((card, hi) => { c.appendChild(mkCardBtn(card, () => { act('RESOLVE_LEBLANC', { handIdx: hi }); closeOverlay('sonic-overlay'); }, 'Discard → Draw 1')); });
   const skip = document.createElement('button'); skip.className = 'modal-card-btn'; skip.textContent = 'Skip';
   skip.onclick = () => { act('RESOLVE_LEBLANC', { handIdx: null }); closeOverlay('sonic-overlay'); };
   c.appendChild(skip); showOverlay('sonic-overlay');
@@ -678,11 +764,11 @@ function openLeBlancModal() {
 
 function openArseneModal() {
   const c = document.getElementById('target-options'); c.innerHTML = '';
-  document.getElementById('target-title').textContent = 'ARSENE UNLEASHED';
+  document.getElementById('target-title').textContent = 'ARSÈNE UNLEASHED';
   document.getElementById('target-desc').textContent  = "Set a leader's HP to half their max:";
   state.players.forEach((pl, pi) => {
     const ldr = pl.leader; const halfHp = Math.max(1, Math.floor(ldr.hp / 2));
-    c.appendChild(mkBtn('P' + (pi+1) + ': ' + ldr.name + ' (' + ldr.currentHp + '/' + ldr.hp + ' -> ' + halfHp + ' HP)', () => { act('RESOLVE_ARSENE', { targetPlayerIdx: pi }); closeOverlay('target-overlay'); }));
+    c.appendChild(mkBtn('P' + (pi+1) + ': ' + ldr.name + ' (' + ldr.currentHp + '/' + ldr.hp + ' → ' + halfHp + ' HP)', () => { act('RESOLVE_ARSENE', { targetPlayerIdx: pi }); closeOverlay('target-overlay'); }));
   });
   showOverlay('target-overlay');
 }
