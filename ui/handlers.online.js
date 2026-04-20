@@ -584,6 +584,7 @@ function mkCardBtn(unit, onClick, extraLabel = '') {
   }
   wrapper.addEventListener('mouseenter', () => wrapper.style.transform = 'translateY(-4px)');
   wrapper.addEventListener('mouseleave', () => wrapper.style.transform = '');
+  wrapper.addEventListener('contextmenu', e => { e.preventDefault(); openCardInspect(unit, null); });
   wrapper.onclick = onClick;
   return wrapper;
 }

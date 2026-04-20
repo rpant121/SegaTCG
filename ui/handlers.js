@@ -1,178 +1,727 @@
 /**
- * PHASES
- * Turn structure: Big Scry → Draw → Energy → Main → Attack → End.
- * No DOM. Communicates with UI via emit(eventName, payload).
+ * EVENT HANDLERS — LOCAL (offline) mode
+ * Wires DOM events to engine actions, then re-renders.
  *
- * Fixes applied:
- *  #7  — Caroline/Justine "died alone" condition now uses _twinKOThisTurn flag
- *  #10 — Futaba end-of-turn scry now emits scry_prompt so local mode shows the modal
+ * Improvements applied:
+ *  #12 — confirm before skipping the attack phase
+ *  #22 — pass screen shows last 8 log entries from the turn that just ended
  */
 
-import { opponent } from './state.js';
-import { drawCards } from './actions.js';
-import { checkWin } from './combat.js';
+import { opponent } from '../engine/state.js';
+import { checkWin } from '../engine/combat.js';
+import { attackLeader, applyDamageToUnit, resolveIntercept, calcEffectiveDamage } from '../engine/combat.js';
+import {
+  playCardFromHand, resolveExtremeGear, canAfford, getActiveCost, hasUsedActiveThisTurn,
+  tailsActive, knucklesActive, amyActive, creamActive, bigActive,
+  silverActive, shadowActive, mightyActive, rougeActive, blazeActive,
+  rayActive, charmyActive, espioActive, vectorActive,
+  sonicActive, kiryuActive, jokerActiveValidate,
+  carolineActive, justineActive, taeTakumiActive, sojiroSakuraActive,
+  saeNiijimaActive, sadayoKawakamiActive, suguruKamoshidaActive,
+  ryujiSakamotoActive, annTakamakiActive, morganaActive,
+  yusukeKitagawaActive, makotoNiijimaActive, futabaSakuraActive,
+  haruOkumuraActive, sumireYoshizawaActive,
+} from '../engine/actions.js';
+import {
+  startTurn, resolveBigScry as engineResolveBigScry,
+  enterAttackPhase, enterEndPhase, advanceTurn,
+} from '../engine/phases.js';
+import {
+  render, addLog, showOverlay, closeOverlay,
+  showScryModal, showPassModal, showWinModal,
+  renderLeader, renderBench, renderHand, openCardInspect,
+  buildCardEl,
+} from './renderer.js';
 
-export { drawCards };
+let state     = null;
+let _gameOver = false;
+let _drag     = { active: false, handIdx: null, ghostEl: null };
+let _extremeGearSelected = new Set();
+// #21 — equipment undo state
+let _equipUndo = null; // { handIdx, card, energyRefund } or null
 
-export function startTurn(state, log, emit) {
-  if (checkWin(state) !== null) return;
-  const p = state.activePlayer;
-  log(`── Turn ${state.turn} · Player ${p + 1} ──`, 'phase');
+// #22 — collect log entries for the current turn so the pass screen can show them
+let _turnLog = [];
 
-  state.activesUsedThisTurn          = 0;
-  state.equipmentPlayedThisTurn[p]   = 0;
-  state.energySpentThisTurn[p]       = 0;
-  state.leaderDamageTakenThisTurn[p] = false;
-  if (state.rougeUsedThisTurn)  state.rougeUsedThisTurn[p]  = false;
-  if (state.leaderUsedThisTurn) state.leaderUsedThisTurn[p] = false;
-  state.usedActivesThisTurn = [];
-  if (state.supportDiedLastTurn) state.supportDiedLastTurn[p] = false;
-  // #7 — reset twin-KO-same-turn flag at start of each turn
-  if (!state._twinKOThisTurn) state._twinKOThisTurn = [false, false];
-  state._twinKOThisTurn[p] = false;
-
-  for (const u of state.players[p].bench) {
-    if (u.exhausted) { u.exhausted = false; log(`${u.name} recovered`, 'phase'); }
+function emit(event, payload) {
+  switch (event) {
+    case 'scry_prompt': {
+      // #10 — Futaba scry uses the same Big Scry modal; wire buttons to
+      // finishEndPhaseAfterScry instead of the normal resolveBigScry flow
+      const isFutaba = payload.isFutaba ?? false;
+      showScryModal(payload.card, isFutaba ? "FUTABA'S SCRY" : "BIG'S SCRY");
+      const btnDiscard = document.getElementById('btn-scry-discard');
+      const btnKeep    = document.getElementById('btn-scry-keep');
+      if (isFutaba) {
+        btnDiscard.onclick = () => {
+          closeOverlay('scry-overlay');
+          const { playerIdx } = state.pendingBigScry;
+          const card = state.players[playerIdx].deck.shift();
+          state.players[playerIdx].discard.push(card);
+          log(`Futaba scry: discarded ${card.name}`, 'play');
+          state.pendingBigScry = null;
+          // Continue end phase: cleanup and pass
+          _finishEndPhaseInline();
+        };
+        btnKeep.onclick = () => {
+          closeOverlay('scry-overlay');
+          log(`Futaba scry: kept top card`, 'phase');
+          state.pendingBigScry = null;
+          _finishEndPhaseInline();
+        };
+      } else {
+        // Restore normal Big scry handlers (they may have been overwritten)
+        btnDiscard.onclick = () => {
+          closeOverlay('scry-overlay');
+          engineResolveBigScry(state, true, log, emit);
+          refreshBoard();
+        };
+        btnKeep.onclick = () => {
+          closeOverlay('scry-overlay');
+          engineResolveBigScry(state, false, log, emit);
+          refreshBoard();
+        };
+      }
+      break;
+    }
+    case 'phase_changed': refreshBoard(); break;
+    case 'request_pass':
+      refreshBoard();
+      showPassModal(payload, _turnLog.slice());
+      _turnLog = []; // reset for next turn
+      break;
   }
-  // Haru shield expires at the start of the PROTECTED player's own turn
-  if (state.haruShield) state.haruShield[p] = false;
-  state.players[p].bench.forEach(u => { if (u.haruShield) { u.haruShield = false; } });
-  // shieldReduction (Elemental Shield / Guard Persona) expires at start of protected player's turn
-  if (state.shieldReduction) state.shieldReduction[p] = 0;
+  winGuard();
+}
 
-  // Activate Kamoshida passive flag for this turn
-  if (!state.kamoshidaPassive) state.kamoshidaPassive = [false, false];
-  state.kamoshidaPassive[p] = !!state.players[p].bench.find(u => u.id === 'suguru_kamoshida' && !u.exhausted);
+function log(msg, type) {
+  addLog(msg, type);
+  _turnLog.push({ msg, type });
+}
 
-  const hasBig = state.players[p].bench.some(u => u.id === 'big' && !u.exhausted);
-  if (hasBig && state.players[p].deck.length > 0) {
-    state.phase = 'big_scry';
-    state.pendingBigScry = { playerIdx: p, card: state.players[p].deck[0] };
-    emit('scry_prompt', state.pendingBigScry);
+function winGuard() {
+  const loser = checkWin(state);
+  if (loser !== null && !_gameOver) { _gameOver = true; showWinModal(loser, state.turn); }
+}
+
+function refreshBoard() { render(state); attachBoardHandlers(); }
+
+function attachBoardHandlers() {
+  const p   = state.activePlayer;
+  const opp = opponent(p);
+
+  if (state.phase === 'setup') {
+    const sp  = state._setupPlayer ?? 0;
+    const nsp = sp === 0 ? 1 : 0;
+    const setupHandEls = renderHand(`p${sp + 1}-hand`, state, sp, sp);
+    setupHandEls.forEach(({ div, idx, card }) => {
+      div.addEventListener('contextmenu', (e) => { e.preventDefault(); openCardInspect(card, null); });
+      if (card.type !== 'Unit') return;
+      if (state.players[sp].bench.length >= 3) return;
+      div.classList.add('playable');
+      div.onclick = () => { playCardFromHand(state, idx, log); refreshBoard(); };
+      attachDragSource(div, idx, card);
+    });
+    renderBench(`p${sp + 1}-bench`, state, sp);
+    attachBenchDropZone(`p${sp + 1}-bench`, sp);
+    renderHand(`p${nsp + 1}-hand`, state, nsp, -1);
+    renderBench(`p${nsp + 1}-bench`, state, nsp);
+    renderLeader('p1-leader-zone', state, 0);
+    renderLeader('p2-leader-zone', state, 1);
     return;
   }
 
-  runDrawPhase(state, log, emit);
-}
-
-export function resolveBigScry(state, shouldDiscard, log, emit) {
-  const { playerIdx } = state.pendingBigScry;
-  if (shouldDiscard) {
-    const card = state.players[playerIdx].deck.shift();
-    state.players[playerIdx].discard.push(card);
-    log(`Big: discarded ${card.name}`, 'play');
-  } else {
-    log(`Big: kept top card`, 'phase');
-  }
-  state.pendingBigScry = null;
-  runDrawPhase(state, log, emit);
-}
-
-function runDrawPhase(state, log, emit) {
-  state.phase = 'draw';
-  const p = state.activePlayer;
-
-  const espio = state.players[p].bench.find(u => u.id === 'espio' && !u.exhausted);
-  const espioBonus = espio
-    ? Math.min(2, state.players[p].discard.filter(c => c.type === 'Equipment' || c.type === 'Genesis').length)
-    : 0;
-  const stageBonus = (state.activeStage?.id === 'green_hill_zone' || state.activeStage?.id === 'shibuya_crossing') ? 1 : 0;
-  const totalDraw = 1 + stageBonus + espioBonus;
-
-  if (state.players[p].deck.length === 0) {
-    drawCards(state, p, 1, log, true);
-    if (checkWin(state) !== null) { emit('phase_changed', state.phase); return; }
-    for (let i = 1; i < totalDraw; i++) drawCards(state, p, 1, log, true);
-  } else {
-    drawCards(state, p, totalDraw, log, true);
-    state.missedDraws[p] = 0;
-  }
-  if (espioBonus > 0) log(`Espio: +${espioBonus} draw`, 'draw');
-
-  runEnergyPhase(state, log, emit);
-}
-
-function runEnergyPhase(state, log, emit) {
-  state.phase = 'energy';
-  const p = state.activePlayer;
-  state.energyMax[p] = (state.energyMax[p] ?? 0) + 1;
-  state.energy[p] = state.energyMax[p];
-
-  if (state.activeStage?.id === 'radical_highway') {
-    state.energy[0] += 1;
-    state.energy[1] += 1;
-    log(`Radical Highway: each player +1 energy`, 'phase');
-  }
-
-  if (state.activeStage?.id === 'palace_infiltration_route') {
-    state.energy[p] += 1;
-    log(`Palace Infiltration Route: +1 energy to Player ${p + 1}`, 'phase');
-    for (let pi = 0; pi <= 1; pi++) {
-      const ldr = state.players[pi].leader;
-      ldr.currentHp = Math.max(0, ldr.currentHp - 10);
-      log(`Palace Infiltration Route: 10 damage to Player ${pi + 1}`, 'damage');
+  const handEls = renderHand(`p${p + 1}-hand`, state, p);
+  handEls.forEach(({ div, idx, card }) => {
+    const isEquip = card.type === 'Equipment' || card.type === 'Genesis' || card.type === 'Stage';
+    const charmyDiscount = (isEquip && state.equipmentPlayedThisTurn[p] > 0 &&
+      state.players[p].bench.some(u => u.id === 'charmy' && !u.exhausted)) ? 1 : 0;
+    const effectiveCost = Math.max(0, (card.cost ?? 0) - charmyDiscount);
+    const playable = state.phase === 'main' && canAfford(state, effectiveCost);
+    const onPlay = (playable && card.type !== 'Unit') ? () => {
+      const isEquipType = card.type === 'Equipment'; // only equipment gets undo, not Stage/Genesis
+      playCardFromHand(state, idx, log);
+      refreshBoard(); winGuard(); checkPendingEffects();
+      // #21 — offer undo for Equipment cards (not Stage/Genesis) for 2 seconds
+      if (isEquipType && !_gameOver) showEquipUndo(card, idx, p);
+    } : null;
+    div.addEventListener('contextmenu', (e) => { e.preventDefault(); openCardInspect(card, onPlay); });
+    if (state.phase !== 'main') return;
+    if (card.type === 'Unit') {
+      attachDragSource(div, idx, card);
+    } else if (playable) {
+      div.classList.add('playable');
+      div.onclick = () => { playCardFromHand(state, idx, log); refreshBoard(); winGuard(); checkPendingEffects(); };
     }
-    if (checkWin(state) !== null) { emit('phase_changed', state.phase); return; }
-  }
+  });
 
-  log(`Player ${p + 1} energy: ${state.energy[p]}/${state.energyMax[p]}`, 'phase');
-  runMainPhase(state, log, emit);
-}
+  const ownBenchEls = renderBench(`p${p + 1}-bench`, state, p);
+  ownBenchEls.forEach(({ div, idx }) => {
+    const unit = state.players[p].bench[idx];
+    if (!unit || unit.exhausted) return;
+    const cost = getActiveCost(state, unit);
+    const canUse = state.phase === 'main' && canAfford(state, cost)
+      && !(unit.id === 'rouge' && state.rougeUsedThisTurn[p])
+      && !hasUsedActiveThisTurn(state, unit);
+    if (canUse) div.onclick = () => handleUnitActive(p, idx);
+    div.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      openCardInspect(unit, canUse ? () => handleUnitActive(p, idx) : null);
+    });
+  });
 
-function runMainPhase(state, log, emit) {
-  state.phase = 'main';
-  log(`[Main Phase] — Player ${state.activePlayer + 1}`, 'phase');
-  emit('phase_changed', state.phase);
-}
+  attachBenchDropZone(`p${p + 1}-bench`, p);
 
-export function enterAttackPhase(state, log, emit) {
-  if (checkWin(state) !== null) return;
-  state.phase = 'attack';
-  log(`[Attack Phase] — choose a target`, 'phase');
-  emit('phase_changed', state.phase);
-}
+  const oppBenchEls = renderBench(`p${opp + 1}-bench`, state, opp);
+  oppBenchEls.forEach(({ div, idx }) => {
+    const unit = state.players[opp].bench[idx];
+    if (state.phase === 'attack') {
+      // #6 — taunt: if opponent has a taunting unit, only that unit can be targeted
+      const tauntUid = state.tauntUnit?.[opp];
+      const isTauntTarget = tauntUid && unit?.uid === tauntUid;
+      const isBlocked     = tauntUid && !isTauntTarget;
+      if (!isBlocked) {
+        div.onclick = () => {
+          applyDamageToUnit(state, p, opp, idx, log);
+          winGuard();
+          if (!_gameOver) enterEndPhase(state, log, emit);
+        };
+      } else {
+        div.style.opacity = '0.35';
+        div.style.cursor  = 'not-allowed';
+        div.title = 'Taunt: must attack the taunting unit first';
+      }
+    }
+    if (unit) div.addEventListener('contextmenu', (e) => { e.preventDefault(); openCardInspect(unit, null); });
+  });
 
-export function enterEndPhase(state, log, emit) {
-  if (checkWin(state) !== null) return;
-  state.phase = 'end';
-  const p = state.activePlayer;
-
-  // Tails draw
-  const tails = state.players[p].bench.find(u => u.id === 'tails' && !u.exhausted);
-  if (tails) { log(`Tails: draws 1`, 'draw'); drawCards(state, p, 1, log); }
-
-  // Blaze sustain heal
-  const blaze = state.players[p].bench.find(u => u.id === 'blaze' && !u.exhausted);
-  if (blaze && state.players[p].discard.length >= 5) {
-    const leader = state.players[p].leader;
-    if (leader.currentHp < leader.hp) {
-      const blazeHeal = Math.min(10, leader.hp - leader.currentHp);
-      leader.currentHp += blazeHeal;
-      if (!state.healedThisTurn) state.healedThisTurn = [0, 0];
-      state.healedThisTurn[p] = (state.healedThisTurn[p] ?? 0) + blazeHeal;
-      log(`Blaze: heals Leader ${blazeHeal} HP (${leader.currentHp}/${leader.hp})`, 'heal');
+  const oppLeaderDiv = renderLeader(`p${opp + 1}-leader-zone`, state, opp);
+  if (state.phase === 'attack') {
+    // #6 — taunt: if a taunt unit exists on opponent bench, leader cannot be targeted
+    const tauntUid = state.tauntUnit?.[opp];
+    if (tauntUid) {
+      oppLeaderDiv.style.opacity = '0.35';
+      oppLeaderDiv.style.cursor  = 'not-allowed';
+      oppLeaderDiv.title = 'Taunt active — must attack the taunting unit first';
+    } else {
+      oppLeaderDiv.onclick = () => {
+        const canIntercept = state.players[opp].bench.some(u => !u.exhausted);
+        if (!canIntercept) {
+          attackLeader(state, p, opp, log);
+          winGuard();
+          if (!_gameOver) enterEndPhase(state, log, emit);
+        } else {
+          openInterceptModal(p, opp);
+        }
+      };
     }
   }
+  oppLeaderDiv.addEventListener('contextmenu', (e) => { e.preventDefault(); openCardInspect(state.players[opp].leader, null); });
 
-  // #10 — Futaba end-of-turn scry: set pending state AND emit so local mode shows the modal
-  const futaba = state.players[p].bench.find(u => u.id === 'futaba_sakura' && !u.exhausted);
-  if (futaba && state.players[p].deck.length > 0) {
-    state.pendingBigScry = { playerIdx: p, card: state.players[p].deck[0], isFutaba: true };
-    // Emit before cleanup so the UI can intercept and show the scry modal before pass
-    emit('scry_prompt', state.pendingBigScry);
-    // End phase cleanup will happen after scry resolves (resolveBigScry → advanceTurn path)
-    return;
+  const ownLeaderDiv = renderLeader(`p${p + 1}-leader-zone`, state, p);
+  if (state.phase === 'main') {
+    const leader  = state.players[p].leader;
+    const needsHand = leader.id === 'sonic';
+    const alreadyUsed = (state.leaderUsedThisTurn ?? [false, false])[p];
+    const canUse  = canAfford(state, leader.activeCost)
+                   && (!needsHand || state.players[p].hand.length > 0)
+                   && (leader.id === 'kiryu' || !alreadyUsed);
+    const openFn  = () => openLeaderActiveModal(p);
+    ownLeaderDiv.style.cursor = canUse ? 'pointer' : 'default';
+    if (canUse) ownLeaderDiv.onclick = openFn;
+    ownLeaderDiv.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      openCardInspect(state.players[p].leader, canUse ? openFn : null);
+    });
   }
 
-  _finishEndPhase(state, log, emit, p);
+  if (state.pendingMightyAttack) { state.pendingMightyAttack = false; openMightyAttackModal(p); }
 }
 
-// Called directly, and also after Futaba scry resolves
-export function finishEndPhaseAfterScry(state, log, emit) {
-  _finishEndPhase(state, log, emit, state.activePlayer);
+function attachDragSource(div, handIdx, card) {
+  div.draggable = true;
+  div.classList.add('draggable');
+  div.addEventListener('dragstart', (e) => {
+    _drag = { active: true, handIdx, ghostEl: null };
+    const blank = document.createElement('canvas');
+    blank.width = blank.height = 1;
+    e.dataTransfer.setDragImage(blank, 0, 0);
+    e.dataTransfer.effectAllowed = 'move';
+    _drag.ghostEl = buildGhost(card);
+    document.body.appendChild(_drag.ghostEl);
+    highlightBenchZone(true);
+  });
+  div.addEventListener('drag', (e) => {
+    if (!_drag.ghostEl || e.clientX === 0) return;
+    _drag.ghostEl.style.left = `${e.clientX - 36}px`;
+    _drag.ghostEl.style.top  = `${e.clientY - 50}px`;
+  });
+  div.addEventListener('dragend', endDrag);
 }
 
-function _finishEndPhase(state, log, emit, p) {
+function attachBenchDropZone(benchId, p) {
+  const el = document.getElementById(benchId);
+  if (!el) return;
+  el.addEventListener('dragover', (e) => { if (!_drag.active) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drop-hover'); });
+  el.addEventListener('dragleave', () => el.classList.remove('drop-hover'));
+  el.addEventListener('drop', (e) => {
+    e.preventDefault(); el.classList.remove('drop-hover');
+    if (!_drag.active || _drag.handIdx === null) return;
+    playCardFromHand(state, _drag.handIdx, log);
+    endDrag(); refreshBoard(); winGuard(); checkPendingEffects();
+  });
+}
+
+function buildGhost(card) {
+  const el = document.createElement('div');
+  el.className = 'card card-type-unit drag-ghost';
+  el.style.cssText = `position:fixed;pointer-events:none;z-index:1000;opacity:0.85;transform:rotate(4deg) scale(1.05);box-shadow:0 8px 32px #000a,0 0 16px var(--sonic-blue);border-color:var(--sonic-bright);`;
+  el.innerHTML = `<div class="card-type-badge type-unit">UNIT</div><div class="card-name">${card.name}</div><div style="font-size:8px;color:var(--green);">HP:${card.hp}</div><div class="card-effect-text">${card.passiveDesc ?? ''}</div>`;
+  return el;
+}
+
+function highlightBenchZone(on) {
+  const el = document.getElementById(`p${state.activePlayer + 1}-bench`);
+  if (el) el.classList.toggle('drop-target-active', on);
+}
+
+function endDrag() {
+  _drag.active = false; _drag.handIdx = null;
+  if (_drag.ghostEl) { _drag.ghostEl.remove(); _drag.ghostEl = null; }
+  highlightBenchZone(false);
+  document.querySelectorAll('.drop-hover').forEach(el => el.classList.remove('drop-hover'));
+}
+
+function checkPendingEffects() {
+  if (state.pendingDragonsEye)   { openDragonsEyeModal();   return; }
+  if (state.pendingPolarisPact)  { openPolarisPactModal();  return; }
+  if (state.pendingRayActive)    { openRayActiveModal();    return; }
+  if (state.pendingExtremeGear)  { openExtremeGearModal();  return; }
+  if (state.pendingMightyAttack) { openMightyAttackModal(state.activePlayer); state.pendingMightyAttack = false; return; }
+}
+
+function handleUnitActive(p, benchIdx) {
+  const unit = state.players[p].bench[benchIdx];
+  if (!unit) return;
+  switch (unit.id) {
+    case 'tails':    openTailsModal(p, benchIdx);       break;
+    case 'knuckles': openKnucklesModal(p, benchIdx);    break;
+    case 'amy':      if (amyActive(state, p, benchIdx, log))    { refreshBoard(); winGuard(); } break;
+    case 'cream':    openCreamModal(p, benchIdx);       break;
+    case 'big':      if (bigActive(state, p, benchIdx, log))    { refreshBoard(); winGuard(); } break;
+    case 'silver':   openSilverBounceModal(p, benchIdx); break;
+    case 'shadow':   if (shadowActive(state, p, benchIdx, log)) { refreshBoard(); winGuard(); } break;
+    case 'mighty':
+      if (mightyActive(state, p, benchIdx, log)) { refreshBoard(); openMightyAttackModal(p); }
+      break;
+    case 'rouge':    if (rougeActive(state, p, benchIdx, log))  { refreshBoard(); winGuard(); } break;
+    case 'blaze':    if (blazeActive(state, p, benchIdx, log))  { refreshBoard(); winGuard(); } break;
+    case 'ray':      if (rayActive(state, p, benchIdx, log))    { refreshBoard(); checkPendingEffects(); } break;
+    case 'charmy':   if (charmyActive(state, p, benchIdx, log)) { refreshBoard(); winGuard(); } break;
+    case 'espio':    if (espioActive(state, p, benchIdx, log))  { refreshBoard(); winGuard(); } break;
+    case 'vector':   if (vectorActive(state, p, benchIdx, log)) { refreshBoard(); winGuard(); } break;
+    case 'caroline':          if (carolineActive(state, p, benchIdx, log))         { refreshBoard(); winGuard(); } break;
+    case 'justine':           if (justineActive(state, p, benchIdx, log))          { refreshBoard(); winGuard(); } break;
+    case 'tae_takumi':        if (taeTakumiActive(state, p, benchIdx, log))        { refreshBoard(); winGuard(); } break;
+    case 'sojiro_sakura':     if (sojiroSakuraActive(state, p, benchIdx, log))     { refreshBoard(); winGuard(); } break;
+    case 'sae_niijima':       if (saeNiijimaActive(state, p, benchIdx, log))       { refreshBoard(); winGuard(); } break;
+    case 'sadayo_kawakami':   if (sadayoKawakamiActive(state, p, benchIdx, log))   { refreshBoard(); winGuard(); } break;
+    case 'suguru_kamoshida':  if (suguruKamoshidaActive(state, p, benchIdx, log))  { refreshBoard(); winGuard(); } break;
+    case 'ryuji_sakamoto':    if (ryujiSakamotoActive(state, p, benchIdx, log))    { refreshBoard(); winGuard(); } break;
+    case 'ann_takamaki':      if (annTakamakiActive(state, p, benchIdx, log))      { refreshBoard(); winGuard(); } break;
+    case 'morgana':           openMorganaModal(p, benchIdx); break;
+    case 'yusuke_kitagawa':   openYusukeModal(p, benchIdx);  break;
+    case 'makoto_niijima':    if (makotoNiijimaActive(state, p, benchIdx, log))    { refreshBoard(); winGuard(); } break;
+    case 'futaba_sakura':     if (futabaSakuraActive(state, p, benchIdx, log))     { refreshBoard(); winGuard(); } break;
+    case 'haru_okumura':      if (haruOkumuraActive(state, p, benchIdx, log))      { refreshBoard(); winGuard(); } break;
+    case 'sumire_yoshizawa':  openSumireModal(p, benchIdx);  break;
+  }
+}
+
+function openInterceptModal(attackerP, defenderP) {
+  const dmg = calcEffectiveDamage(state, attackerP);
+  const eligible = state.players[defenderP].bench
+    .map((unit, idx) => ({ unit, idx })).filter(({ unit }) => !unit.exhausted);
+  document.getElementById('intercept-desc').innerHTML =
+    `Player ${attackerP + 1}'s Leader attacks for <strong style="color:var(--red)">${dmg} damage</strong>.<br>Intercept to protect your Leader — overflow damage applies if the interceptor is KO'd.`;
+  const c = document.getElementById('intercept-options');
+  c.innerHTML = '';
+  eligible.forEach(({ unit, idx }) => {
+    const willKO   = unit.currentHp - dmg <= 0;
+    const overflow = willKO ? Math.max(20, dmg - unit.currentHp) : 0;
+    const label    = `${unit.name} (${unit.currentHp}/${unit.hp} HP)` + (willKO ? `  ⚠ KO → ${overflow} overflow` : '');
+    const btn = mkBtn(label, () => {
+      resolveIntercept(state, attackerP, defenderP, idx, log);
+      closeOverlay('intercept-overlay');
+      refreshBoard(); winGuard();
+      if (!_gameOver) enterEndPhase(state, log, emit);
+    });
+    if (willKO) btn.style.borderColor = 'var(--red)';
+    c.appendChild(btn);
+  });
+  document.getElementById('btn-take-hit')._attackerP = attackerP;
+  document.getElementById('btn-take-hit')._defenderP = defenderP;
+  showOverlay('intercept-overlay');
+}
+
+function openSilverBounceModal(p, benchIdx) {
+  const bench = state.players[p].bench;
+  const cost  = getActiveCost(state, bench[benchIdx]);
+  if (!canAfford(state, cost)) { addLog('❌ Not enough energy', 'damage'); return; }
+  const c = document.getElementById('target-options');
+  c.innerHTML = '';
+  document.getElementById('target-title').textContent = 'SILVER: BOUNCE TARGET';
+  document.getElementById('target-desc').textContent  = 'Choose a bench unit to return to your hand:';
+  bench.forEach((unit, ui) => {
+    c.appendChild(mkBtn(`${unit.name} (${unit.currentHp}/${unit.hp} HP)`, () => {
+      closeOverlay('target-overlay');
+      if (silverActive(state, p, benchIdx, ui, log)) { refreshBoard(); winGuard(); checkPendingEffects(); }
+    }));
+  });
+  showOverlay('target-overlay');
+}
+
+function openTailsModal(p, benchIdx) {
+  const discard = state.players[p].discard;
+  if (discard.length === 0) { addLog('♻ Tails: Discard is empty', 'phase'); return; }
+  const c = document.getElementById('tails-discard-options');
+  c.innerHTML = '';
+  discard.forEach((card, di) => {
+    c.appendChild(mkBtn(`${card.name} (${card.type})`, () => {
+      tailsActive(state, p, benchIdx, di, log);
+      closeOverlay('tails-overlay');
+      refreshBoard(); winGuard();
+    }));
+  });
+  showOverlay('tails-overlay');
+}
+
+function openKnucklesModal(p, benchIdx) {
+  const opp = opponent(p);
+  if (state.players[opp].bench.length === 0) { addLog('👊 Knuckles: No opponent bench units', 'phase'); return; }
+  const c = document.getElementById('target-options');
+  c.innerHTML = '';
+  document.getElementById('target-title').textContent = 'KNUCKLES: SELECT TARGET';
+  document.getElementById('target-desc').textContent  = 'Deal 10 damage to a Support Unit:';
+  state.players[opp].bench.forEach((unit, ui) => {
+    const willKO = unit.currentHp - 10 <= 0;
+    c.appendChild(mkCardBtn(unit, () => {
+      knucklesActive(state, p, benchIdx, ui, log);
+      closeOverlay('target-overlay');
+      refreshBoard(); winGuard();
+    }, willKO ? '💀 KO' : `${unit.currentHp - 10} HP left`));
+  });
+  showOverlay('target-overlay');
+}
+
+function openCreamModal(p, benchIdx) {
+  const c = document.getElementById('target-options');
+  c.innerHTML = '';
+  document.getElementById('target-title').textContent = 'CREAM: HEAL TARGET';
+  document.getElementById('target-desc').textContent  = 'Heal 10 HP from any friendly unit:';
+  const leader = state.players[p].leader;
+  // Leader button — use mkBtn since leader isn't a bench unit card element
+  const lBtn = mkBtn(`Leader (${leader.currentHp}/${leader.hp} HP)`, () => {
+    creamActive(state, p, benchIdx, 'leader', null, log);
+    closeOverlay('target-overlay'); refreshBoard();
+  });
+  lBtn.disabled = leader.currentHp >= leader.hp;
+  lBtn.style.width = '100%';
+  c.appendChild(lBtn);
+  state.players[p].bench.forEach((unit, ui) => {
+    const atMax = unit.currentHp >= unit.hp;
+    const btn = mkCardBtn(unit, () => {
+      creamActive(state, p, benchIdx, 'bench', ui, log);
+      closeOverlay('target-overlay'); refreshBoard();
+    }, atMax ? 'Full HP' : `+10 → ${Math.min(unit.currentHp + 10, unit.hp)}`);
+    if (atMax) { btn.style.opacity = '0.4'; btn.style.pointerEvents = 'none'; }
+    c.appendChild(btn);
+  });
+  showOverlay('target-overlay');
+}
+
+function openMightyAttackModal(p) {
+  const opp = opponent(p);
+  const c   = document.getElementById('mighty-attack-options');
+  c.innerHTML = '';
+  const leader = state.players[opp].leader;
+  c.appendChild(mkBtn(`Leader (${leader.currentHp}/${leader.hp} HP)`, () => {
+    attackLeader(state, p, opp, log);
+    closeOverlay('mighty-attack-overlay');
+    refreshBoard(); winGuard();
+  }));
+  state.players[opp].bench.forEach((unit, ui) => {
+    c.appendChild(mkBtn(`${unit.name} (${unit.currentHp}/${unit.hp} HP)`, () => {
+      applyDamageToUnit(state, p, opp, ui, log);
+      closeOverlay('mighty-attack-overlay');
+      refreshBoard(); winGuard();
+    }));
+  });
+  showOverlay('mighty-attack-overlay');
+}
+
+function openLeaderActiveModal(p) {
+  const leaderId = state.players[p].leader.id;
+  if (leaderId === 'kiryu') {
+    if (kiryuActive(state, log)) { refreshBoard(); winGuard(); }
+  } else if (leaderId === 'joker') {
+    openJokerModal(p);
+  } else {
+    openSonicModal();
+  }
+}
+
+function openJokerModal(p) {
+  const bench = state.players[p].bench;
+  if (bench.length === 0) { addLog('🃏 Joker: no bench units to copy', 'damage'); return; }
+  const c = document.getElementById('target-options');
+  c.innerHTML = '';
+  document.getElementById('target-title').textContent = 'JOKER: COPY ACTIVE';
+  document.getElementById('target-desc').textContent  =
+    'Select a bench unit — Joker copies its active (1⚡ for cost ≤3, 2⚡ for cost ≥4):';
+  bench.forEach((unit, ui) => {
+    const unitCost  = unit.activeCost ?? 0;
+    const jokerCost = unitCost >= 4 ? 2 : 1;
+    const btn = mkBtn(
+      `${unit.name}  [copy: ${jokerCost}⚡]  (unit cost: ${unitCost})`,
+      () => {
+        closeOverlay('target-overlay');
+        // Validate and pay Joker's cost only
+        if (!jokerActiveValidate(state, ui, log)) return;
+        // Now fire the unit's effect directly, bypassing the unit's own energy check.
+        // jokerActiveValidate already spent the energy and set leaderUsedThisTurn.
+        handleUnitActiveByUnit(p, ui, unit);
+      }
+    );
+    c.appendChild(btn);
+  });
+  showOverlay('target-overlay');
+}
+
+// Called by Joker after jokerActiveValidate has already paid the Joker cost.
+// We temporarily set masterEmeraldActive so unit actives cost 0, fire the effect,
+// then restore the flag. This avoids a double energy spend while reusing all the
+// same engine functions (including their exhaust/target logic).
+function handleUnitActiveByUnit(p, benchIdx, unit) {
+  const wasActive = state.masterEmeraldActive;
+  state.masterEmeraldActive = true;   // makes all unit actives cost 0 for this call
+  switch (unit.id) {
+    case 'tails':    openTailsModal(p, benchIdx);        break;
+    case 'knuckles': openKnucklesModal(p, benchIdx);     break;
+    case 'amy':      if (amyActive(state, p, benchIdx, log))    { refreshBoard(); winGuard(); } break;
+    case 'cream':    openCreamModal(p, benchIdx);        break;
+    case 'big':      if (bigActive(state, p, benchIdx, log))    { refreshBoard(); winGuard(); } break;
+    case 'silver':   openSilverBounceModal(p, benchIdx); break;
+    case 'shadow':   if (shadowActive(state, p, benchIdx, log)) { refreshBoard(); winGuard(); } break;
+    case 'rouge':    if (rougeActive(state, p, benchIdx, log))  { refreshBoard(); winGuard(); } break;
+    case 'blaze':    if (blazeActive(state, p, benchIdx, log))  { refreshBoard(); winGuard(); } break;
+    case 'ray':      if (rayActive(state, p, benchIdx, log))    { refreshBoard(); checkPendingEffects(); } break;
+    case 'charmy':   if (charmyActive(state, p, benchIdx, log)) { refreshBoard(); winGuard(); } break;
+    case 'espio':    if (espioActive(state, p, benchIdx, log))  { refreshBoard(); winGuard(); } break;
+    case 'vector':   if (vectorActive(state, p, benchIdx, log)) { refreshBoard(); winGuard(); } break;
+    case 'caroline':          if (carolineActive(state, p, benchIdx, log))         { refreshBoard(); winGuard(); } break;
+    case 'justine':           if (justineActive(state, p, benchIdx, log))          { refreshBoard(); winGuard(); } break;
+    case 'tae_takumi':        if (taeTakumiActive(state, p, benchIdx, log))        { refreshBoard(); winGuard(); } break;
+    case 'sojiro_sakura':     if (sojiroSakuraActive(state, p, benchIdx, log))     { refreshBoard(); winGuard(); } break;
+    case 'sae_niijima':       if (saeNiijimaActive(state, p, benchIdx, log))       { refreshBoard(); winGuard(); } break;
+    case 'sadayo_kawakami':   if (sadayoKawakamiActive(state, p, benchIdx, log))   { refreshBoard(); winGuard(); } break;
+    case 'suguru_kamoshida':  if (suguruKamoshidaActive(state, p, benchIdx, log))  { refreshBoard(); winGuard(); } break;
+    case 'ryuji_sakamoto':    if (ryujiSakamotoActive(state, p, benchIdx, log))    { refreshBoard(); winGuard(); } break;
+    case 'ann_takamaki':      if (annTakamakiActive(state, p, benchIdx, log))      { refreshBoard(); winGuard(); } break;
+    case 'morgana':           openMorganaModal(p, benchIdx); break;
+    case 'yusuke_kitagawa':   openYusukeModal(p, benchIdx);  break;
+    case 'makoto_niijima':    if (makotoNiijimaActive(state, p, benchIdx, log))    { refreshBoard(); winGuard(); } break;
+    case 'futaba_sakura':     if (futabaSakuraActive(state, p, benchIdx, log))     { refreshBoard(); winGuard(); } break;
+    case 'haru_okumura':      if (haruOkumuraActive(state, p, benchIdx, log))      { refreshBoard(); winGuard(); } break;
+    case 'sumire_yoshizawa':  openSumireModal(p, benchIdx);  break;
+    default: addLog(`🃏 Joker: cannot copy ${unit.id} in local mode`, 'damage');
+  }
+  // Restore masterEmeraldActive to whatever it was before Joker fired
+  // (if Master Emerald was already active it stays active; if not, restore false)
+  state.masterEmeraldActive = wasActive;
+}
+
+function openMorganaModal(p, benchIdx) {
+  const opp = opponent(p);
+  if (state.players[opp].bench.length === 0) {
+    addLog('🚌 Morgana: no opponent bench units to target', 'phase'); return;
+  }
+  const c = document.getElementById('target-options');
+  c.innerHTML = '';
+  document.getElementById('target-title').textContent = 'MORGANA: SELECT TARGET';
+  document.getElementById('target-desc').textContent  = 'Morgana and the chosen unit both go to discard:';
+  state.players[opp].bench.forEach((unit, ui) => {
+    c.appendChild(mkCardBtn(unit, () => {
+      morganaActive(state, p, benchIdx, ui, log);
+      closeOverlay('target-overlay');
+      refreshBoard(); winGuard();
+    }, 'Trade → Discard'));
+  });
+  showOverlay('target-overlay');
+}
+
+function openYusukeModal(p, benchIdx) {
+  const bench = state.players[p].bench.filter((_, i) => i !== benchIdx);
+  if (bench.length === 0) {
+    addLog('🎨 Yusuke: no other bench units to copy from', 'phase'); return;
+  }
+  const c = document.getElementById('target-options');
+  c.innerHTML = '';
+  document.getElementById('target-title').textContent = 'YUSUKE: COPY ACTIVE FROM';
+  document.getElementById('target-desc').textContent  = 'Yusuke copies and fires this unit\'s active:';
+  state.players[p].bench.forEach((unit, ui) => {
+    if (ui === benchIdx) return;
+    c.appendChild(mkBtn(`${unit.name} (${unit.currentHp}/${unit.hp} HP)`, () => {
+      yusukeKitagawaActive(state, p, benchIdx, ui, log);
+      closeOverlay('target-overlay');
+      refreshBoard(); winGuard();
+    }));
+  });
+  showOverlay('target-overlay');
+}
+
+function openSumireModal(p, benchIdx) {
+  const opp = opponent(p);
+  if (state.players[opp].bench.length === 0) {
+    addLog('🌸 Sumire: no opponent bench units to target', 'phase'); return;
+  }
+  const c = document.getElementById('target-options');
+  c.innerHTML = '';
+  document.getElementById('target-title').textContent = 'SUMIRE: SELECT TARGET';
+  document.getElementById('target-desc').textContent  = 'Deal 20 unblockable damage to a bench unit:';
+  state.players[opp].bench.forEach((unit, ui) => {
+    const willKO = unit.currentHp - 20 <= 0;
+    c.appendChild(mkCardBtn(unit, () => {
+      sumireYoshizawaActive(state, p, benchIdx, ui, log);
+      closeOverlay('target-overlay');
+      refreshBoard(); winGuard();
+    }, willKO ? '💀 KO' : `${unit.currentHp - 20} HP left`));
+  });
+  showOverlay('target-overlay');
+}
+
+function openSonicModal() {
+  const p = state.activePlayer;
+  if (state.players[p].hand.length === 0) { addLog('❌ Sonic: hand is empty', 'damage'); return; }
+  const c = document.getElementById('sonic-discard-options');
+  c.innerHTML = '';
+  state.players[p].hand.forEach((card, hi) => {
+    c.appendChild(mkBtn(`${card.name} (${card.type})`, () => {
+      sonicActive(state, hi, log);
+      closeOverlay('sonic-overlay');
+      refreshBoard(); winGuard();
+    }));
+  });
+  showOverlay('sonic-overlay');
+}
+
+function openDragonsEyeModal() {
+  const { playerIdx, cards } = state.pendingDragonsEye;
+  const c = document.getElementById('dragons-eye-options');
+  c.innerHTML = '';
+  cards.forEach((card, si) => {
+    c.appendChild(mkBtn(`${card.name} (${card.type})`, () => {
+      state.players[playerIdx].deck.splice(si, 1);
+      state.players[playerIdx].hand.push(card);
+      addLog(`👁 Dragon's Eye: ${card.name} taken into hand`, 'draw');
+      state.pendingDragonsEye = null;
+      closeOverlay('dragons-eye-overlay');
+      refreshBoard();
+    }));
+  });
+  showOverlay('dragons-eye-overlay');
+}
+
+function openPolarisPactModal() {
+  const { opponentIdx } = state.pendingPolarisPact;
+  const hand = state.players[opponentIdx].hand;
+  document.getElementById('polaris-pact-desc').textContent = `Player ${opponentIdx + 1}: choose 1 card to discard.`;
+  const c = document.getElementById('polaris-pact-options');
+  c.innerHTML = '';
+  if (hand.length === 0) {
+    addLog('🌌 Polaris Pact: opponent has no cards', 'phase');
+    state.pendingPolarisPact = null;
+    closeOverlay('polaris-pact-overlay');
+    refreshBoard(); return;
+  }
+  hand.forEach((card, hi) => {
+    c.appendChild(mkBtn(`${card.name} (${card.type})`, () => {
+      const disc = state.players[opponentIdx].hand.splice(hi, 1)[0];
+      state.players[opponentIdx].discard.push(disc);
+      addLog(`🌌 Polaris Pact: P${opponentIdx + 1} discards ${disc.name}`, 'damage');
+      state.pendingPolarisPact = null;
+      closeOverlay('polaris-pact-overlay');
+      refreshBoard();
+    }));
+  });
+  showOverlay('polaris-pact-overlay');
+}
+
+function openRayActiveModal() {
+  const { playerIdx, cards } = state.pendingRayActive;
+  const c = document.getElementById('ray-active-options');
+  c.innerHTML = '';
+  cards.forEach((card, si) => {
+    c.appendChild(mkBtn(`${card.name} (${card.type})`, () => {
+      state.players[playerIdx].deck.splice(si, 1);
+      state.players[playerIdx].discard.push(card);
+      addLog(`🐿 Ray: ${card.name} sent to discard`, 'play');
+      const rouge = state.players[playerIdx].bench.find(u => u.id === 'rouge' && !u.exhausted);
+      if (rouge && state.players[playerIdx].deck.length > 0) {
+        const drawn = state.players[playerIdx].deck.shift();
+        state.players[playerIdx].hand.push(drawn);
+        state.missedDraws[playerIdx] = 0;
+        addLog(`🦇 Rouge: draws ${drawn.name} (Ray discard event)`, 'draw');
+      }
+      state.pendingRayActive = null;
+      closeOverlay('ray-active-overlay');
+      refreshBoard(); winGuard();
+    }));
+  });
+  showOverlay('ray-active-overlay');
+}
+
+function openExtremeGearModal() {
+  const { playerIdx } = state.pendingExtremeGear;
+  const hand = state.players[playerIdx].hand;
+  _extremeGearSelected = new Set();
+  const c = document.getElementById('extreme-gear-options');
+  c.innerHTML = '';
+  const updateCount = () => {
+    document.getElementById('extreme-gear-count').textContent =
+      `${_extremeGearSelected.size} selected → +${_extremeGearSelected.size} Energy`;
+  };
+  hand.forEach((card, hi) => {
+    const btn = document.createElement('button');
+    btn.className = 'modal-card-btn';
+    btn.textContent = `${card.name} (${card.type})`;
+    btn.dataset.idx = hi;
+    btn.onclick = () => {
+      if (_extremeGearSelected.has(hi)) {
+        _extremeGearSelected.delete(hi); btn.style.borderColor = ''; btn.style.color = '';
+      } else {
+        _extremeGearSelected.add(hi); btn.style.borderColor = 'var(--gold)'; btn.style.color = 'var(--gold)';
+      }
+      updateCount();
+    };
+    c.appendChild(btn);
+  });
+  updateCount();
+  showOverlay('extreme-gear-overlay');
+}
+
+function handlePassContinue() {
+  closeOverlay('pass-overlay');
+  if (_gameOver) return;
+  document.getElementById('btn-continue').onclick = handlePassContinue;
+  advanceTurn(state, log, emit);
+}
+
+// Inline end-phase completion used after Futaba scry resolves.
+// Mirrors the cleanup tail of phases.js enterEndPhase/_finishEndPhase
+// without needing finishEndPhaseAfterScry to be exported.
+function _finishEndPhaseInline() {
+  const p = state.activePlayer;
   state.chaosEmeraldBuff[p]          = 0;
   state.powerGloveBuff[p]            = 0;
   state.masterEmeraldActive           = false;
@@ -183,53 +732,254 @@ function _finishEndPhase(state, log, emit, p) {
   state.rougeUsedThisTurn[p]         = false;
   state.leaderUsedThisTurn[p]        = false;
   state.usedActivesThisTurn           = [];
-  if (state.healedThisTurn)          state.healedThisTurn[p]          = 0;
-  if (state.dmgToEnemyUnitsThisTurn) state.dmgToEnemyUnitsThisTurn[p] = 0;
-  if (state.opponentDiscardsThisTurn)state.opponentDiscardsThisTurn[p]= 0;
-  if (state.unblockableAttack)       state.unblockableAttack[p]       = false;
-  if (state.tauntUnit)               state.tauntUnit[p]               = null;
-  if (state.kamoshidaPassive)        state.kamoshidaPassive[p]        = false;
-  // #7 — reset twin-KO flag
-  if (state._twinKOThisTurn)         state._twinKOThisTurn[p]        = false;
-
+  if (state.healedThisTurn)          state.healedThisTurn[p]           = 0;
+  if (state.dmgToEnemyUnitsThisTurn) state.dmgToEnemyUnitsThisTurn[p]  = 0;
+  if (state.opponentDiscardsThisTurn)state.opponentDiscardsThisTurn[p] = 0;
+  if (state.unblockableAttack)       state.unblockableAttack[p]        = false;
+  if (state.tauntUnit)               state.tauntUnit[p]                = null;
+  if (state.kamoshidaPassive)        state.kamoshidaPassive[p]         = false;
+  if (state._twinKOThisTurn)         state._twinKOThisTurn[p]         = false;
   delete state._genesisPlayedBy;
-
-  // #7 — update Caroline/Justine revival locks using the twin-KO-same-turn flag
-  _updateCarolineJustineLock(state, p);
-
-  emit('phase_changed', state.phase);
-  emit('request_pass', opponent(p) + 1);
+  // Emit pass request — same as phases.js does
+  emit('request_pass', (p === 0 ? 1 : 0) + 1);
+  refreshBoard();
 }
 
-export function advanceTurn(state, log, emit) {
-  state.activePlayer = opponent(state.activePlayer);
-  if (state.activePlayer === state._firstPlayer) state.turn++;
-  state.phase = 'big_scry';
-  startTurn(state, log, emit);
+function bindStaticButtons() {
+  document.getElementById('btn-end-phase').addEventListener('click', () => {
+    if (state.phase === 'setup') return;
+    if (state.phase === 'main') {
+      enterAttackPhase(state, log, emit);
+    } else if (state.phase === 'attack') {
+      // #12 — Confirm before skipping attack phase
+      openSkipAttackConfirm();
+    }
+  });
+
+  document.getElementById('btn-leader-active').addEventListener('click', () => {
+    if (state.phase === 'main') openLeaderActiveModal(state.activePlayer);
+  });
+
+  // Scry buttons are wired dynamically by emit('scry_prompt') so Big and Futaba
+  // can have different resolution paths. We provide defaults here that handle Big.
+  document.getElementById('btn-scry-discard').onclick = () => {
+    closeOverlay('scry-overlay');
+    engineResolveBigScry(state, true, log, emit);
+    refreshBoard();
+  };
+  document.getElementById('btn-scry-keep').onclick = () => {
+    closeOverlay('scry-overlay');
+    engineResolveBigScry(state, false, log, emit);
+    refreshBoard();
+  };
+
+  document.getElementById('btn-cancel-target').addEventListener('click', () => closeOverlay('target-overlay'));
+  document.getElementById('btn-cancel-tails').addEventListener('click',  () => closeOverlay('tails-overlay'));
+  document.getElementById('btn-cancel-sonic').addEventListener('click',  () => closeOverlay('sonic-overlay'));
+  document.getElementById('btn-cancel-mighty').addEventListener('click', () => closeOverlay('mighty-attack-overlay'));
+
+  document.getElementById('btn-take-hit').addEventListener('click', () => {
+    const btn = document.getElementById('btn-take-hit');
+    const ap = btn._attackerP, dp = btn._defenderP;
+    closeOverlay('intercept-overlay');
+    attackLeader(state, ap, dp, log);
+    winGuard();
+    if (!_gameOver) enterEndPhase(state, log, emit);
+  });
+
+  document.getElementById('btn-extreme-gear-cancel').addEventListener('click', () => {
+    state.pendingExtremeGear = null;
+    _extremeGearSelected = new Set();
+    closeOverlay('extreme-gear-overlay');
+    refreshBoard();
+  });
+
+  document.getElementById('btn-extreme-gear-confirm').addEventListener('click', () => {
+    if (_extremeGearSelected.size === 0) {
+      state.pendingExtremeGear = null;
+      closeOverlay('extreme-gear-overlay');
+      refreshBoard(); return;
+    }
+    resolveExtremeGear(state, [..._extremeGearSelected], log);
+    _extremeGearSelected = new Set();
+    closeOverlay('extreme-gear-overlay');
+    refreshBoard(); winGuard();
+  });
+
+  // #12 — Skip attack confirm modal buttons
+  const confirmSkip = document.getElementById('btn-skip-attack-confirm');
+  const cancelSkip  = document.getElementById('btn-skip-attack-cancel');
+  if (confirmSkip) {
+    confirmSkip.addEventListener('click', () => {
+      closeOverlay('skip-attack-overlay');
+      enterEndPhase(state, log, emit);
+    });
+  }
+  if (cancelSkip) {
+    cancelSkip.addEventListener('click', () => closeOverlay('skip-attack-overlay'));
+  }
 }
 
-// #7 — Track Caroline/Justine revival: only unlock if the OTHER twin died ALONE
-// (i.e. was not also KO'd in the same action/turn as the surviving twin)
-function _updateCarolineJustineLock(state, p) {
-  if (!state.carolineLock) state.carolineLock = [false, false];
-  if (!state.justineLock)  state.justineLock  = [false, false];
+// #12 — Open the skip-attack confirmation overlay
+function openSkipAttackConfirm() {
+  const p      = state.activePlayer;
+  const effDmg = calcEffectiveDamage(state, p);
+  const msgEl  = document.getElementById('skip-attack-msg');
+  if (msgEl) {
+    msgEl.textContent = `Your Leader would deal ${effDmg} damage. Skip your attack this turn?`;
+  }
+  showOverlay('skip-attack-overlay');
+}
 
-  const bench   = state.players[p].bench.map(u => u.id);
-  const discard = state.players[p].discard.map(u => u.id);
+function mkBtn(label, onClick) {
+  const btn = document.createElement('button');
+  btn.className = 'modal-card-btn';
+  btn.textContent = label;
+  btn.onclick = onClick;
+  return btn;
+}
 
-  const carolineInDiscard = discard.includes('caroline');
-  const justineInDiscard  = discard.includes('justine');
-  const carolineOnBench   = bench.includes('caroline');
-  const justineOnBench    = bench.includes('justine');
+// #27 — Render a mini card element as a clickable button with optional overlay label
+function mkCardBtn(unit, onClick, extraLabel = '') {
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'position:relative;cursor:pointer;display:inline-block;transition:transform 0.12s;';
+  const cardEl = buildCardEl(unit, false);
+  cardEl.style.pointerEvents = 'none';
+  cardEl.style.width  = '90px';
+  cardEl.style.height = '130px';
+  wrapper.appendChild(cardEl);
+  if (extraLabel) {
+    const badge = document.createElement('div');
+    badge.style.cssText = 'position:absolute;bottom:4px;left:0;right:0;text-align:center;font-size:8px;color:var(--gold);background:#000b;padding:2px 4px;font-family:var(--font-display);letter-spacing:0.5px;border-radius:0 0 5px 5px;';
+    badge.textContent = extraLabel;
+    wrapper.appendChild(badge);
+  }
+  wrapper.addEventListener('mouseenter', () => wrapper.style.transform = 'translateY(-4px)');
+  wrapper.addEventListener('mouseleave', () => wrapper.style.transform = '');
+  wrapper.addEventListener('contextmenu', e => { e.preventDefault(); openCardInspect(unit, null); });
+  wrapper.onclick = onClick;
+  return wrapper;
+}
 
-  // Both died this turn — neither twin "died alone", so no revival lock
-  const bothDiedThisTurn = state._twinKOThisTurn?.[p] === true
-    && carolineInDiscard && justineInDiscard;
+// #21 — Equipment undo toast (2-second window)
+let _equipUndoTimer = null;
+function showEquipUndo(card, originalHandIdx, p) {
+  clearTimeout(_equipUndoTimer);
+  // Create/reuse toast element
+  let toast = document.getElementById('equip-undo-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'equip-undo-toast';
+    toast.className = 'equip-undo-toast';
+    document.body.appendChild(toast);
+  }
+  toast.innerHTML = `<span>${card.name} played</span><button id="equip-undo-btn">Undo</button>`;
+  toast.classList.add('show');
+  // Store undo context on the toast
+  toast._undoCard = card;
+  toast._undoP    = p;
+  document.getElementById('equip-undo-btn').onclick = () => {
+    clearTimeout(_equipUndoTimer);
+    toast.classList.remove('show');
+    _doEquipUndo(card, p);
+  };
+  _equipUndoTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+}
 
-  // Caroline active: Justine died alone (Justine in discard, Caroline still on bench,
-  // and NOT both KO'd in the same turn)
-  state.carolineLock[p] = justineInDiscard && carolineOnBench && !bothDiedThisTurn;
+function _doEquipUndo(card, p) {
+  // Remove card from discard (it was just placed there)
+  const di = state.players[p].discard.findLastIndex(c => c.uid === card.uid);
+  if (di < 0) { addLog('Undo failed: card not in discard', 'damage'); return; }
+  state.players[p].discard.splice(di, 1);
+  // Refund energy
+  const cost = card.cost ?? 0;
+  state.energy[p]            += cost;
+  state.energySpentThisTurn[p] -= cost;
+  state.equipmentPlayedThisTurn[p] = Math.max(0, state.equipmentPlayedThisTurn[p] - 1);
+  // Put card back in hand
+  state.players[p].hand.push(card);
+  // Reverse the card's specific effect
+  _reverseEquipEffect(state, p, card);
+  log(`↩ Undo: ${card.name} returned to hand`, 'play');
+  refreshBoard();
+}
 
-  // Justine active: Caroline died alone
-  state.justineLock[p]  = carolineInDiscard && justineOnBench && !bothDiedThisTurn;
+function _reverseEquipEffect(state, p, card) {
+  switch (card.id) {
+    case 'ring':        state.energy[p] -= 1;                      break;
+    case 'speed_shoes': state.energy[p] -= 3;                      break;
+    case 'chaos_emerald':     state.chaosEmeraldBuff[p] = Math.max(0, state.chaosEmeraldBuff[p] - 20);  break;
+    case 'power_glove':       state.powerGloveBuff[p]   = Math.max(0, state.powerGloveBuff[p]   - 30);  break;
+    case 'elemental_shield':
+      if (state.shieldReduction) state.shieldReduction[p] = Math.max(0, state.shieldReduction[p] - 20);
+      break;
+    case 'chili_dog': case 'leblanc_coffee': {
+      // Reverse heal: take HP back off leader (don't go below 0)
+      const l = state.players[p].leader;
+      const healed = Math.min(20, l.currentHp);
+      l.currentHp -= healed;
+      if (state.healedThisTurn) state.healedThisTurn[p] = Math.max(0, (state.healedThisTurn[p] ?? 0) - healed);
+      break;
+    }
+    // Ring energy already handled above. Other effects (dragons_eye pending, etc.)
+    // are harder to reverse; for those we just restore the card and energy.
+    default: break;
+  }
+}
+
+export function initHandlers(gameState) {
+  state = gameState;
+  bindStaticButtons();
+  state.phase = 'setup';
+  state._setupPlayer = 0;
+  runSetupPhase(0);
+}
+
+function runSetupPhase(playerIdx) {
+  state.phase = 'setup';
+  state._setupPlayer = playerIdx;
+  document.getElementById('pass-title').textContent = `PLAYER ${playerIdx + 1} — SETUP`;
+  document.getElementById('pass-msg').textContent =
+    `Player ${playerIdx + 1}: deploy any units from your hand to your bench, then press Continue.`;
+
+  // Hide summary panel during setup
+  const summaryEl = document.getElementById('pass-turn-summary');
+  if (summaryEl) summaryEl.style.display = 'none';
+
+  const btn = document.getElementById('btn-continue');
+  btn.onclick = function onSetupContinue() {
+    closeOverlay('pass-overlay');
+    refreshBoard();
+    document.getElementById('btn-end-phase').textContent = 'Done Setup →';
+    document.getElementById('btn-end-phase').disabled = false;
+    document.getElementById('btn-end-phase').onclick = function onSetupDone() {
+      document.getElementById('btn-end-phase').onclick = null;
+      document.getElementById('btn-end-phase').textContent = 'Attack Phase →';
+      if (playerIdx === 0) {
+        document.getElementById('pass-title').textContent = 'PASS TO PLAYER 2';
+        document.getElementById('pass-msg').textContent =
+          `Player 2: deploy any units from your hand to your bench, then press Continue.`;
+        const btn2 = document.getElementById('btn-continue');
+        btn2.onclick = function onP2SetupContinue() { closeOverlay('pass-overlay'); runSetupPhase(1); };
+        showOverlay('pass-overlay');
+      } else {
+        state.phase = 'big_scry';
+        delete state._setupPlayer;
+        document.getElementById('pass-title').textContent = `PLAYER ${state.activePlayer + 1} GOES FIRST`;
+        document.getElementById('pass-msg').textContent =
+          `Coin flip result: Player ${state.activePlayer + 1} starts! Hand the device over.`;
+        const btnF = document.getElementById('btn-continue');
+        btnF.onclick = function onFirstContinue() {
+          closeOverlay('pass-overlay');
+          btnF.onclick = handlePassContinue;
+          startTurn(state, log, emit);
+          refreshBoard();
+        };
+        showOverlay('pass-overlay');
+      }
+    };
+  };
+
+  render(state);
+  showOverlay('pass-overlay');
 }
