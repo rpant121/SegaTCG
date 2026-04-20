@@ -653,7 +653,8 @@ function openLeaderActiveModal() {
   // Sonic: pick hand card to discard
   if (state.players[p].hand.length === 0) { addLog('! ' + leader.name + ': hand is empty', 'damage'); return; }
   const c = document.getElementById('sonic-discard-options'); c.innerHTML = '';
-  state.players[p].hand.filter(card => card && !card.hidden).forEach((card, hi) => {
+  state.players[p].hand.forEach((card, hi) => {
+    if (!card || card.hidden) return;
     c.appendChild(mkCardBtn(card, () => { act('USE_LEADER_ACTIVE', { handIdx: hi }); closeOverlay('sonic-overlay'); }, 'Discard → Draw 2'));
   });
   showOverlay('sonic-overlay');

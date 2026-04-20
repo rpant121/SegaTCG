@@ -547,21 +547,22 @@ export function showCardPlayAnim(cardOrId, playerIdx) {
 
     const cardEl = buildCardEl(card, false);
     cardEl.style.cssText = `
-      width: 110px; height: 155px; font-size: 9px;
+      width: 200px; height: 280px; font-size: 13px;
       position: absolute; left: 50%; top: 50%;
-      transform: translate(-50%, -50%) translateX(${playerIdx === 0 ? '-500px' : '500px'}) scale(0.7);
-      transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.35s;
+      transform: translate(-50%, -50%) translateX(${playerIdx === 0 ? '-600px' : '600px'}) scale(0.6);
+      transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.38s;
       opacity: 0; pointer-events: none; z-index: 10;
-      box-shadow: 0 0 40px ${playerIdx === 0 ? 'var(--sonic-blue)' : '#cc4400'}, 0 8px 32px #000a;
+      box-shadow: 0 0 60px ${playerIdx === 0 ? 'var(--sonic-blue)' : '#cc4400'}, 0 12px 48px #000c;
     `;
 
     // Label showing which player played it
     const label = document.createElement('div');
     label.style.cssText = `
-      position: absolute; left: 50%; top: calc(50% + 88px);
+      position: absolute; left: 50%; top: calc(50% + 158px);
       transform: translateX(-50%); font-family: var(--font-display);
-      font-size: 9px; letter-spacing: 1px; color: var(--grey);
+      font-size: 11px; letter-spacing: 2px; color: var(--grey);
       pointer-events: none; white-space: nowrap;
+      text-shadow: 0 0 8px #000;
     `;
     label.textContent = `P${playerIdx + 1} played`;
 
