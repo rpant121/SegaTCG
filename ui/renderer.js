@@ -1099,29 +1099,6 @@ export function openDiscardViewer(state, p) {
 }
 
 // ---------------------------------------------------------------------------
-// #19 — Game log with colour-coded borders and KO bolding
-// ---------------------------------------------------------------------------
-export function addLog(msg, type = '') {
-  const log   = q('game-log');
-  const entry = mk('div', 'log-entry ' + type);
-
-  // KO events get bold + larger text
-  const isKO = msg.includes('KO') || msg.includes('defeated');
-  if (isKO) {
-    entry.classList.add('log-ko');
-  }
-
-  entry.textContent = msg;
-  log.appendChild(entry);
-  log.scrollTop = log.scrollHeight;
-
-  // Feed into mini-log for significant events
-  if (type === 'damage' || type === 'heal' || isKO) {
-    pushMiniLog(msg, type);
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Tooltip
 // ---------------------------------------------------------------------------
 const tooltipEl = document.getElementById('tooltip');
