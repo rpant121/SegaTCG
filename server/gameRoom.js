@@ -228,7 +228,12 @@ export class GameRoom {
           spendEnergy(state, jokerCost);
           state.leaderUsedThisTurn[playerIdx] = true;
           log(`Joker: copies ${unit.name}'s active (paid ${jokerCost}⚡)`, 'play');
+          // Temporarily set masterEmeraldActive so _dispatchUnitActive's energy
+          // check passes without a second spend. Joker has already paid above.
+          const _wasActive = state.masterEmeraldActive;
+          state.masterEmeraldActive = true;
           this._dispatchUnitActive(state, playerIdx, benchIdx, payload, log);
+          state.masterEmeraldActive = _wasActive;
         } else {
           sonicActive(state, handIdx, log);
         }
@@ -422,7 +427,12 @@ export class GameRoom {
         const targetUnit = state.players[yp].bench[targetIdx];
         if (!targetUnit) throw new Error('Yusuke: target unit not found.');
         log(`Yusuke: fires ${targetUnit.id}'s active`, 'play');
+        // Yusuke already paid his own cost. Set masterEmeraldActive so the
+        // copied unit's action function doesn't charge a second time.
+        const _wasActive = state.masterEmeraldActive;
+        state.masterEmeraldActive = true;
         this._dispatchUnitActive(state, yp, targetIdx, payload, log);
+        state.masterEmeraldActive = _wasActive;
         break;
       }
 
